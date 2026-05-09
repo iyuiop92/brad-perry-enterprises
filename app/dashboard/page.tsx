@@ -159,7 +159,7 @@ export default function DashboardPage() {
       </header>
 
       {/* ── Body ── */}
-      <main style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
+      <main style={{ flex: 1, minHeight: 0, height: 'calc(100dvh - 44px)', position: 'relative', zIndex: 10, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>

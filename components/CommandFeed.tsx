@@ -156,7 +156,7 @@ function WorkspaceTile({
   const active    = wsTasks.filter(t => t.status === 'in_progress')
   const friction  = wsTasks.filter(t => t.status === 'blocked')
   const ideas     = wsTasks.filter(t => t.status === 'idea')
-  const topTasks  = byPriority([...friction, ...active])
+  const topTasks  = byPriority([...friction, ...active, ...ideas])
   const hasWork   = active.length > 0 || friction.length > 0
 
   return (
@@ -502,6 +502,7 @@ export default function CommandFeed({
       {/* ── CENTER: Workspace canvas (always fills space) ── */}
       <div style={{
         flex: 1, minWidth: 0,
+        height: '100%',
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gridTemplateRows: `repeat(${tileRows}, 1fr)`,
