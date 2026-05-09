@@ -1,5 +1,9 @@
 import { convertToModelMessages, streamText, UIMessage } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { createAnthropic } from '@ai-sdk/anthropic'
+
+const anthropic = createAnthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY_BPE ?? process.env.ANTHROPIC_API_KEY,
+})
 import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
