@@ -189,6 +189,7 @@ export default function DashboardPage() {
             onSelectTask={setSelectedTask}
             onSelectWs={ws => setSelectedWs(prev => prev?.id === ws.id ? null : ws)}
             onAddTask={() => setShowAddPanel(true)}
+            onRefresh={fetchAll}
           />
         )}
       </main>
