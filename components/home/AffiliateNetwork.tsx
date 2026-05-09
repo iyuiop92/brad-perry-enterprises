@@ -20,7 +20,7 @@ const nodes: Node[] = [
   { id: 'mipura',        label: 'Mipura',         sub: '22K visits',  x: 148, y: 378, r: 16, color: '#c17f3c', type: 'personal' },
   { id: 'superwatches',  label: 'SuperWatches',   sub: '12K visits',  x: 305, y: 428, r: 14, color: '#f59e0b', type: 'personal' },
   { id: 'aetherhockey',  label: 'AetherHockey',   sub: '45K visits',  x: 568, y: 118, r: 22, color: '#00b4ff', type: 'personal' },
-  { id: 'a2ice',         label: 'A2Ice',          sub: '3.5K visits', x: 635, y: 238, r: 12, color: '#94a3b8', type: 'client' },
+  { id: 'azice',         label: 'AZ Ice',          sub: '3.5K visits', x: 635, y: 238, r: 12, color: '#94a3b8', type: 'client' },
   { id: 'drivenbaseball',label: 'DrivenBaseball', sub: '14K visits',  x: 618, y: 365, r: 12, color: '#ef4444', type: 'client' },
   { id: 'icehouse',      label: 'IceHouseTavern', sub: '8.7K visits', x: 472, y: 425, r: 12, color: '#14b8a6', type: 'client' },
 ]

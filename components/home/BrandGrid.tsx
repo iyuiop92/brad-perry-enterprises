@@ -5,7 +5,7 @@ const brands = [
   { name: 'PetProsUSA', initials: 'PP', color: '#22c55e' },
   { name: 'SuperWatchesStore', initials: 'SW', color: '#f59e0b' },
   { name: 'AetherHockey', initials: 'AH', color: '#00b4ff' },
-  { name: 'A2Ice', initials: 'A2', color: '#94a3b8' },
+  { name: 'AZ Ice', initials: 'AZ', color: '#94a3b8' },
   { name: 'DrivenBaseball', initials: 'DB', color: '#ef4444' },
 ]
 

@@ -89,33 +89,87 @@ export default function Hero() {
   }, [])
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center text-center overflow-hidden bg-[#04040a]">
+    <section className="relative min-h-screen flex flex-col overflow-hidden bg-[#04040a]">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-      <div className="relative z-10 px-6 max-w-4xl pt-16">
-        <h1 className="font-[800] text-5xl md:text-7xl lg:text-8xl text-white leading-[1.05] mb-6 tracking-tight">
-          Web designer{' '}
-          <span className="text-[#00b4ff]">+</span>{' '}
-          operator
-          <br />
-          of profitable niche sites
+
+      {/* Top identity bar */}
+      <div className="relative z-10 pt-8 px-8 md:px-14 flex items-center justify-between">
+        <span className="text-[#1e293b] text-[10px] font-[600] tracking-[0.3em] uppercase">
+          Brad Perry
+        </span>
+        <span className="text-[#1e293b] text-[10px] font-[600] tracking-[0.2em] uppercase">
+          Est. 2012
+        </span>
+      </div>
+
+      {/* Main content anchored to bottom */}
+      <div className="relative z-10 flex-1 flex flex-col justify-end px-8 md:px-14 pb-16 pt-24">
+
+        {/* Overline */}
+        <div className="flex items-center gap-3 mb-7">
+          <span className="w-5 h-px bg-[#00b4ff]" style={{ opacity: 0.7 }} />
+          <span className="text-[#00b4ff] text-[10px] font-[600] tracking-[0.3em] uppercase">
+            Web Designer &amp; Digital Operator
+          </span>
+        </div>
+
+        {/* Headline */}
+        <h1
+          className="font-[800] leading-[0.9] tracking-tight text-white mb-10"
+          style={{ fontSize: 'clamp(2.8rem, 9vw, 8rem)' }}
+        >
+          Building<br />
+          <span style={{ color: '#00b4ff' }}>profitable</span><br />
+          digital<br />
+          businesses.
         </h1>
-        <p className="text-[#64748b] text-lg md:text-xl max-w-lg mx-auto mb-10 leading-relaxed">
-          Building high-converting affiliate networks that generate consistent revenue
-          through expert design and strategic optimization.
-        </p>
-        <div className="flex items-center justify-center gap-5 flex-wrap">
-          <a
-            href="#contact"
-            className="inline-flex items-center gap-2 bg-white text-[#04040a] font-[700] px-7 py-3.5 rounded-lg text-sm hover:bg-[#00b4ff] hover:text-white transition-all duration-200"
-          >
-            Work with me <span className="text-base font-[800]">+</span>
-          </a>
-          <a
-            href="#network"
-            className="inline-flex items-center gap-1.5 text-white text-sm font-[600] hover:text-[#00b4ff] transition-colors"
-          >
-            See the network <span>&#8594;</span>
-          </a>
+
+        {/* Bottom row: description + CTAs left, stats right */}
+        <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10 border-t border-[rgba(255,255,255,0.04)] pt-8">
+
+          <div className="max-w-sm">
+            <p className="text-[#475569] text-sm leading-relaxed mb-6">
+              Affiliate networks, SaaS platforms, and client sites
+              engineered for consistent revenue — not just good-looking.
+            </p>
+            <div className="flex items-center gap-5 flex-wrap">
+              <a
+                href="#contact"
+                className="inline-flex items-center gap-2 bg-white text-[#04040a] font-[700] px-6 py-3 rounded-lg text-sm hover:bg-[#00b4ff] hover:text-white transition-all duration-200"
+              >
+                Work with me <span className="text-base font-[800]">+</span>
+              </a>
+              <a
+                href="#network"
+                className="text-sm font-[600] text-[#334155] hover:text-white transition-colors"
+              >
+                See the network &#8594;
+              </a>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="flex items-end gap-10 md:gap-14 shrink-0">
+            <div>
+              <div className="font-[800] text-white tabular-nums" style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.75rem)' }}>
+                400+
+              </div>
+              <div className="text-[#334155] text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Projects</div>
+            </div>
+            <div>
+              <div className="font-[800] text-white tabular-nums" style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.75rem)' }}>
+                12+
+              </div>
+              <div className="text-[#334155] text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Years</div>
+            </div>
+            <div>
+              <div className="font-[800] text-white tabular-nums" style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.75rem)' }}>
+                145K
+              </div>
+              <div className="text-[#334155] text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Monthly visits</div>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>

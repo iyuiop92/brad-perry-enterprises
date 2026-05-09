@@ -82,7 +82,7 @@ const projects: Project[] = [
   },
   {
     id: 'a2ice',
-    name: 'A2Ice.com',
+    name: 'AZIce.com',
     category: 'Facility Management',
     description: 'Seven-site network for a $8M ice management company in Phoenix — fully custom multi-site CMS.',
     traffic: '3.5K',
