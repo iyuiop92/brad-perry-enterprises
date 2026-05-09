@@ -56,13 +56,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export default function AddTaskPanel({
   onClose,
   onTaskAdded,
+  defaultBrand,
+  defaultWorkspaceId,
 }: {
   onClose: () => void
   onTaskAdded: () => void
+  defaultBrand?: string
+  defaultWorkspaceId?: string
 }) {
   const [title, setTitle] = useState('')
   const [type, setType] = useState<TaskType>('internal')
-  const [brand, setBrand] = useState('')
+  const [brand, setBrand] = useState(defaultBrand ?? '')
   const [status, setStatus] = useState<TaskStatus>('idea')
   const [owner, setOwner] = useState<TaskOwner>('brad')
   const [notes, setNotes] = useState('')
@@ -119,6 +123,7 @@ export default function AddTaskPanel({
       phase: type === 'client' && phase ? phase : null,
       deliverables: deliverables.filter((d) => d.label.trim()),
       handoff_checklist: handoff.filter((h) => h.label.trim()),
+      workspace_id: defaultWorkspaceId ?? null,
     }
 
     const res = await fetch('/api/tasks', {

@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       deliverables: body.deliverables ?? [],
       handoff_checklist: body.handoff_checklist ?? [],
       sort_order: body.sort_order ?? 0,
+      workspace_id: body.workspace_id ?? null,
     })
     .select()
     .single()

@@ -36,6 +36,18 @@ body {
   background-size: 28px 28px;
 }
 
+/* breathing glow animation for workspace tiles */
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 var(--glow-min, 8px) var(--glow-color, rgba(0,180,255,0.2)); }
+  50%       { box-shadow: 0 0 var(--glow-max, 20px) var(--glow-color, rgba(0,180,255,0.35)); }
+}
+
+@keyframes inbox-ripple {
+  0%   { transform: scale(0.95); opacity: 0.6; }
+  60%  { transform: scale(1.03); opacity: 0.2; }
+  100% { transform: scale(1);    opacity: 0; }
+}
+
 /* scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
