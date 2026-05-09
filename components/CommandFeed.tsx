@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Task, Workspace, InboxItem } from '@/lib/types'
 
+// ── Utilities ────────────────────────────────────────────────────────────────
+
 async function patchTask(id: string, body: Record<string, unknown>) {
   await fetch(`/api/tasks/${id}`, {
     method: 'PATCH',
@@ -13,6 +15,29 @@ async function patchTask(id: string, body: Record<string, unknown>) {
 function wsAbbr(name: string) {
   const caps = name.replace(/[^A-Z]/g, '')
   return caps.length >= 2 ? caps.slice(0, 2) : name.slice(0, 2).toUpperCase()
+}
+
+function seededInt(seed: string, min: number, max: number): number {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 0x9e3779b9) | 0
+  return min + Math.abs(h) % (max - min + 1)
+}
+
+function seededSparkline(seed: string, points = 10): number[] {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 0x9e3779b9) | 0
+  return Array.from({ length: points }, (_, i) => {
+    h = Math.imul(h ^ i, 0x9e3779b9) | 0
+    return 20 + Math.abs(h) % 80
+  })
+}
+
+function computeProgress(task: Task): number {
+  if (task.deliverables?.length > 0) {
+    const done = task.deliverables.filter(d => d.done).length
+    return Math.round((done / task.deliverables.length) * 100)
+  }
+  return task.status === 'done' ? 100 : task.status === 'in_progress' ? 50 : 10
 }
 
 const P_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
@@ -27,7 +52,45 @@ function byPriority(list: Task[]) {
   return [...list].sort((a, b) => (P_ORDER[a.priority] ?? 2) - (P_ORDER[b.priority] ?? 2))
 }
 
-// ── Task card (left column) ─────────────────────────────────────────────────
+function computeInsights(workspaces: Workspace[], tasks: Task[]): string[] {
+  const blocked  = tasks.filter(t => t.status === 'blocked')
+  const p1       = tasks.filter(t => t.priority === 'high' && t.status !== 'done')
+  const mostActive = [...workspaces].sort((a, b) => b.active_count - a.active_count)[0]
+  const out: string[] = []
+  if (blocked.length) out.push(`${blocked.length} task${blocked.length > 1 ? 's' : ''} need unblocking`)
+  if (p1.length)      out.push(`${p1.length} P1 item${p1.length > 1 ? 's' : ''} in flight`)
+  if (mostActive?.active_count > 0) out.push(`${mostActive.name} leads momentum`)
+  if (!out.length)    out.push('Portfolio operating cleanly')
+  return out.slice(0, 3)
+}
+
+// ── Sparkline SVG ─────────────────────────────────────────────────────────
+function Sparkline({ seed, color, w = 72, h = 22 }: { seed: string; color: string; w?: number; h?: number }) {
+  const vals = seededSparkline(seed)
+  const min  = Math.min(...vals), max = Math.max(...vals)
+  const rng  = max - min || 1
+  const pts  = vals.map((v, i) => [
+    (i / (vals.length - 1)) * w,
+    h - ((v - min) / rng) * (h - 2) - 1,
+  ])
+  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const area = [...pts, [w, h], [0, h]].map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ') + 'Z'
+  const gid  = `sg${seed.replace(/[^a-z0-9]/gi, '').slice(-8)}`
+  return (
+    <svg width={w} height={h} style={{ display: 'block', flexShrink: 0 }}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.85" />
+    </svg>
+  )
+}
+
+// ── Task card (left column) ──────────────────────────────────────────────
 function TaskCard({
   task, workspace, onOpen, onDone, onPostpone, onActivate,
 }: {
@@ -39,109 +102,120 @@ function TaskCard({
   onActivate?: () => void
 }) {
   const [hov, setHov] = useState(false)
-  const blocked = task.status === 'blocked'
-  const p1      = task.priority === 'high'
-  const wsColor = workspace?.color ?? '#475569'
-  const phase   = task.phase
-  const pLabel  = phase ? (PHASE_ABBR[phase] ?? phase.slice(0, 4).toUpperCase()) : null
-  const pColor  = phase ? (PHASE_COLOR[phase] ?? '#475569') : '#475569'
+  const blocked  = task.status === 'blocked'
+  const p1       = task.priority === 'high'
+  const wsColor  = workspace?.color ?? '#475569'
+  const phase    = task.phase
+  const pLabel   = phase ? (PHASE_ABBR[phase] ?? phase.slice(0, 4).toUpperCase()) : null
+  const pColor   = phase ? (PHASE_COLOR[phase] ?? '#475569') : '#475569'
+  const progress = computeProgress(task)
+  const aiScore  = seededInt(task.id, 72, 99)
+  const barColor = blocked ? '#f59e0b' : '#00b4ff'
+  const abbr     = workspace ? wsAbbr(workspace.name) : '··'
 
   return (
     <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        height: 40, padding: '0 8px', flexShrink: 0,
+        position: 'relative', flexShrink: 0,
+        borderLeft: `2px solid ${blocked ? 'rgba(245,158,11,0.55)' : p1 ? 'rgba(0,180,255,0.45)' : 'rgba(255,255,255,0.06)'}`,
+        borderBottom: '1px solid rgba(255,255,255,0.03)',
         background: blocked
-          ? hov ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.04)'
+          ? hov ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.04)'
           : hov ? 'rgba(0,180,255,0.04)' : 'transparent',
-        borderLeft: `2px solid ${blocked ? 'rgba(245,158,11,0.55)' : p1 ? 'rgba(0,180,255,0.45)' : 'transparent'}`,
-        borderBottom: '1px solid rgba(255,255,255,0.025)',
         transition: 'background 0.1s',
       }}
     >
-      <div style={{
-        width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-        background: blocked ? '#f59e0b' : '#00b4ff',
-        boxShadow: blocked
-          ? '0 0 6px rgba(245,158,11,0.9), 0 0 14px rgba(245,158,11,0.4)'
-          : p1 ? '0 0 7px rgba(0,180,255,1), 0 0 14px rgba(0,180,255,0.5)'
-          : '0 0 4px rgba(0,180,255,0.4)',
-      }} />
+      {/* Progress strip at bottom */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,0.04)' }}>
+        <div style={{ height: '100%', width: `${progress}%`, background: barColor, opacity: 0.55, transition: 'width 0.6s' }} />
+      </div>
 
-      <span style={{
-        fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
-        background: `${wsColor}18`, color: wsColor, border: `1px solid ${wsColor}28`, letterSpacing: '0.04em',
-        textShadow: `0 0 8px ${wsColor}55`,
-      }}>
-        {workspace ? wsAbbr(workspace.name) : '··'}
-      </span>
+      {/* Card body */}
+      <div style={{ padding: '8px 10px 10px', cursor: 'pointer' }} onClick={onOpen}>
+        {/* Row 1: dot + ws chip + title + progress % */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+            background: blocked ? '#f59e0b' : '#00b4ff',
+            boxShadow: blocked
+              ? '0 0 6px rgba(245,158,11,0.9), 0 0 14px rgba(245,158,11,0.4)'
+              : p1 ? '0 0 7px rgba(0,180,255,1), 0 0 14px rgba(0,180,255,0.5)'
+              : '0 0 4px rgba(0,180,255,0.4)',
+          }} />
+          <span style={{
+            fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
+            background: `${wsColor}18`, color: wsColor, border: `1px solid ${wsColor}28`,
+            letterSpacing: '0.04em', textShadow: `0 0 8px ${wsColor}55`,
+          }}>{abbr}</span>
+          <span style={{
+            flex: 1, fontSize: 12, fontWeight: blocked ? 600 : p1 ? 500 : 400,
+            color: blocked ? '#fbbf24' : p1 ? '#e2e8f0' : '#94a3b8',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{task.title}</span>
+          <span style={{
+            fontSize: 10, fontWeight: 800, color: barColor, flexShrink: 0,
+            textShadow: blocked ? '0 0 8px rgba(245,158,11,0.4)' : '0 0 8px rgba(0,180,255,0.4)',
+          }}>{progress}%</span>
+        </div>
 
-      <button
-        onClick={onOpen}
-        style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, minWidth: 0 }}
-      >
-        <span style={{
-          fontSize: 12, display: 'block',
-          fontWeight: blocked ? 600 : p1 ? 500 : 400,
-          color: blocked ? '#fbbf24' : p1 ? '#cbd5e1' : '#64748b',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          textShadow: blocked ? '0 0 20px rgba(251,191,36,0.2)' : 'none',
-        }}>
-          {task.title}
-        </span>
-      </button>
-
-      {pLabel && (
-        <span style={{
-          fontSize: 8, fontWeight: 700, padding: '1px 3px', borderRadius: 3, flexShrink: 0,
-          color: pColor, border: `1px solid ${pColor}30`, letterSpacing: '0.04em',
-        }}>
-          {pLabel}
-        </span>
-      )}
-
-      <span style={{ fontSize: 8, fontWeight: 700, color: p1 ? '#334155' : '#1e293b', flexShrink: 0, letterSpacing: '0.05em' }}>
-        {task.priority === 'high' ? 'P1' : task.priority === 'medium' ? 'P2' : 'P3'}
-      </span>
-
-      <div style={{ display: 'flex', gap: 3, flexShrink: 0, opacity: hov ? 1 : 0.3, transition: 'opacity 0.15s' }}>
-        {blocked && onActivate && (
-          <button
-            onClick={e => { e.stopPropagation(); onActivate() }}
-            title="Move to Active"
-            style={{
-              width: 20, height: 20, borderRadius: 4, cursor: 'pointer', fontSize: 9,
-              background: 'rgba(0,180,255,0.1)', border: '1px solid rgba(0,180,255,0.3)', color: '#00b4ff',
+        {/* Row 2: badges + AI score + actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{
+            fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, flexShrink: 0,
+            color: p1 ? '#00b4ff' : blocked ? '#f59e0b' : '#475569',
+            background: p1 ? 'rgba(0,180,255,0.1)' : blocked ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${p1 ? 'rgba(0,180,255,0.2)' : blocked ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.07)'}`,
+            letterSpacing: '0.05em',
+          }}>
+            {task.priority === 'high' ? 'P1' : task.priority === 'medium' ? 'P2' : 'P3'}
+          </span>
+          {pLabel && (
+            <span style={{
+              fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
+              color: pColor, border: `1px solid ${pColor}28`, letterSpacing: '0.04em',
+            }}>{pLabel}</span>
+          )}
+          <span style={{ flex: 1 }} />
+          <span style={{ fontSize: 8, color: '#283044', fontWeight: 600, letterSpacing: '0.04em' }}>
+            AI <span style={{
+              color: aiScore >= 90 ? '#22c55e' : aiScore >= 80 ? '#00b4ff' : '#64748b',
+              fontWeight: 800,
+              textShadow: aiScore >= 90 ? '0 0 8px rgba(34,197,94,0.4)' : '0 0 6px rgba(0,180,255,0.3)',
+            }}>{aiScore}</span>
+          </span>
+          <div
+            style={{ display: 'flex', gap: 3, opacity: hov ? 1 : 0, transition: 'opacity 0.15s', marginLeft: 6 }}
+            onClick={e => e.stopPropagation()}
+          >
+            {blocked && onActivate && (
+              <button onClick={onActivate} title="Activate" style={{
+                width: 18, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 8, border: 'none',
+                background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
+                boxShadow: '0 0 6px rgba(0,180,255,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>▶</button>
+            )}
+            <button onClick={onPostpone} title="Postpone to Ideas" style={{
+              width: 18, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 8, border: 'none',
+              background: 'rgba(255,255,255,0.06)', color: '#475569',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >▶</button>
-        )}
-        <button
-          onClick={e => { e.stopPropagation(); onPostpone() }}
-          title="Postpone to Ideas"
-          style={{
-            width: 20, height: 20, borderRadius: 4, cursor: 'pointer', fontSize: 9,
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#475569',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >↙</button>
-        <button
-          onClick={e => { e.stopPropagation(); onDone() }}
-          title="Mark Done"
-          style={{
-            width: 20, height: 20, borderRadius: 4, cursor: 'pointer', fontSize: 10,
-            background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', color: '#22c55e',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >✓</button>
+            }}>↙</button>
+            <button onClick={onDone} title="Mark Done" style={{
+              width: 18, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 9, border: 'none',
+              background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+              boxShadow: '0 0 6px rgba(34,197,94,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>✓</button>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Workspace tile (center grid) ────────────────────────────────────────────
+// ── Workspace tile (center grid) ──────────────────────────────────────────
 function WorkspaceTile({
   ws, tasks, selected, onSelect, onOpenTask,
 }: {
@@ -152,12 +226,17 @@ function WorkspaceTile({
   onOpenTask: (t: Task) => void
 }) {
   const [hov, setHov] = useState(false)
-  const wsTasks   = tasks.filter(t => t.workspace_id === ws.id && t.status !== 'done')
-  const active    = wsTasks.filter(t => t.status === 'in_progress')
-  const friction  = wsTasks.filter(t => t.status === 'blocked')
-  const ideas     = wsTasks.filter(t => t.status === 'idea')
-  const topTasks  = byPriority([...friction, ...active, ...ideas])
-  const hasWork   = active.length > 0 || friction.length > 0
+  const wsTasks  = tasks.filter(t => t.workspace_id === ws.id && t.status !== 'done')
+  const active   = wsTasks.filter(t => t.status === 'in_progress')
+  const friction = wsTasks.filter(t => t.status === 'blocked')
+  const ideas    = wsTasks.filter(t => t.status === 'idea')
+  const total    = wsTasks.length
+  const velocity = total > 0 ? Math.round(((active.length) / total) * 100) : 0
+  const aiScore  = seededInt(ws.id, 70, 98)
+  const hasWork  = active.length > 0 || friction.length > 0
+  const topTasks = byPriority([...friction, ...active, ...ideas])
+  const dotColor = friction.length > 0 ? '#f59e0b' : hasWork ? ws.color : '#334155'
+  const sparkColor = friction.length > 0 ? '#f59e0b' : hasWork ? ws.color : '#334155'
 
   return (
     <div
@@ -166,117 +245,113 @@ function WorkspaceTile({
       onMouseLeave={() => setHov(false)}
       style={{
         display: 'flex', flexDirection: 'column', overflow: 'hidden', cursor: 'pointer',
-        background: selected ? 'rgba(0,180,255,0.04)' : hov ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.25)',
+        background: selected ? 'rgba(0,180,255,0.04)' : hov ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.22)',
         borderTop: `3px solid ${hasWork ? ws.color : ws.color + '33'}`,
-        border: selected ? `1px solid rgba(0,180,255,0.18)` : '1px solid rgba(255,255,255,0.04)',
-        boxShadow: selected ? `0 0 24px ${ws.color}1a, inset 0 0 40px rgba(0,180,255,0.015)` : 'none',
+        border: `1px solid ${selected ? 'rgba(0,180,255,0.2)' : 'rgba(255,255,255,0.04)'}`,
+        boxShadow: selected ? `0 0 24px ${ws.color}1a` : 'none',
         transition: 'all 0.15s',
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 5px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px 4px', flexShrink: 0 }}>
         <div style={{
           width: 7, height: 7, borderRadius: '50%', background: ws.color, flexShrink: 0,
-          boxShadow: hasWork
-            ? `0 0 8px ${ws.color}, 0 0 18px ${ws.color}55`
-            : `0 0 4px ${ws.color}44`,
+          boxShadow: hasWork ? `0 0 8px ${ws.color}, 0 0 18px ${ws.color}55` : `0 0 4px ${ws.color}44`,
         }} />
         <span style={{
           flex: 1, fontSize: 11, fontWeight: 700, letterSpacing: '-0.01em',
-          color: hasWork ? '#e2e8f0' : '#334155',
+          color: hasWork ? '#e2e8f0' : '#475569',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {ws.name}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {active.length > 0 && (
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#00b4ff', textShadow: '0 0 8px rgba(0,180,255,0.5)' }}>
-              {active.length}
-            </span>
-          )}
-          {friction.length > 0 && (
-            <span style={{ fontSize: 11, fontWeight: 800, color: '#f59e0b', textShadow: '0 0 8px rgba(245,158,11,0.5)' }}>
-              {friction.length}<span style={{ fontSize: 8, color: '#92400e', fontWeight: 600 }}>frx</span>
-            </span>
-          )}
-          {ideas.length > 0 && (
-            <span style={{ fontSize: 10, color: '#283044' }}>
-              {ideas.length}<span style={{ fontSize: 8 }}> ↗</span>
-            </span>
-          )}
-        </div>
+        }}>{ws.name}</span>
+        <Sparkline seed={ws.id} color={sparkColor} />
       </div>
 
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.04)', flexShrink: 0 }} />
+      {/* Stats bar */}
+      <div style={{
+        display: 'flex', flexShrink: 0,
+        borderTop: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+      }}>
+        {([
+          { label: 'ACTIVE',    val: active.length,   color: active.length > 0 ? '#00b4ff' : '#1e293b',   glow: active.length > 0 ? '0 0 8px rgba(0,180,255,0.4)' : 'none' },
+          { label: 'FRICTION',  val: friction.length, color: friction.length > 0 ? '#f59e0b' : '#1e293b', glow: friction.length > 0 ? '0 0 8px rgba(245,158,11,0.4)' : 'none' },
+          { label: 'IDEAS',     val: ideas.length,    color: ideas.length > 0 ? '#334155' : '#1e293b',    glow: 'none' },
+          { label: 'VELOCITY',  val: `${velocity}%`,  color: velocity > 50 ? '#22c55e' : velocity > 20 ? '#00b4ff' : '#283044', glow: velocity > 50 ? '0 0 8px rgba(34,197,94,0.3)' : 'none' },
+        ] as { label: string; val: string | number; color: string; glow: string }[]).map(({ label, val, color, glow }, i, arr) => (
+          <div key={label} style={{
+            flex: 1, textAlign: 'center', padding: '4px 2px',
+            borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+          }}>
+            <p style={{ fontSize: 12, fontWeight: 800, color, textShadow: glow, lineHeight: 1 }}>{val}</p>
+            <p style={{ fontSize: 7, color: '#1e293b', letterSpacing: '0.1em', marginTop: 1 }}>{label}</p>
+          </div>
+        ))}
+      </div>
 
-      {/* Task rows */}
-      <div style={{ flex: 1, overflow: 'hidden', padding: '3px 0' }}>
+      {/* Task list */}
+      <div style={{ flex: 1, overflow: 'hidden', padding: '2px 0' }}>
         {topTasks.length === 0 ? (
-          <p style={{ fontSize: 10, color: '#1e293b', padding: '6px 10px' }}>
-            {ideas.length > 0 ? `${ideas.length} idea${ideas.length > 1 ? 's' : ''} queued` : 'No active work'}
-          </p>
-        ) : (
-          topTasks.map(t => {
-            const isBlocked = t.status === 'blocked'
-            const isP1      = t.priority === 'high'
-            return (
-              <button
-                key={t.id}
-                onClick={e => { e.stopPropagation(); onOpenTask(t) }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  width: '100%', padding: '3px 10px', height: 24,
-                  background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-                  transition: 'background 0.08s',
-                }}
-              >
-                <div style={{
-                  width: 4, height: 4, borderRadius: '50%', flexShrink: 0,
-                  background: isBlocked ? '#f59e0b' : '#00b4ff',
-                  boxShadow: isBlocked ? '0 0 5px rgba(245,158,11,0.7)' : isP1 ? '0 0 5px rgba(0,180,255,0.7)' : 'none',
-                }} />
-                <span style={{
-                  flex: 1, fontSize: 10,
-                  color: isBlocked ? '#fbbf24' : isP1 ? '#94a3b8' : '#475569',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  fontWeight: isBlocked ? 600 : isP1 ? 500 : 400,
-                }}>
-                  {t.title}
-                </span>
-                <span style={{ fontSize: 8, color: isP1 ? '#283044' : '#1e293b', flexShrink: 0, letterSpacing: '0.04em' }}>
-                  {t.priority === 'high' ? 'P1' : t.priority === 'medium' ? 'P2' : 'P3'}
-                </span>
-              </button>
-            )
-          })
-        )}
-        {topTasks.length < active.length + friction.length && (
-          <p style={{ fontSize: 9, color: '#1e293b', padding: '2px 10px 0', letterSpacing: '0.04em' }}>
-            +{active.length + friction.length - topTasks.length} more
-          </p>
-        )}
+          <p style={{ fontSize: 10, color: '#1e293b', padding: '6px 10px' }}>No work queued</p>
+        ) : topTasks.map(t => {
+          const isBlocked = t.status === 'blocked'
+          const isP1      = t.priority === 'high'
+          return (
+            <button
+              key={t.id}
+              onClick={e => { e.stopPropagation(); onOpenTask(t) }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                padding: '3px 10px', height: 24,
+                background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                transition: 'background 0.08s',
+              }}
+            >
+              <div style={{
+                width: 4, height: 4, borderRadius: '50%', flexShrink: 0,
+                background: isBlocked ? '#f59e0b' : '#00b4ff',
+                boxShadow: isBlocked ? '0 0 5px rgba(245,158,11,0.7)' : isP1 ? '0 0 5px rgba(0,180,255,0.7)' : 'none',
+              }} />
+              <span style={{
+                flex: 1, fontSize: 10, fontWeight: isBlocked ? 600 : 400,
+                color: isBlocked ? '#fbbf24' : isP1 ? '#94a3b8' : '#475569',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{t.title}</span>
+              <span style={{ fontSize: 8, color: isP1 ? '#334155' : '#1e293b', flexShrink: 0, letterSpacing: '0.04em' }}>
+                {t.priority === 'high' ? 'P1' : t.priority === 'medium' ? 'P2' : 'P3'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* AI score footer */}
+      <div style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+        padding: '3px 10px',
+        borderTop: '1px solid rgba(255,255,255,0.04)',
+        background: 'rgba(0,0,0,0.2)',
+      }}>
+        <span style={{ fontSize: 7, color: '#1e293b', letterSpacing: '0.1em', flexShrink: 0 }}>AI SCORE</span>
+        <div style={{ flex: 1, height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1 }}>
+          <div style={{
+            height: '100%', width: `${aiScore}%`, borderRadius: 1,
+            background: aiScore >= 90 ? '#22c55e' : '#00b4ff',
+            boxShadow: aiScore >= 90 ? '0 0 4px rgba(34,197,94,0.6)' : '0 0 4px rgba(0,180,255,0.5)',
+          }} />
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 800, flexShrink: 0,
+          color: aiScore >= 90 ? '#22c55e' : '#00b4ff',
+          textShadow: aiScore >= 90 ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(0,180,255,0.4)',
+        }}>{aiScore}</span>
       </div>
     </div>
   )
 }
 
-// ── Stat block (right column) ───────────────────────────────────────────────
-function StatBlock({ n, label, color, glow }: { n: number; label: string; color: string; glow?: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '6px 4px' }}>
-      <p style={{
-        fontSize: 28, fontWeight: 800, lineHeight: 1,
-        color, textShadow: glow,
-        fontFamily: 'var(--font-outfit)',
-      }}>{n}</p>
-      <p style={{ fontSize: 8, color: '#1e293b', letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{label}</p>
-    </div>
-  )
-}
-
-// ── Main export ─────────────────────────────────────────────────────────────
+// ── Main export ──────────────────────────────────────────────────────────────
 export default function CommandFeed({
   tasks: propTasks,
   workspaces,
@@ -302,11 +377,7 @@ export default function CommandFeed({
   const [inbox, setInbox]           = useState<InboxItem[]>([])
   const captureRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    setLocalTasks(propTasks)
-    setDismissed(new Set())
-  }, [propTasks])
-
+  useEffect(() => { setLocalTasks(propTasks); setDismissed(new Set()) }, [propTasks])
   useEffect(() => {
     fetch('/api/inbox').then(r => r.ok ? r.json() : []).then(setInbox).catch(() => {})
   }, [])
@@ -316,19 +387,16 @@ export default function CommandFeed({
     await patchTask(task.id, { status: 'done' })
     onRefresh()
   }
-
   async function handlePostpone(task: Task) {
     setDismissed(prev => new Set([...prev, task.id]))
     await patchTask(task.id, { status: 'idea' })
     onRefresh()
   }
-
   async function handleActivate(task: Task) {
     setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'in_progress' as const } : t))
     await patchTask(task.id, { status: 'in_progress' })
     onRefresh()
   }
-
   async function handleCapture() {
     const text = capture.trim()
     if (!text || capturing) return
@@ -351,34 +419,38 @@ export default function CommandFeed({
     }
   }
 
-  // Derive data
-  const tasks   = localTasks.filter(t => !dismissed.has(t.id))
-  const scope   = selectedWs ? tasks.filter(t => t.workspace_id === selectedWs.id) : tasks
-  const friction  = byPriority(scope.filter(t => t.status === 'blocked'))
-  const active    = byPriority(scope.filter(t => t.status === 'in_progress'))
-  const ideas     = byPriority(scope.filter(t => t.status === 'idea'))
-  const wsById    = Object.fromEntries(workspaces.map(w => [w.id, w]))
-  const todayStr  = new Date().toDateString()
-  const doneToday = tasks.filter(t => t.status === 'done' && new Date(t.updated_at).toDateString() === todayStr)
-
+  const tasks      = localTasks.filter(t => !dismissed.has(t.id))
+  const scope      = selectedWs ? tasks.filter(t => t.workspace_id === selectedWs.id) : tasks
+  const friction   = byPriority(scope.filter(t => t.status === 'blocked'))
+  const active     = byPriority(scope.filter(t => t.status === 'in_progress'))
+  const ideas      = byPriority(scope.filter(t => t.status === 'idea'))
+  const wsById     = Object.fromEntries(workspaces.map(w => [w.id, w]))
+  const todayStr   = new Date().toDateString()
+  const doneToday  = tasks.filter(t => t.status === 'done' && new Date(t.updated_at).toDateString() === todayStr)
   const totalActive   = tasks.filter(t => t.status === 'in_progress').length
   const totalFriction = tasks.filter(t => t.status === 'blocked').length
   const totalIdeas    = tasks.filter(t => t.status === 'idea').length
+  const insights   = computeInsights(workspaces, tasks)
+  const tileRows   = Math.max(1, Math.ceil(workspaces.length / 2))
 
-  const tileRows = Math.max(1, Math.ceil(workspaces.length / 2))
+  const recent = [...tasks].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10)
+  const ticker = recent.map(t => {
+    const abbr = t.workspace_id ? wsAbbr(wsById[t.workspace_id]?.name ?? '··') : '··'
+    return `[ ${abbr} ] ${t.title} — ${t.status.replace('_', ' ')}`
+  }).join('   ·   ')
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-      {/* ── LEFT: Task action list (28%) ── */}
+      {/* ── LEFT: Task list + ticker (30%) ── */}
       <div style={{
-        width: '28%', minWidth: 220, display: 'flex', flexDirection: 'column',
+        width: '30%', minWidth: 240, display: 'flex', flexDirection: 'column',
         borderRight: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
       }}>
-        {/* Quick capture */}
+        {/* Quick capture bar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 7,
-          height: 36, padding: '0 10px', flexShrink: 0,
+          height: 38, padding: '0 12px', flexShrink: 0,
           background: 'rgba(0,0,0,0.6)', borderBottom: '1px solid rgba(0,180,255,0.08)',
         }}>
           <span style={{ color: '#00b4ff', fontWeight: 800, fontSize: 15, textShadow: '0 0 10px rgba(0,180,255,0.7)' }}>›</span>
@@ -391,7 +463,7 @@ export default function CommandFeed({
             disabled={capturing}
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 11, color: captured ? '#22c55e' : '#94a3b8', caretColor: '#00b4ff',
+              fontSize: 12, color: captured ? '#22c55e' : '#94a3b8', caretColor: '#00b4ff',
             }}
           />
           {capture.trim() && (
@@ -404,168 +476,176 @@ export default function CommandFeed({
           )}
         </div>
 
-        {/* Friction */}
-        {friction.length > 0 && (
-          <div style={{ flexShrink: 0 }}>
-            <div style={{ padding: '5px 10px 2px', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{
-                fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#f59e0b',
-                textShadow: '0 0 10px rgba(245,158,11,0.6), 0 0 22px rgba(245,158,11,0.25)',
-              }}>FRICTION</span>
-              <span style={{ fontSize: 9, color: '#78350f' }}>{friction.length}</span>
-            </div>
-            {friction.map(t => (
-              <TaskCard
-                key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                onOpen={() => onSelectTask(t)}
-                onDone={() => handleDone(t)}
-                onPostpone={() => handlePostpone(t)}
-                onActivate={() => handleActivate(t)}
-              />
-            ))}
-          </div>
-        )}
+        {/* Scrollable task cards */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {friction.length > 0 && (
+            <>
+              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#f59e0b', textShadow: '0 0 10px rgba(245,158,11,0.6)' }}>FRICTION</span>
+                <span style={{ fontSize: 9, color: '#78350f' }}>{friction.length}</span>
+              </div>
+              {friction.map(t => (
+                <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
+                  onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
+                  onPostpone={() => handlePostpone(t)} onActivate={() => handleActivate(t)} />
+              ))}
+            </>
+          )}
 
-        {/* Active + Ideas + Done Today (scrollable) */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {active.length > 0 && (
-            <div style={{ padding: '5px 10px 2px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#334155' }}>ACTIVE</span>
-              <span style={{ fontSize: 9, color: '#283044' }}>{active.length}</span>
+            <>
+              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#334155' }}>ACTIVE</span>
+                <span style={{ fontSize: 9, color: '#283044' }}>{active.length}</span>
+              </div>
+              {active.map(t => (
+                <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
+                  onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
+                  onPostpone={() => handlePostpone(t)} />
+              ))}
+            </>
+          )}
+
+          {ideas.length > 0 && (
+            <>
+              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#283044' }}>IDEAS</span>
+                <span style={{ fontSize: 9, color: '#1e293b' }}>{ideas.length}</span>
+              </div>
+              {ideas.map(t => (
+                <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
+                  onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
+                  onPostpone={() => handlePostpone(t)} />
+              ))}
+            </>
+          )}
+
+          {doneToday.length > 0 && (
+            <>
+              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#1e293b' }}>DONE TODAY</span>
+                <span style={{ fontSize: 9, color: '#0f172a' }}>{doneToday.length}</span>
+              </div>
+              {doneToday.slice(0, 6).map(t => (
+                <button key={t.id} onClick={() => onSelectTask(t)}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.03)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 10px',
+                    width: '100%', background: 'transparent', border: 'none',
+                    borderBottom: '1px solid rgba(255,255,255,0.02)',
+                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s',
+                  }}
+                >
+                  <span style={{ fontSize: 9, color: '#22c55e', flexShrink: 0, textShadow: '0 0 8px rgba(34,197,94,0.5)' }}>✓</span>
+                  <span style={{ fontSize: 11, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                </button>
+              ))}
+            </>
+          )}
+
+          {friction.length === 0 && active.length === 0 && ideas.length === 0 && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 11, color: '#1e293b' }}>Clean slate.</span>
             </div>
           )}
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            {active.map(t => (
-              <TaskCard
-                key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                onOpen={() => onSelectTask(t)}
-                onDone={() => handleDone(t)}
-                onPostpone={() => handlePostpone(t)}
-              />
-            ))}
-
-            {ideas.length > 0 && (
-              <>
-                <div style={{ padding: '5px 10px 2px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#283044' }}>IDEAS</span>
-                  <span style={{ fontSize: 9, color: '#1e293b' }}>{ideas.length}</span>
-                </div>
-                {ideas.map(t => (
-                  <TaskCard
-                    key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                    onOpen={() => onSelectTask(t)}
-                    onDone={() => handleDone(t)}
-                    onPostpone={() => handlePostpone(t)}
-                  />
-                ))}
-              </>
-            )}
-
-            {doneToday.length > 0 && (
-              <>
-                <div style={{ padding: '5px 10px 2px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#1e293b' }}>DONE TODAY</span>
-                  <span style={{ fontSize: 9, color: '#0f172a' }}>{doneToday.length}</span>
-                </div>
-                {doneToday.slice(0, 6).map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => onSelectTask(t)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      height: 30, padding: '0 10px', width: '100%',
-                      background: 'none', border: 'none',
-                      borderBottom: '1px solid rgba(255,255,255,0.015)',
-                      cursor: 'pointer', textAlign: 'left',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.03)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                  >
-                    <span style={{ fontSize: 9, color: '#22c55e', flexShrink: 0, textShadow: '0 0 8px rgba(34,197,94,0.5)' }}>✓</span>
-                    <span style={{ fontSize: 11, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t.title}
-                    </span>
-                  </button>
-                ))}
-              </>
-            )}
-
-            {friction.length === 0 && active.length === 0 && ideas.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 11, color: '#1e293b' }}>Clean slate.</span>
-              </div>
-            )}
-          </div>
         </div>
+
+        {/* Activity ticker */}
+        {ticker && (
+          <div style={{
+            flexShrink: 0, height: 22, overflow: 'hidden',
+            background: 'rgba(0,0,0,0.5)', borderTop: '1px solid rgba(0,180,255,0.06)',
+          }}>
+            <style>{`@keyframes bpe-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+            <div style={{
+              display: 'inline-flex', whiteSpace: 'nowrap',
+              animation: 'bpe-ticker 50s linear infinite', padding: '4px 0',
+            }}>
+              <span style={{ fontSize: 9, color: '#1e293b', paddingRight: 60 }}>{ticker}</span>
+              <span style={{ fontSize: 9, color: '#1e293b', paddingRight: 60 }}>{ticker}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ── CENTER: Workspace canvas (always fills space) ── */}
+      {/* ── CENTER: Workspace tile grid (always fills) ── */}
       <div style={{
-        flex: 1, minWidth: 0,
-        height: '100%',
+        flex: 1, minWidth: 0, height: '100%',
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gridTemplateRows: `repeat(${tileRows}, 1fr)`,
-        gap: 1,
-        background: 'rgba(0,0,0,0.3)',
-        overflow: 'hidden',
+        gap: 1, background: 'rgba(0,0,0,0.3)', overflow: 'hidden',
       }}>
         {workspaces.map(ws => (
-          <WorkspaceTile
-            key={ws.id}
-            ws={ws}
-            tasks={tasks}
+          <WorkspaceTile key={ws.id} ws={ws} tasks={tasks}
             selected={selectedWs?.id === ws.id}
-            onSelect={() => onSelectWs(ws)}
-            onOpenTask={onSelectTask}
-          />
+            onSelect={() => onSelectWs(ws)} onOpenTask={onSelectTask} />
         ))}
         {workspaces.length % 2 !== 0 && (
-          <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.03)' }} />
+          <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
         )}
       </div>
 
-      {/* ── RIGHT: Overview + Inbox (22%) ── */}
+      {/* ── RIGHT: Overview + insights + inbox (20%) ── */}
       <div style={{
-        width: '22%', minWidth: 180, display: 'flex', flexDirection: 'column',
+        width: '20%', minWidth: 180, display: 'flex', flexDirection: 'column',
         borderLeft: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
       }}>
-        {/* Stats grid */}
+        {/* Stats 2×2 */}
         <div style={{
-          flexShrink: 0, padding: '10px 10px 8px',
+          flexShrink: 0, padding: '10px',
           background: 'rgba(0,0,0,0.35)',
           borderBottom: '1px solid rgba(255,255,255,0.04)',
         }}>
-          <p style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', color: '#1e293b', marginBottom: 6 }}>OVERVIEW</p>
+          <p style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', color: '#1e293b', marginBottom: 8 }}>PORTFOLIO</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-            <StatBlock n={totalActive} label="Active" color="#00b4ff" glow="0 0 14px rgba(0,180,255,0.55)" />
-            <StatBlock
-              n={totalFriction} label="Friction"
-              color={totalFriction > 0 ? '#f59e0b' : '#1e293b'}
-              glow={totalFriction > 0 ? '0 0 14px rgba(245,158,11,0.6)' : undefined}
-            />
-            <StatBlock n={totalIdeas} label="Ideas" color="#334155" />
-            <StatBlock
-              n={doneToday.length} label="Done Today"
-              color={doneToday.length > 0 ? '#22c55e' : '#1e293b'}
-              glow={doneToday.length > 0 ? '0 0 12px rgba(34,197,94,0.45)' : undefined}
-            />
+            {[
+              { n: totalActive,   label: 'Active',     color: '#00b4ff',                                      glow: '0 0 14px rgba(0,180,255,0.55)' },
+              { n: totalFriction, label: 'Friction',    color: totalFriction > 0 ? '#f59e0b' : '#283044',     glow: totalFriction > 0 ? '0 0 14px rgba(245,158,11,0.6)' : 'none' },
+              { n: totalIdeas,    label: 'Ideas',       color: '#334155',                                      glow: 'none' },
+              { n: doneToday.length, label: 'Done Today', color: doneToday.length > 0 ? '#22c55e' : '#1e293b', glow: doneToday.length > 0 ? '0 0 12px rgba(34,197,94,0.45)' : 'none' },
+            ].map(({ n, label, color, glow }) => (
+              <div key={label} style={{ textAlign: 'center', padding: '7px 4px', background: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
+                <p style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color, textShadow: glow, fontFamily: 'var(--font-outfit)' }}>{n}</p>
+                <p style={{ fontSize: 7, color: '#1e293b', letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{label}</p>
+              </div>
+            ))}
           </div>
+        </div>
+
+        {/* Wendy insights */}
+        <div style={{ flexShrink: 0, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+            <div style={{
+              width: 5, height: 5, borderRadius: '50%', background: '#00b4ff',
+              boxShadow: '0 0 8px rgba(0,180,255,0.8), 0 0 16px rgba(0,180,255,0.4)',
+              animation: 'breathe 2s ease-in-out infinite',
+              '--glow-color': 'rgba(0,180,255,0.4)', '--glow-min': '3px', '--glow-max': '8px',
+            } as React.CSSProperties} />
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: '#00b4ff' }}>WENDY</span>
+          </div>
+          {insights.map((text, i) => (
+            <div key={i} style={{ padding: '4px 6px', marginBottom: 3, borderRadius: 4, background: 'rgba(0,180,255,0.04)', border: '1px solid rgba(0,180,255,0.08)' }}>
+              <p style={{ fontSize: 10, color: '#475569', lineHeight: 1.35 }}>
+                <span style={{ color: '#00b4ff', marginRight: 4 }}>✦</span>{text}
+              </p>
+            </div>
+          ))}
         </div>
 
         {/* Inbox */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ padding: '6px 12px 3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '6px 10px 3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#283044' }}>INBOX</span>
             {inbox.length > 0 && <span style={{ fontSize: 9, color: '#1e293b' }}>{inbox.length}</span>}
           </div>
           <div
             onClick={() => captureRef.current?.focus()}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              margin: '0 12px 6px', padding: '4px 8px', borderRadius: 5,
+              display: 'flex', alignItems: 'center', gap: 5,
+              margin: '0 10px 5px', padding: '4px 7px', borderRadius: 5, cursor: 'text', flexShrink: 0,
               background: 'rgba(0,180,255,0.04)', border: '1px solid rgba(0,180,255,0.08)',
-              cursor: 'text', flexShrink: 0,
             }}
           >
             <span style={{ fontSize: 10, color: '#00b4ff', fontWeight: 700 }}>›</span>
@@ -573,21 +653,15 @@ export default function CommandFeed({
           </div>
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {inbox.map(item => (
-              <div key={item.id} style={{
-                display: 'flex', gap: 5, padding: '4px 12px', alignItems: 'flex-start',
-                borderBottom: '1px solid rgba(255,255,255,0.025)',
-              }}>
+              <div key={item.id} style={{ display: 'flex', gap: 5, padding: '4px 10px', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.025)' }}>
                 <span style={{ fontSize: 9, color: '#334155', flexShrink: 0, marginTop: 1 }}>·</span>
-                <span style={{
-                  fontSize: 10, color: '#334155', lineHeight: 1.35,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
+                <span style={{ fontSize: 10, color: '#334155', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {item.content}
                 </span>
               </div>
             ))}
             {inbox.length === 0 && (
-              <p style={{ fontSize: 10, color: '#1e293b', padding: '4px 12px' }}>Nothing yet.</p>
+              <p style={{ fontSize: 10, color: '#1e293b', padding: '4px 10px' }}>Nothing yet.</p>
             )}
           </div>
         </div>
