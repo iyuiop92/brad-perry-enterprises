@@ -29,11 +29,11 @@ function hexToRgb(hex: string): [number, number, number] {
 function buildNodes(workspaces: Workspace[], w: number, h: number): GraphNode[] {
   const cx = w / 2
   const cy = h / 2
-  const baseR = Math.min(w, h) * 0.31
+  const baseR = Math.min(w, h) * 0.18
 
   return workspaces.map((ws, i) => {
     const angle = (i / workspaces.length) * Math.PI * 2 - Math.PI / 2
-    const rFactor = ws.type === 'client' ? 1.18 : 0.92
+    const rFactor = ws.type === 'client' ? 1.12 : 0.90
     const bx = cx + Math.cos(angle) * baseR * rFactor
     const by = cy + Math.sin(angle) * baseR * rFactor
     const load = Math.min(1, ws.task_count / 10)
@@ -129,6 +129,49 @@ export default function NeuralGraph({
       const t = tRef.current
       ctx.clearRect(0, 0, canvasSize.w, canvasSize.h)
 
+      // ── Electrified backdrop ──
+      const cx = canvasSize.w / 2
+      const cy = canvasSize.h / 2
+
+      // Deep plasma core
+      const plasmaR = Math.min(canvasSize.w, canvasSize.h) * 0.55
+      const plasma = ctx.createRadialGradient(cx, cy, 0, cx, cy, plasmaR)
+      plasma.addColorStop(0,   `rgba(0,40,120,${0.18 + Math.sin(t * 0.6) * 0.04})`)
+      plasma.addColorStop(0.35, `rgba(30,0,90,${0.10 + Math.sin(t * 0.4) * 0.02})`)
+      plasma.addColorStop(0.7,  `rgba(0,10,40,0.06)`)
+      plasma.addColorStop(1,    'rgba(0,0,0,0)')
+      ctx.fillStyle = plasma
+      ctx.fillRect(0, 0, canvasSize.w, canvasSize.h)
+
+      // Secondary purple pulse
+      const pulseR = Math.min(canvasSize.w, canvasSize.h) * 0.3
+      const purplePulse = ctx.createRadialGradient(cx, cy, 0, cx, cy, pulseR)
+      purplePulse.addColorStop(0,  `rgba(100,0,200,${0.06 + Math.sin(t * 1.1 + 1) * 0.025})`)
+      purplePulse.addColorStop(1,  'rgba(0,0,0,0)')
+      ctx.fillStyle = purplePulse
+      ctx.fillRect(0, 0, canvasSize.w, canvasSize.h)
+
+      // Horizontal scanline sweep
+      const scanY = (t * 28) % canvasSize.h
+      const scan = ctx.createLinearGradient(0, scanY - 40, 0, scanY + 40)
+      scan.addColorStop(0,   'rgba(0,180,255,0)')
+      scan.addColorStop(0.5, 'rgba(0,180,255,0.022)')
+      scan.addColorStop(1,   'rgba(0,180,255,0)')
+      ctx.fillStyle = scan
+      ctx.fillRect(0, scanY - 40, canvasSize.w, 80)
+
+      // Outer energy ring
+      const ringR = Math.min(canvasSize.w, canvasSize.h) * 0.42
+      const ringPulse = Math.sin(t * 0.8) * 0.5 + 0.5
+      ctx.beginPath()
+      ctx.arc(cx, cy, ringR + ringPulse * 10, 0, Math.PI * 2)
+      ctx.strokeStyle = `rgba(0,100,200,${0.04 + ringPulse * 0.03})`
+      ctx.lineWidth = 1
+      ctx.setLineDash([6, 20])
+      ctx.lineDashOffset = -t * 30
+      ctx.stroke()
+      ctx.setLineDash([])
+
       const nodes = nodesRef.current
       // Update floating positions
       nodes.forEach(node => {
@@ -160,9 +203,11 @@ export default function NeuralGraph({
         grad.addColorStop(0.5, `rgba(${Math.round((ar+br)/2)},${Math.round((ag+bg)/2)},${Math.round((ab+bb)/2)},0.06)`)
         grad.addColorStop(1, `rgba(${br},${bg},${bb},0.18)`)
 
-        ctx.beginPath()
         const mx = (a.x + b.x) / 2
         const my = (a.y + b.y) / 2 - 20
+
+        // Base gradient line
+        ctx.beginPath()
         ctx.moveTo(a.x, a.y)
         ctx.quadraticCurveTo(mx, my, b.x, b.y)
         ctx.strokeStyle = grad
@@ -171,6 +216,31 @@ export default function NeuralGraph({
         ctx.lineDashOffset = -t * 15
         ctx.stroke()
         ctx.setLineDash([])
+
+        // Bright electric core line
+        const avgR = Math.round((ar + br) / 2)
+        const avgG = Math.round((ag + bg) / 2)
+        const avgB = Math.round((ab + bb) / 2)
+        ctx.beginPath()
+        ctx.moveTo(a.x, a.y)
+        ctx.quadraticCurveTo(mx, my, b.x, b.y)
+        ctx.strokeStyle = `rgba(${avgR},${avgG},${avgB},0.18)`
+        ctx.lineWidth = 0.5
+        ctx.stroke()
+
+        // Moving data pulse dot along bezier
+        const pt = ((t * 0.35 + (i * 7 + j * 3) * 0.11)) % 1
+        const bpt = 1 - pt
+        const px = bpt * bpt * a.x + 2 * bpt * pt * mx + pt * pt * b.x
+        const py = bpt * bpt * a.y + 2 * bpt * pt * my + pt * pt * b.y
+        const pulseAlpha = Math.sin(pt * Math.PI) * 0.85
+        ctx.beginPath()
+        ctx.arc(px, py, 2, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(${avgR},${avgG},${avgB},${pulseAlpha})`
+        ctx.shadowColor = `rgb(${avgR},${avgG},${avgB})`
+        ctx.shadowBlur = 8
+        ctx.fill()
+        ctx.shadowBlur = 0
       })
 
       // Draw nodes
