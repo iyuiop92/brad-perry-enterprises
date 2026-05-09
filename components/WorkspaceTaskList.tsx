@@ -89,11 +89,9 @@ export default function WorkspaceTaskList({
                       }}
                       onMouseEnter={e => {
                         e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                        e.currentTarget.style.borderColor = `rgba(${workspace.color},0.3)`
                       }}
                       onMouseLeave={e => {
                         e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'
                       }}
                     >
                       <span className="text-xs font-[500] truncate flex-1 leading-snug" style={{ color: '#cbd5e1' }}>
