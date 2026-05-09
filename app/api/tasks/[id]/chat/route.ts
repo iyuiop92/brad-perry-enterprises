@@ -42,7 +42,7 @@ You know Brad's full business portfolio: AetherHockey (elite hockey coaching pla
 Be direct, warm, and action-oriented. Lead with the answer. Never say "Great question." Respond as if you are sitting alongside Brad right now.`
 
   const result = streamText({
-    model: anthropic('claude-sonnet-4.6'),
+    model: anthropic('claude-sonnet-4-6'),
     system,
     messages: await convertToModelMessages(messages),
   })
