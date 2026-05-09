@@ -1,438 +1,450 @@
 'use client'
-import { useState } from 'react'
-import type { Task, Workspace } from '@/lib/types'
+import { useState, useRef, useEffect } from 'react'
+import type { Task, Workspace, InboxItem } from '@/lib/types'
 
-// ── Sparkline ──────────────────────────────────────────────────────────────
-function seededSparkline(seed: string, points = 12): number[] {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) {
-    h = Math.imul(h ^ seed.charCodeAt(i), 0x9e3779b9) | 0
-  }
-  const vals: number[] = []
-  let val = 50
-  for (let i = 0; i < points; i++) {
-    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) | 0
-    val = Math.max(8, Math.min(92, val + ((Math.abs(h) % 22) - 10)))
-    vals.push(val)
-  }
-  return vals
+function wsAbbr(name: string) {
+  const caps = name.replace(/[^A-Z]/g, '')
+  return caps.length >= 2 ? caps.slice(0, 2) : name.slice(0, 2).toUpperCase()
 }
 
-function Sparkline({ seed, color }: { seed: string; color: string }) {
-  const vals = seededSparkline(seed)
-  const min = Math.min(...vals)
-  const max = Math.max(...vals)
-  const range = max - min || 1
-  const w = 80
-  const h = 24
-  const pts = vals.map((v, i) => ({
-    x: (i / (vals.length - 1)) * w,
-    y: h - 2 - ((v - min) / range) * (h - 4),
-  }))
-  const line = pts.reduce((acc, pt, i) => {
-    if (i === 0) return `M${pt.x},${pt.y}`
-    const prev = pts[i - 1]
-    const mx = (prev.x + pt.x) / 2
-    return `${acc} C${mx},${prev.y} ${mx},${pt.y} ${pt.x},${pt.y}`
-  }, '')
-  const gradId = `sf-${seed.replace(/-/g, '').slice(0, 10)}`
+const P_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
+
+const PHASE_ABBR: Record<string, string> = {
+  discovery: 'DISC', design: 'DSGN', build: 'BUILD', launch: 'LNCH', live: 'LIVE',
+}
+const PHASE_COLOR: Record<string, string> = {
+  discovery: '#8b5cf6', design: '#3b82f6', build: '#00b4ff', launch: '#22c55e', live: '#10b981',
+}
+
+function byPriority(tasks: Task[]) {
+  return [...tasks].sort((a, b) => (P_ORDER[a.priority] ?? 2) - (P_ORDER[b.priority] ?? 2))
+}
+
+function TaskRow({
+  task,
+  workspace,
+  onClick,
+}: {
+  task: Task
+  workspace?: Workspace
+  onClick: () => void
+}) {
+  const [hov, setHov] = useState(false)
+  const blocked = task.status === 'blocked'
+  const p1 = task.priority === 'high'
+  const abbr = workspace ? wsAbbr(workspace.name) : '··'
+  const wsColor = workspace?.color ?? '#475569'
+  const phase = task.phase
+  const phaseLabel = phase ? (PHASE_ABBR[phase] ?? phase.slice(0, 4).toUpperCase()) : null
+  const phaseColor = phase ? (PHASE_COLOR[phase] ?? '#475569') : '#475569'
+
+  const leftBorder = blocked
+    ? 'rgba(245,158,11,0.55)'
+    : p1
+    ? 'rgba(0,180,255,0.4)'
+    : 'transparent'
+
+  const bg = blocked
+    ? hov ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.03)'
+    : hov ? 'rgba(0,180,255,0.04)' : 'transparent'
+
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${line} L${w},${h} L0,${h} Z`} fill={`url(#${gradId})`} />
-      <path d={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        width: '100%', height: 32, padding: '0 12px',
+        background: bg, border: 'none',
+        borderLeft: `2px solid ${leftBorder}`,
+        borderBottom: '1px solid rgba(255,255,255,0.025)',
+        cursor: 'pointer', textAlign: 'left',
+        transition: 'background 0.1s',
+        flexShrink: 0,
+      }}
+    >
+      <div style={{
+        width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+        background: blocked ? '#f59e0b' : '#00b4ff',
+        boxShadow: blocked
+          ? '0 0 6px rgba(245,158,11,0.8), 0 0 14px rgba(245,158,11,0.35)'
+          : p1
+          ? '0 0 7px rgba(0,180,255,0.9), 0 0 14px rgba(0,180,255,0.4)'
+          : '0 0 4px rgba(0,180,255,0.35)',
+      }} />
+
+      <span style={{
+        fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3,
+        flexShrink: 0, letterSpacing: '0.04em',
+        background: `${wsColor}16`,
+        color: wsColor,
+        border: `1px solid ${wsColor}28`,
+        textShadow: `0 0 8px ${wsColor}55`,
+      }}>
+        {abbr}
+      </span>
+
+      <span style={{
+        flex: 1, fontSize: 12, fontWeight: blocked ? 600 : p1 ? 500 : 400,
+        color: blocked ? '#fbbf24' : p1 ? '#cbd5e1' : '#64748b',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        textShadow: blocked ? '0 0 20px rgba(251,191,36,0.18)' : 'none',
+      }}>
+        {task.title}
+      </span>
+
+      <span style={{
+        fontSize: 9, fontWeight: 700, flexShrink: 0, letterSpacing: '0.06em',
+        color: blocked ? '#92400e' : p1 ? '#334155' : '#1e293b',
+      }}>
+        {task.priority === 'high' ? 'P1' : task.priority === 'medium' ? 'P2' : 'P3'}
+      </span>
+
+      {phaseLabel && (
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3,
+          flexShrink: 0, letterSpacing: '0.04em',
+          color: phaseColor, border: `1px solid ${phaseColor}30`,
+        }}>
+          {phaseLabel}
+        </span>
+      )}
+
+      <span style={{ fontSize: 11, color: '#1e293b', flexShrink: 0, marginLeft: 2 }}>›</span>
+    </button>
   )
 }
 
-// ── Brand Orb ──────────────────────────────────────────────────────────────
-function BrandOrb({ name, color }: { name: string; color: string }) {
+function SectionLabel({
+  label, count, color, glow,
+}: {
+  label: string
+  count: number
+  color: string
+  glow?: string
+}) {
   return (
-    <div
-      className="shrink-0 flex items-center justify-center rounded-full text-[11px] font-[800]"
-      style={{
-        width: 32, height: 32,
-        background: `${color}18`,
-        border: `1px solid ${color}40`,
-        color,
-        boxShadow: `0 0 8px ${color}20`,
-        fontFamily: 'var(--font-outfit)',
-      }}
-    >
-      {name[0]?.toUpperCase() ?? '?'}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 3px', flexShrink: 0 }}>
+      <span style={{
+        fontSize: 9, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase',
+        color, textShadow: glow,
+      }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 9, color: '#283044', fontWeight: 600 }}>{count}</span>
     </div>
   )
 }
 
-// ── Task progress ──────────────────────────────────────────────────────────
-function taskProgress(task: Task): number {
-  if (task.deliverables?.length > 0) {
-    const done = task.deliverables.filter(d => d.done).length
-    return Math.round((done / task.deliverables.length) * 100)
-  }
-  const map: Record<string, number> = { idea: 5, in_progress: 50, blocked: 25, done: 100 }
-  return map[task.status] ?? 0
+function WorkspaceRow({
+  ws, active, friction, selected, onClick,
+}: {
+  ws: Workspace
+  active: number
+  friction: number
+  selected: boolean
+  onClick: () => void
+}) {
+  const [hov, setHov] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        width: '100%', height: 30, padding: '0 12px',
+        background: selected ? 'rgba(0,180,255,0.06)' : hov ? 'rgba(255,255,255,0.02)' : 'transparent',
+        border: 'none',
+        borderLeft: `2px solid ${selected ? '#00b4ff' : 'transparent'}`,
+        cursor: 'pointer', textAlign: 'left',
+        transition: 'all 0.12s', flexShrink: 0,
+      }}
+    >
+      <div style={{
+        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+        background: ws.color,
+        boxShadow: selected
+          ? `0 0 8px ${ws.color}, 0 0 18px ${ws.color}55`
+          : `0 0 5px ${ws.color}77`,
+      }} />
+      <span style={{
+        flex: 1, fontSize: 11, fontWeight: selected ? 700 : 500,
+        color: selected ? '#e2e8f0' : hov ? '#94a3b8' : '#475569',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        transition: 'color 0.12s',
+      }}>
+        {ws.name}
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          color: active > 0 ? '#00b4ff' : '#283044',
+          textShadow: active > 0 ? '0 0 8px rgba(0,180,255,0.4)' : 'none',
+        }}>
+          {active}
+        </span>
+        {friction > 0 && (
+          <>
+            <span style={{ fontSize: 8, color: '#283044' }}>·</span>
+            <span style={{
+              fontSize: 10, fontWeight: 700, color: '#f59e0b',
+              textShadow: '0 0 8px rgba(245,158,11,0.5)',
+            }}>
+              {friction}
+            </span>
+          </>
+        )}
+      </div>
+    </button>
+  )
 }
 
-function healthPulse(ws: Workspace): number {
-  if (ws.task_count === 0) return 50
-  return Math.min(100, Math.round(
-    ((ws.active_count * 2 + (ws.task_count - ws.blocked_count)) / (ws.task_count * 3)) * 100
-  ))
-}
-
-const PRIORITY_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  high:   { label: 'P1', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-  medium: { label: 'P2', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-  low:    { label: 'P3', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-}
-
-const PHASE_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  discovery: { label: 'DISC', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
-  design:    { label: 'DSGN', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
-  build:     { label: 'BUILD', color: '#00b4ff', bg: 'rgba(0,180,255,0.12)' },
-  launch:    { label: 'LNCH', color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
-  live:      { label: 'LIVE', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
-}
-
-// ── Main Component ─────────────────────────────────────────────────────────
 export default function CommandFeed({
   tasks,
   workspaces,
   selectedWs,
   onSelectTask,
   onSelectWs,
-  onAddTask,
+  onAddTask: _onAddTask,
 }: {
   tasks: Task[]
   workspaces: Workspace[]
   selectedWs: Workspace | null
-  onSelectTask: (task: Task) => void
-  onSelectWs: (ws: Workspace) => void
+  onSelectTask: (t: Task) => void
+  onSelectWs: (w: Workspace) => void
   onAddTask: () => void
 }) {
-  const [input, setInput] = useState('')
-  const [ripple, setRipple] = useState(false)
-  const [recentCaptures, setRecentCaptures] = useState<string[]>([])
-  const [actionizedDone, setActionizedDone] = useState<Set<string>>(new Set())
+  const [capture, setCapture] = useState('')
+  const [capturing, setCapturing] = useState(false)
+  const [captured, setCaptured] = useState(false)
+  const [showAllWs, setShowAllWs] = useState(false)
+  const [inbox, setInbox] = useState<InboxItem[]>([])
+  const captureRef = useRef<HTMLInputElement>(null)
 
-  async function capture() {
-    const text = input.trim()
-    if (!text) return
-    setInput('')
-    setRipple(true)
-    setTimeout(() => setRipple(false), 500)
-    setRecentCaptures(prev => [text, ...prev].slice(0, 2))
-    await fetch('/api/inbox', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text }),
-    }).catch(() => {})
+  useEffect(() => {
+    fetch('/api/inbox')
+      .then(r => r.ok ? r.json() : [])
+      .then(setInbox)
+      .catch(() => {})
+  }, [])
+
+  const scope = selectedWs ? tasks.filter(t => t.workspace_id === selectedWs.id) : tasks
+  const friction = byPriority(scope.filter(t => t.status === 'blocked'))
+  const active   = byPriority(scope.filter(t => t.status === 'in_progress'))
+  const ideas    = byPriority(scope.filter(t => t.status === 'idea'))
+
+  const wsById = Object.fromEntries(workspaces.map(w => [w.id, w]))
+
+  const wsWithWork = workspaces.filter(w =>
+    tasks.some(t => t.workspace_id === w.id && (t.status === 'in_progress' || t.status === 'blocked'))
+  )
+  const wsExtra = workspaces.filter(w => !wsWithWork.find(a => a.id === w.id))
+  const wsVisible = showAllWs ? workspaces : wsWithWork
+
+  async function handleCapture() {
+    const text = capture.trim()
+    if (!text || capturing) return
+    setCapturing(true)
+    try {
+      const res = await fetch('/api/inbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text }),
+      })
+      if (res.ok) {
+        const item = await res.json()
+        setInbox(prev => [item, ...prev])
+        setCapture('')
+        setCaptured(true)
+        setTimeout(() => setCaptured(false), 1800)
+      }
+    } finally {
+      setCapturing(false)
+    }
   }
 
-  const wsMap = Object.fromEntries(workspaces.map(w => [w.id, w]))
-
-  const highImpact = tasks
-    .filter(t => t.status === 'in_progress' || t.status === 'idea')
-    .sort((a, b) => {
-      const p: Record<string, number> = { high: 0, medium: 1, low: 2 }
-      return p[a.priority] - p[b.priority]
-    })
-    .slice(0, 8)
-
-  const blocked = tasks.filter(t => t.status === 'blocked')
-
-  const displayWs = selectedWs
-    ? workspaces.filter(w => w.id === selectedWs.id)
-    : workspaces
-
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'transparent' }}>
-      <div className="flex flex-col gap-0">
-
-        {/* ── Quick Capture ───────────────────────────────────────────── */}
-        <section
-          className="px-5 py-4 relative"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex gap-1">
-              <span className="w-2 h-2 rounded-full" style={{ background: '#ef4444' }} />
-              <span className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />
-              <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }} />
-            </div>
-            <span className="text-[10px] font-[800] uppercase tracking-[0.2em]" style={{ color: '#00b4ff' }}>
-              Action Hub
-            </span>
-            <span
-              className="text-[8px] font-[700] px-1.5 py-0.5 rounded"
-              style={{ background: 'rgba(0,180,255,0.08)', color: '#00b4ff', border: '1px solid rgba(0,180,255,0.18)' }}
-            >
-              ● WENDY AI IS ACTIVE
-            </span>
-            <span className="text-[9px] ml-auto" style={{ color: '#283044' }}>
-              {tasks.length} tasks
-            </span>
-          </div>
-          <div
-            className="flex items-center gap-2 px-3 py-2 rounded-xl relative"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,180,255,0.12)' }}
-          >
-            {ripple && (
-              <div
-                className="absolute inset-0 rounded-xl pointer-events-none"
-                style={{ animation: 'inbox-ripple 0.5s ease-out forwards', border: '1px solid rgba(0,180,255,0.5)' }}
-              />
-            )}
-            <span className="text-sm font-[700] shrink-0" style={{ color: '#00b4ff' }}>›</span>
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && capture()}
-              placeholder="Capture a thought, task, or question..."
-              className="flex-1 bg-transparent outline-none text-xs"
-              style={{ color: '#cbd5e1', caretColor: '#00b4ff' }}
-            />
-            {input && (
-              <button
-                onClick={capture}
-                className="text-[9px] font-[700] px-2 py-1 rounded-md shrink-0"
-                style={{ background: 'rgba(0,180,255,0.12)', color: '#00b4ff', border: '1px solid rgba(0,180,255,0.2)' }}
-              >
-                SAVE
-              </button>
-            )}
-          </div>
-          {recentCaptures.map((c, i) => (
-            <div key={i} className="mt-1.5 text-[10px] px-3 py-1 rounded-lg" style={{ background: 'rgba(0,180,255,0.04)', color: '#334155' }}>
-              ✓ {c}
-            </div>
-          ))}
-        </section>
-
-        {/* ── High Impact Tasks ───────────────────────────────────────── */}
-        <section className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[9px] font-[700] uppercase tracking-[0.2em]" style={{ color: '#334155' }}>
-              High Impact
-            </p>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+      {/* ── Left: task list ── */}
+      <div style={{
+        flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+        borderRight: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
+      }}>
+        {/* Quick capture */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          height: 38, padding: '0 14px', flexShrink: 0,
+          background: 'rgba(0,0,0,0.5)',
+          borderBottom: '1px solid rgba(0,180,255,0.07)',
+        }}>
+          <span style={{
+            color: '#00b4ff', fontWeight: 800, fontSize: 16, lineHeight: 1,
+            textShadow: '0 0 12px rgba(0,180,255,0.7), 0 0 24px rgba(0,180,255,0.3)',
+          }}>›</span>
+          <input
+            ref={captureRef}
+            value={capture}
+            onChange={e => setCapture(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCapture()}
+            placeholder={captured ? '✓ Captured' : 'Drop a thought, task, or idea...'}
+            disabled={capturing}
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              fontSize: 12, color: captured ? '#22c55e' : '#94a3b8', caretColor: '#00b4ff',
+            }}
+          />
+          {capture.trim() && !capturing && (
             <button
-              onClick={onAddTask}
-              className="text-[9px] font-[700] px-2 py-1 rounded-md"
-              style={{ background: 'rgba(0,180,255,0.08)', color: '#00b4ff', border: '1px solid rgba(0,180,255,0.15)' }}
+              onClick={handleCapture}
+              style={{
+                fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 4,
+                background: 'rgba(0,180,255,0.1)', color: '#00b4ff',
+                border: '1px solid rgba(0,180,255,0.25)', cursor: 'pointer',
+                boxShadow: '0 0 10px rgba(0,180,255,0.2)',
+                letterSpacing: '0.06em',
+              }}
             >
-              + Add
+              CAPTURE
             </button>
-          </div>
-          <div className="flex flex-col gap-2">
-            {highImpact.length === 0 && (
-              <p className="text-xs px-1" style={{ color: '#1e293b' }}>No active tasks</p>
-            )}
-            {highImpact.map(task => {
-              const ws = wsMap[task.workspace_id ?? '']
-              const progress = taskProgress(task)
-              const barColor = progress > 70 ? '#22c55e' : progress > 30 ? '#00b4ff' : '#f59e0b'
-              const pri = PRIORITY_BADGE[task.priority]
-              const ph = task.phase ? PHASE_BADGE[task.phase] : null
-              return (
-                <button
-                  key={task.id}
-                  onClick={() => onSelectTask(task)}
-                  className="text-left flex items-center gap-3 px-3 py-3 rounded-xl transition-all"
-                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
-                >
-                  {ws ? (
-                    <BrandOrb name={ws.name} color={ws.color} />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full shrink-0" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }} />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-[500] truncate leading-snug mb-1.5" style={{ color: '#cbd5e1' }}>
-                      {task.title}
-                    </p>
-                    <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-                      {pri && (
-                        <span className="text-[8px] font-[800] px-1.5 py-0.5 rounded" style={{ background: pri.bg, color: pri.color }}>
-                          {pri.label}
-                        </span>
-                      )}
-                      {ph && (
-                        <span className="text-[8px] font-[700] px-1.5 py-0.5 rounded" style={{ background: ph.bg, color: ph.color }}>
-                          {ph.label}
-                        </span>
-                      )}
-                      {ws && (
-                        <span className="text-[8px] font-[600]" style={{ color: ws.color }}>{ws.name}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div className="h-full rounded-full" style={{ width: `${progress}%`, background: barColor }} />
-                      </div>
-                      <span className="text-[9px] font-[700] shrink-0" style={{ color: barColor }}>{progress}%</span>
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* ── Initiative Performance ──────────────────────────────────── */}
-        <section className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[9px] font-[700] uppercase tracking-[0.2em]" style={{ color: '#334155' }}>
-              Initiative Performance Overview
-            </p>
-            {selectedWs && (
-              <button
-                onClick={() => onSelectWs(selectedWs)}
-                className="text-[8px] font-[600]"
-                style={{ color: '#475569' }}
-              >
-                Clear filter ×
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {displayWs.map(ws => {
-              const pulse = healthPulse(ws)
-              const isSelected = selectedWs?.id === ws.id
-              return (
-                <button
-                  key={ws.id}
-                  onClick={() => onSelectWs(ws)}
-                  className="text-left rounded-xl p-3 transition-all"
-                  style={{
-                    background: isSelected ? `${ws.color}0e` : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${isSelected ? ws.color + '40' : 'rgba(255,255,255,0.05)'}`,
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: ws.color, boxShadow: `0 0 4px ${ws.color}` }}
-                      />
-                      <span className="text-[10px] font-[700] truncate" style={{ color: ws.color }}>{ws.name}</span>
-                    </div>
-                    {ws.active_count > 0 && (
-                      <span className="text-[7px] font-[700]" style={{ color: '#22c55e' }}>● LIVE</span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 mb-2 text-center">
-                    {[
-                      { label: 'ACT', val: ws.active_count, color: '#00b4ff' },
-                      { label: 'BLK', val: ws.blocked_count, color: '#f59e0b' },
-                      { label: 'IDR', val: ws.idea_count, color: '#475569' },
-                    ].map(({ label, val, color }) => (
-                      <div key={label}>
-                        <p className="text-sm font-[800]" style={{ color }}>{val}</p>
-                        <p className="text-[7px] font-[600] uppercase tracking-wider" style={{ color: '#1e293b' }}>{label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-end justify-between gap-2">
-                    <div className="flex-1">
-                      <div className="h-0.5 rounded-full mb-1" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div className="h-full rounded-full" style={{ width: `${pulse}%`, background: ws.color, opacity: 0.7 }} />
-                      </div>
-                      <p className="text-[8px]" style={{ color: '#1e293b' }}>Velocity target {ws.active_count}/{ws.task_count}</p>
-                    </div>
-                    <Sparkline seed={ws.id} color={ws.color} />
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* ── Actionized (Blocked) ─────────────────────────────────────── */}
-        {blocked.length > 0 && (
-          <section className="px-5 py-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-[700] uppercase tracking-[0.2em]" style={{ color: '#f59e0b' }}>
-                Actionized
-              </p>
-              <span className="text-[9px]" style={{ color: '#334155' }}>SORTED &gt;</span>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {blocked.map(task => {
-                const ws = wsMap[task.workspace_id ?? '']
-                const done = actionizedDone.has(task.id)
-                return (
-                  <div
-                    key={task.id}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-                    style={{ background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.1)' }}
-                  >
-                    <button
-                      onClick={() => {
-                        setActionizedDone(prev => {
-                          const next = new Set(prev)
-                          if (next.has(task.id)) next.delete(task.id)
-                          else next.add(task.id)
-                          return next
-                        })
-                      }}
-                      className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center transition-all"
-                      style={{
-                        background: done ? '#22c55e' : 'transparent',
-                        border: `1.5px solid ${done ? '#22c55e' : 'rgba(245,158,11,0.4)'}`,
-                      }}
-                    >
-                      {done && (
-                        <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
-                          <path d="M2 5l2.5 2.5L8 3" stroke="#04040a" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => onSelectTask(task)}
-                      className="flex-1 text-left min-w-0"
-                    >
-                      <p className="text-xs truncate" style={{ color: done ? '#334155' : '#94a3b8', textDecoration: done ? 'line-through' : 'none' }}>
-                        {task.title}
-                      </p>
-                      {ws && (
-                        <p className="text-[9px] mt-0.5" style={{ color: ws.color }}>
-                          {ws.name}
-                        </p>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => onSelectTask(task)}
-                      className="shrink-0 w-5 h-5 flex items-center justify-center rounded transition-opacity hover:opacity-80"
-                      style={{ color: '#334155' }}
-                    >
-                      ···
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* ── Activity stream footer ───────────────────────────────────── */}
-        <div
-          className="px-5 py-2 mt-auto"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-        >
-          <p className="text-[9px]" style={{ color: '#1e293b' }}>
-            Activity Stream{' '}
-            <span style={{ color: '#283044' }}>| BPE Command Center</span>{' '}
-            <span style={{ color: '#1e293b' }}>| WENDY AI IS ACTIVE</span>
-          </p>
+          )}
         </div>
 
+        {/* Task rows */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {friction.length > 0 && (
+            <>
+              <SectionLabel
+                label="Friction"
+                count={friction.length}
+                color="#f59e0b"
+                glow="0 0 10px rgba(245,158,11,0.55), 0 0 22px rgba(245,158,11,0.2)"
+              />
+              {friction.map(t => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  workspace={wsById[t.workspace_id ?? '']}
+                  onClick={() => onSelectTask(t)}
+                />
+              ))}
+            </>
+          )}
+
+          {active.length > 0 && (
+            <>
+              <SectionLabel label="Active" count={active.length} color="#334155" />
+              {active.map(t => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  workspace={wsById[t.workspace_id ?? '']}
+                  onClick={() => onSelectTask(t)}
+                />
+              ))}
+            </>
+          )}
+
+          {ideas.length > 0 && (
+            <>
+              <SectionLabel label="Ideas" count={ideas.length} color="#283044" />
+              {ideas.map(t => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  workspace={wsById[t.workspace_id ?? '']}
+                  onClick={() => onSelectTask(t)}
+                />
+              ))}
+            </>
+          )}
+
+          {friction.length === 0 && active.length === 0 && ideas.length === 0 && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 11, color: '#1e293b' }}>Clean slate.</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Right: workspace rail + inbox ── */}
+      <div style={{
+        width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        {/* Workspaces */}
+        <div style={{ flexShrink: 0 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 12px 3px',
+          }}>
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.15em', color: '#283044' }}>
+              WORKSPACES
+            </span>
+            {wsExtra.length > 0 && (
+              <button
+                onClick={() => setShowAllWs(v => !v)}
+                style={{
+                  fontSize: 9, fontWeight: 600, color: '#334155',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                }}
+              >
+                {showAllWs ? '− less' : `+ ${wsExtra.length}`}
+              </button>
+            )}
+          </div>
+          {wsVisible.map(ws => {
+            const wt = tasks.filter(t => t.workspace_id === ws.id)
+            return (
+              <WorkspaceRow
+                key={ws.id}
+                ws={ws}
+                active={wt.filter(t => t.status === 'in_progress').length}
+                friction={wt.filter(t => t.status === 'blocked').length}
+                selected={selectedWs?.id === ws.id}
+                onClick={() => onSelectWs(ws)}
+              />
+            )
+          })}
+        </div>
+
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.04)', margin: '6px 0', flexShrink: 0 }} />
+
+        {/* Inbox */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '4px 12px 3px', flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.15em', color: '#283044' }}>INBOX</span>
+            {inbox.length > 0 && (
+              <span style={{ fontSize: 9, color: '#1e293b' }}>{inbox.length}</span>
+            )}
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {inbox.slice(0, 12).map(item => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex', alignItems: 'baseline', gap: 5,
+                  padding: '4px 12px',
+                  borderBottom: '1px solid rgba(255,255,255,0.02)',
+                }}
+              >
+                <span style={{ fontSize: 10, color: '#334155', flexShrink: 0 }}>·</span>
+                <span style={{
+                  fontSize: 10, color: '#334155', lineHeight: 1.35,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {item.content}
+                </span>
+              </div>
+            ))}
+            {inbox.length === 0 && (
+              <p style={{ fontSize: 10, color: '#1e293b', padding: '4px 12px' }}>Empty.</p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

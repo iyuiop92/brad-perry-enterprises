@@ -5,74 +5,8 @@ import type { Task, Workspace } from '@/lib/types'
 import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
 import WendyPanel from '@/components/WendyPanel'
-import BrandFooterBar from '@/components/BrandFooterBar'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
-
-const BASE_STATUS = [
-  'Systems Operational',
-  'Wendy AI Connected',
-  'Neural Grid Active',
-  'Revenue Pulse Stable',
-]
-
-function buildStatusMessages(tasks: Task[], workspaces: Workspace[]): string[] {
-  const active = tasks.filter(t => t.status === 'in_progress').length
-  const blocked = tasks.filter(t => t.status === 'blocked').length
-  return [
-    'Systems Operational',
-    `${active} Active Initiative${active !== 1 ? 's' : ''}`,
-    blocked > 0 ? `${blocked} Item${blocked !== 1 ? 's' : ''} Need Attention` : 'No Critical Blockers',
-    'Wendy AI Connected',
-    `${workspaces.length} Workspace${workspaces.length !== 1 ? 's' : ''} Online`,
-  ]
-}
-
-function computeMetrics(tasks: Task[]) {
-  const total = tasks.length
-  const active = tasks.filter(t => t.status === 'in_progress').length
-  const blocked = tasks.filter(t => t.status === 'blocked').length
-  const done = tasks.filter(t => t.status === 'done').length
-  const completionPct = total > 0 ? Math.round((done / total) * 100) : 0
-  const velocityPct = total > 0 ? Math.round(((active + done) / total) * 100) : 0
-  const focusScore = Math.min(100, Math.max(0,
-    40 + Math.min(40, active * 8) - Math.min(30, blocked * 10) + Math.min(20, Math.floor(completionPct / 5))
-  ))
-  return { completionPct, velocityPct, focusScore, active, blocked, done, total }
-}
-
-function AnimatedCounter({ target, color }: { target: number; color?: string }) {
-  const [value, setValue] = useState(0)
-  useEffect(() => {
-    if (target === 0) { setValue(0); return }
-    let current = 0
-    const step = Math.ceil(target / 18)
-    const t = setInterval(() => {
-      current = Math.min(target, current + step)
-      setValue(current)
-      if (current >= target) clearInterval(t)
-    }, 40)
-    return () => clearInterval(t)
-  }, [target])
-  return <span style={{ color: color ?? '#475569' }}>{value}</span>
-}
-
-function MetricBar({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2 flex-1 min-w-0">
-      <span className="text-[9px] font-[700] uppercase tracking-[0.12em] shrink-0" style={{ color: '#334155' }}>
-        {label}
-      </span>
-      <div className="flex-1 h-px rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-        <div
-          className="h-full rounded-full transition-all duration-1000"
-          style={{ width: `${value}%`, background: color }}
-        />
-      </div>
-      <span className="text-xs font-[800] shrink-0" style={{ color }}>{value}%</span>
-    </div>
-  )
-}
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -81,8 +15,7 @@ export default function DashboardPage() {
   const [selectedWs, setSelectedWs] = useState<Workspace | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showAddPanel, setShowAddPanel] = useState(false)
-  const [statusIdx, setStatusIdx]   = useState(0)
-  const [statusVisible, setStatusVisible] = useState(true)
+  const [wendyOpen, setWendyOpen]   = useState(false)
 
   const fetchAll = useCallback(async () => {
     const [wsRes, taskRes] = await Promise.all([
@@ -96,173 +29,197 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const statusMessages = loading ? BASE_STATUS : buildStatusMessages(tasks, workspaces)
   useEffect(() => {
-    const id = setInterval(() => {
-      setStatusVisible(false)
-      setTimeout(() => {
-        setStatusIdx(i => (i + 1) % statusMessages.length)
-        setStatusVisible(true)
-      }, 280)
-    }, 3500)
-    return () => clearInterval(id)
-  }, [statusMessages.length])
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && wendyOpen) setWendyOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [wendyOpen])
 
-  const { completionPct, velocityPct, focusScore, active, blocked, total } = computeMetrics(tasks)
+  const active  = tasks.filter(t => t.status === 'in_progress').length
+  const friction = tasks.filter(t => t.status === 'blocked').length
   const today = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       <ParticleField />
 
       {/* ── Header ── */}
       <header
-        className="shrink-0 relative z-10"
         style={{
-          background: 'rgba(5,7,10,0.96)',
+          height: 44, flexShrink: 0, position: 'relative', zIndex: 20,
+          display: 'flex', alignItems: 'center', padding: '0 20px',
+          background: 'rgba(5,7,10,0.97)',
+          borderBottom: '1px solid rgba(0,180,255,0.07)',
           backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(0,180,255,0.08)',
         }}
       >
-        <div className="flex items-center gap-4 px-5 py-3">
-          {/* Logo */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div
-              className="w-2.5 h-2.5 rounded-full"
-              style={{
-                background: '#00b4ff',
-                boxShadow: '0 0 12px #00b4ff',
-                animation: 'breathe 2.5s ease-in-out infinite',
-                '--glow-color': '#00b4ff88',
-                '--glow-min': '5px',
-                '--glow-max': '16px',
-              } as React.CSSProperties}
-            />
-            <span
-              className="text-base font-[800] tracking-tight"
-              style={{ color: '#e2e8f0', fontFamily: 'var(--font-outfit)', letterSpacing: '-0.02em' }}
-            >
-              BPE <span style={{ color: '#00b4ff' }}>Command Center</span>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 20 }}>
+          <div
+            style={{
+              width: 8, height: 8, borderRadius: '50%', background: '#00b4ff',
+              boxShadow: '0 0 8px #00b4ff, 0 0 18px rgba(0,180,255,0.55), 0 0 36px rgba(0,180,255,0.2)',
+              animation: 'breathe 2.5s ease-in-out infinite',
+              '--glow-color': 'rgba(0,180,255,0.45)',
+              '--glow-min': '6px',
+              '--glow-max': '20px',
+            } as React.CSSProperties}
+          />
+          <span style={{
+            fontSize: 14, fontWeight: 800, color: '#e2e8f0',
+            letterSpacing: '-0.02em', fontFamily: 'var(--font-outfit)',
+          }}>
+            BPE{' '}
+            <span style={{ color: '#00b4ff', textShadow: '0 0 20px rgba(0,180,255,0.35)' }}>
+              Command Center
             </span>
-          </div>
+          </span>
+        </div>
 
-          {/* Rotating status */}
-          <div className="flex-1 flex justify-center pointer-events-none">
-            <p
-              className="text-[10px] font-[600] tracking-[0.15em] uppercase transition-all duration-300"
-              style={{
-                color: '#334155',
-                opacity: statusVisible ? 1 : 0,
-                transform: statusVisible ? 'translateY(0)' : 'translateY(-3px)',
-              }}
-            >
-              {statusMessages[statusIdx]}
-            </p>
-          </div>
-
-          {/* Right controls */}
-          <div className="flex items-center gap-3 shrink-0">
-            {!loading && (
-              <div
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                style={{ background: 'rgba(0,180,255,0.06)', border: '1px solid rgba(0,180,255,0.15)' }}
-              >
-                <span className="text-[9px] font-[600] uppercase tracking-wider" style={{ color: '#334155' }}>Focus</span>
-                <span className="text-sm font-[800]" style={{ color: '#00b4ff' }}>
-                  {focusScore}
-                  <span className="text-[9px] font-[500]" style={{ color: '#334155' }}>/100</span>
+        {/* Live counts */}
+        {!loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {active > 0 && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <span style={{
+                  fontSize: 18, fontWeight: 800, color: '#00b4ff',
+                  fontFamily: 'var(--font-outfit)',
+                  textShadow: '0 0 14px rgba(0,180,255,0.55)',
+                }}>
+                  {active}
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 600, color: '#283044', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  active
                 </span>
               </div>
             )}
-            <span className="text-xs font-[500]" style={{ color: '#283044' }}>{today}</span>
-            <button
-              onClick={() => setShowAddPanel(true)}
-              className="rounded-lg px-4 py-2 text-xs font-[700] tracking-wide transition-opacity hover:opacity-85"
-              style={{ background: '#00b4ff', color: '#04040a', letterSpacing: '0.04em' }}
-            >
-              + NEW INITIATIVE
-            </button>
-          </div>
-        </div>
-
-        {/* Metrics strip */}
-        {!loading && (
-          <div
-            className="flex items-center gap-4 px-5 py-2"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
-          >
-            <div className="flex items-center gap-4 shrink-0">
-              {[
-                { label: 'workspaces', val: workspaces.length, color: '#475569' },
-                { label: 'tasks', val: total, color: '#475569' },
-                { label: 'active', val: active, color: '#00b4ff' },
-                ...(blocked > 0 ? [{ label: 'blocked', val: blocked, color: '#f59e0b' }] : []),
-              ].map(({ label, val, color }) => (
-                <div key={label} className="flex items-baseline gap-1">
-                  <span className="text-sm font-[800]" style={{ fontFamily: 'var(--font-outfit)' }}>
-                    <AnimatedCounter target={val} color={color} />
-                  </span>
-                  <span className="text-[9px] font-[500] uppercase tracking-wider" style={{ color: '#283044' }}>
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="w-px h-3 shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }} />
-            <MetricBar label="Velocity" value={velocityPct} color="#00b4ff" />
-            <div className="w-px h-3 shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }} />
-            <MetricBar label="Completion" value={completionPct} color="#22c55e" />
-            <div className="w-px h-3 shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }} />
-            <MetricBar label="ROI Index" value={Math.min(100, focusScore + 12)} color="#8b5cf6" />
+            {friction > 0 && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <span style={{
+                  fontSize: 18, fontWeight: 800, color: '#f59e0b',
+                  fontFamily: 'var(--font-outfit)',
+                  textShadow: '0 0 14px rgba(245,158,11,0.65), 0 0 30px rgba(245,158,11,0.25)',
+                }}>
+                  {friction}
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 600, color: '#78350f', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  friction
+                </span>
+              </div>
+            )}
           </div>
         )}
+
+        <div style={{ flex: 1 }} />
+
+        <span style={{ fontSize: 11, color: '#283044', marginRight: 16 }}>{today}</span>
+
+        {/* Wendy toggle */}
+        <button
+          onClick={() => setWendyOpen(o => !o)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            height: 28, padding: '0 12px', borderRadius: 7, marginRight: 10, cursor: 'pointer',
+            background: wendyOpen ? 'rgba(0,180,255,0.1)' : 'rgba(255,255,255,0.03)',
+            border: `1px solid ${wendyOpen ? 'rgba(0,180,255,0.3)' : 'rgba(255,255,255,0.07)'}`,
+            boxShadow: wendyOpen ? '0 0 16px rgba(0,180,255,0.15), inset 0 0 12px rgba(0,180,255,0.05)' : 'none',
+            transition: 'all 0.2s',
+          }}
+        >
+          <div
+            style={{
+              width: 6, height: 6, borderRadius: '50%', background: '#00b4ff',
+              boxShadow: '0 0 8px rgba(0,180,255,0.8), 0 0 16px rgba(0,180,255,0.4)',
+              animation: 'breathe 2s ease-in-out infinite',
+              '--glow-color': 'rgba(0,180,255,0.5)',
+              '--glow-min': '4px',
+              '--glow-max': '12px',
+            } as React.CSSProperties}
+          />
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#00b4ff', letterSpacing: '0.05em' }}>
+            Wendy
+          </span>
+        </button>
+
+        {/* New */}
+        <button
+          onClick={() => setShowAddPanel(true)}
+          style={{
+            height: 28, padding: '0 14px', borderRadius: 7, cursor: 'pointer',
+            background: '#00b4ff', color: '#04040a',
+            fontSize: 11, fontWeight: 800, letterSpacing: '0.06em',
+            border: 'none',
+            boxShadow: '0 0 14px rgba(0,180,255,0.45), 0 0 30px rgba(0,180,255,0.15)',
+          }}
+        >
+          + NEW
+        </button>
       </header>
 
-      {/* ── Two-panel body ── */}
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center relative z-10">
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex items-center gap-2">
-              {[0, 1, 2].map(i => (
-                <div
-                  key={i}
-                  className="w-1.5 h-1.5 rounded-full animate-pulse"
-                  style={{ background: '#00b4ff', animationDelay: `${i * 0.15}s` }}
-                />
-              ))}
+      {/* ── Body ── */}
+      <main style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[0, 1, 2].map(i => (
+                  <div
+                    key={i}
+                    className="animate-pulse"
+                    style={{
+                      width: 6, height: 6, borderRadius: '50%', background: '#00b4ff',
+                      boxShadow: '0 0 8px rgba(0,180,255,0.6)',
+                      animationDelay: `${i * 0.15}s`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.15em', color: '#334155', textTransform: 'uppercase' }}>
+                Initializing
+              </span>
             </div>
-            <span className="text-xs font-[600] tracking-widest uppercase" style={{ color: '#334155' }}>
-              Initializing
-            </span>
           </div>
-        </div>
-      ) : (
-        <div className="flex relative z-10" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          {/* Center: Command Feed */}
-          <main style={{ flex: 1, minWidth: 0 }}>
-            <CommandFeed
-              tasks={tasks}
-              workspaces={workspaces}
-              selectedWs={selectedWs}
-              onSelectTask={setSelectedTask}
-              onSelectWs={ws => setSelectedWs(prev => prev?.id === ws.id ? null : ws)}
-              onAddTask={() => setShowAddPanel(true)}
-            />
-          </main>
+        ) : (
+          <CommandFeed
+            tasks={tasks}
+            workspaces={workspaces}
+            selectedWs={selectedWs}
+            onSelectTask={setSelectedTask}
+            onSelectWs={ws => setSelectedWs(prev => prev?.id === ws.id ? null : ws)}
+            onAddTask={() => setShowAddPanel(true)}
+          />
+        )}
+      </main>
 
-          {/* Right: Wendy — always on */}
-          <aside style={{ width: 320, flexShrink: 0 }}>
-            <WendyPanel
-              workspaces={workspaces}
-              tasks={tasks}
-              selectedWs={selectedWs}
-            />
-          </aside>
-        </div>
+      {/* ── Wendy drawer (slides in from right) ── */}
+      <div
+        style={{
+          position: 'fixed', top: 44, right: 0, bottom: 0, width: 320, zIndex: 50,
+          transform: wendyOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          background: 'rgba(4,4,10,0.98)',
+          borderLeft: '1px solid rgba(0,180,255,0.12)',
+          boxShadow: wendyOpen
+            ? '-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px rgba(0,180,255,0.05)'
+            : 'none',
+        }}
+      >
+        <WendyPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
+      </div>
+
+      {/* Backdrop */}
+      {wendyOpen && (
+        <div
+          onClick={() => setWendyOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 40,
+            background: 'rgba(0,0,0,0.25)',
+            backdropFilter: 'blur(2px)',
+          }}
+        />
       )}
-
-      {/* ── Footer ── */}
-      <BrandFooterBar workspaces={workspaces} onSelectWs={ws => setSelectedWs(prev => prev?.id === ws.id ? null : ws)} />
 
       {/* ── Modals ── */}
       {showAddPanel && (
@@ -281,6 +238,6 @@ export default function DashboardPage() {
           onDeleted={() => { setSelectedTask(null); fetchAll() }}
         />
       )}
-    </>
+    </div>
   )
 }
