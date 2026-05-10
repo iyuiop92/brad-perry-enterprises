@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const phases = [
   {
@@ -38,7 +38,23 @@ const phases = [
 
 export default function HowWeBuild() {
   const [open, setOpen] = useState<string>('discover')
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const activePhase = phases.find(p => p.id === open)
+
+  function startTimer() {
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => {
+      setOpen(prev => {
+        const idx = phases.findIndex(p => p.id === prev)
+        return phases[(idx + 1) % phases.length].id
+      })
+    }, 5000)
+  }
+
+  useEffect(() => {
+    startTimer()
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [])
 
   return (
     <section id="about" className="py-24 px-6">
@@ -64,7 +80,7 @@ export default function HowWeBuild() {
             {phases.map(phase => (
               <button
                 key={phase.id}
-                onClick={() => setOpen(phase.id)}
+                onClick={() => { setOpen(phase.id); startTimer() }}
                 className={`text-left p-4 rounded-xl border transition-all duration-200 ${
                   open === phase.id
                     ? 'bg-[rgba(0,180,255,0.07)] border-[rgba(0,180,255,0.25)] text-white'

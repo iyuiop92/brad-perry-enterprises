@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 type Tab = 'development' | 'design' | 'strategy' | 'ai'
 
@@ -144,7 +144,23 @@ function RadarChart({ skills }: { skills: Skill[] }) {
 
 export default function SkillsMastery() {
   const [activeTab, setActiveTab] = useState<Tab>('development')
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const data = skillsData[activeTab]
+
+  function startTimer() {
+    if (timerRef.current) clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => {
+      setActiveTab(prev => {
+        const idx = tabs.findIndex(t => t.id === prev)
+        return tabs[(idx + 1) % tabs.length].id
+      })
+    }, 5000)
+  }
+
+  useEffect(() => {
+    startTimer()
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [])
 
   return (
     <section id="services" className="py-24 px-6">
@@ -160,7 +176,7 @@ export default function SkillsMastery() {
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => { setActiveTab(tab.id); startTimer() }}
               className={`px-4 py-2 rounded-lg text-sm font-[600] transition-all duration-200 ${
                 activeTab === tab.id
                   ? 'bg-[rgba(0,180,255,0.12)] text-[#00b4ff] border border-[rgba(0,180,255,0.3)]'
