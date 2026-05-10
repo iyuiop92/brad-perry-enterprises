@@ -383,18 +383,27 @@ export default function CommandFeed({
   onAddTask: () => void
   onRefresh: () => void
 }) {
-  const [dismissed, setDismissed]   = useState<Set<string>>(new Set())
-  const [localTasks, setLocalTasks] = useState<Task[]>(propTasks)
-  const [capture, setCapture]       = useState('')
-  const [capturing, setCapturing]   = useState(false)
-  const [captured, setCaptured]     = useState(false)
-  const [inbox, setInbox]           = useState<InboxItem[]>([])
-  const [focusWsId, setFocusWsId]   = useState<string | null>(null)
+  const [dismissed, setDismissed]     = useState<Set<string>>(new Set())
+  const [localTasks, setLocalTasks]   = useState<Task[]>(propTasks)
+  const [capture, setCapture]         = useState('')
+  const [capturing, setCapturing]     = useState(false)
+  const [captured, setCaptured]       = useState(false)
+  const [inbox, setInbox]             = useState<InboxItem[]>([])
+  const [focusWsId, setFocusWsId]     = useState<string | null>(null)
+  const [captureOpen, setCaptureOpen] = useState(false)
+  const [focusNowOpen, setFocusNowOpen] = useState(true)
+  const [cols, setCols]               = useState(4)
   const captureRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setLocalTasks(propTasks); setDismissed(new Set()) }, [propTasks])
   useEffect(() => {
     fetch('/api/inbox').then(r => r.ok ? r.json() : []).then(setInbox).catch(() => {})
+  }, [])
+  useEffect(() => {
+    function onResize() { setCols(window.innerWidth < 960 ? 2 : 4) }
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   async function handleDone(task: Task) {
@@ -446,7 +455,7 @@ export default function CommandFeed({
   const totalFriction = tasks.filter(t => t.status === 'blocked').length
   const totalIdeas    = tasks.filter(t => t.status === 'idea').length
   const insights   = computeInsights(workspaces, tasks)
-  const tileRows   = Math.max(1, Math.ceil(workspaces.length / 4))
+  const tileRows   = Math.max(1, Math.ceil(workspaces.length / cols))
 
   const recent = [...tasks].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10)
   const ticker = recent.map(t => {
@@ -462,32 +471,49 @@ export default function CommandFeed({
         width: '18%', minWidth: 180, display: 'flex', flexDirection: 'column',
         borderRight: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
       }}>
-        {/* Quick capture bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          height: 38, padding: '0 12px', flexShrink: 0,
-          background: 'rgba(0,0,0,0.6)', borderBottom: '1px solid rgba(0,180,255,0.08)',
-        }}>
-          <span style={{ color: '#00b4ff', fontWeight: 800, fontSize: 15, textShadow: '0 0 10px rgba(0,180,255,0.7)' }}>›</span>
-          <input
-            ref={captureRef}
-            value={capture}
-            onChange={e => setCapture(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCapture()}
-            placeholder={captured ? '✓ Captured' : 'Capture idea or task...'}
-            disabled={capturing}
-            style={{
-              flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 12, color: captured ? '#22c55e' : '#ffffff', caretColor: '#00b4ff',
-            }}
-          />
-          {capture.trim() && (
-            <button onClick={handleCapture} style={{
-              fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
-              background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
-              border: '1px solid rgba(0,180,255,0.3)', cursor: 'pointer',
-              boxShadow: '0 0 8px rgba(0,180,255,0.2)',
-            }}>GO</button>
+        {/* Quick capture — collapsible */}
+        <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(0,180,255,0.08)', background: 'rgba(0,0,0,0.5)' }}>
+          {captureOpen ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 10px' }}>
+              <span style={{ color: '#00b4ff', fontWeight: 800, fontSize: 14, textShadow: '0 0 10px rgba(0,180,255,0.7)' }}>›</span>
+              <input
+                ref={captureRef}
+                value={capture}
+                onChange={e => setCapture(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleCapture()
+                  if (e.key === 'Escape') { setCapture(''); setCaptureOpen(false) }
+                }}
+                onBlur={() => { if (!capture.trim()) setCaptureOpen(false) }}
+                placeholder={captured ? '✓ Captured' : 'Type and press Enter...'}
+                disabled={capturing}
+                style={{
+                  flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                  fontSize: 12, color: captured ? '#22c55e' : '#ffffff', caretColor: '#00b4ff',
+                }}
+              />
+              {capture.trim() && (
+                <button onClick={handleCapture} style={{
+                  fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
+                  background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
+                  border: '1px solid rgba(0,180,255,0.3)', cursor: 'pointer',
+                }}>GO</button>
+              )}
+              <button onClick={() => { setCapture(''); setCaptureOpen(false) }} style={{
+                fontSize: 10, color: '#8899aa', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 2px',
+              }}>✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setCaptureOpen(true); setTimeout(() => captureRef.current?.focus(), 30) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                height: 30, padding: '0 12px', background: 'transparent', border: 'none', cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 13, color: '#00b4ff', fontWeight: 800, textShadow: '0 0 8px rgba(0,180,255,0.6)' }}>+</span>
+              <span style={{ fontSize: 10, color: '#8899aa' }}>Capture idea or task...</span>
+            </button>
           )}
         </div>
 
@@ -618,7 +644,7 @@ export default function CommandFeed({
         <div style={{
           flex: 1, minWidth: 0, height: '100%',
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
           gridTemplateRows: `repeat(${tileRows}, 1fr)`,
           gap: 1, background: 'rgba(0,0,0,0.3)', overflow: 'hidden',
         }}>
@@ -630,7 +656,7 @@ export default function CommandFeed({
               onFocus={() => { setFocusWsId(ws.id); onSelectWs(ws) }}
               onOpenTask={onSelectTask} />
           ))}
-          {Array.from({ length: (4 - (workspaces.length % 4)) % 4 }).map((_, i) => (
+          {Array.from({ length: (cols - (workspaces.length % cols)) % cols }).map((_, i) => (
             <div key={`filler-${i}`} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
           ))}
         </div>
@@ -660,42 +686,55 @@ export default function CommandFeed({
           ))}
         </div>
 
-        {/* Focus Now — top priority task with quick actions */}
+        {/* Focus Now — collapsible */}
         {(() => {
           const focusTask = [...friction, ...active][0]
           if (!focusTask) return null
           const ws = wsById[focusTask.workspace_id ?? '']
           const isBlocked = focusTask.status === 'blocked'
           return (
-            <div style={{ flexShrink: 0, padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-              <p style={{ fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', color: '#8899aa', marginBottom: 5 }}>FOCUS NOW</p>
-              <div
-                onClick={() => onSelectTask(focusTask)}
+            <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <button
+                onClick={() => setFocusNowOpen(o => !o)}
                 style={{
-                  padding: '7px 8px', borderRadius: 5, cursor: 'pointer',
-                  background: isBlocked ? 'rgba(245,158,11,0.06)' : 'rgba(0,180,255,0.06)',
-                  border: `1px solid ${isBlocked ? 'rgba(245,158,11,0.2)' : 'rgba(0,180,255,0.18)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', padding: '5px 10px', background: 'transparent', border: 'none', cursor: 'pointer',
                 }}
               >
-                {ws && <p style={{ fontSize: 8, color: ws.color, fontWeight: 800, marginBottom: 3, letterSpacing: '0.04em' }}>{ws.name}</p>}
-                <p style={{ fontSize: 11, color: isBlocked ? '#fbbf24' : '#ffffff', fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{focusTask.title}</p>
-                <div style={{ display: 'flex', gap: 3 }} onClick={e => e.stopPropagation()}>
-                  {isBlocked && (
-                    <button onClick={() => handleActivate(focusTask)} style={{
-                      flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
-                      background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
-                    }}>▶ Activate</button>
-                  )}
-                  <button onClick={() => handleDone(focusTask)} style={{
-                    flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
-                    background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-                  }}>✓ Done</button>
-                  <button onClick={() => handlePostpone(focusTask)} style={{
-                    flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.06)', color: '#ffffff',
-                  }}>↙ Later</button>
+                <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', color: '#8899aa' }}>FOCUS NOW</span>
+                <span style={{ fontSize: 8, color: '#8899aa' }}>{focusNowOpen ? '▲' : '▼'}</span>
+              </button>
+              {focusNowOpen && (
+                <div style={{ padding: '0 10px 7px' }}>
+                  <div
+                    onClick={() => onSelectTask(focusTask)}
+                    style={{
+                      padding: '7px 8px', borderRadius: 5, cursor: 'pointer',
+                      background: isBlocked ? 'rgba(245,158,11,0.06)' : 'rgba(0,180,255,0.06)',
+                      border: `1px solid ${isBlocked ? 'rgba(245,158,11,0.2)' : 'rgba(0,180,255,0.18)'}`,
+                    }}
+                  >
+                    {ws && <p style={{ fontSize: 8, color: ws.color, fontWeight: 800, marginBottom: 3, letterSpacing: '0.04em' }}>{ws.name}</p>}
+                    <p style={{ fontSize: 11, color: isBlocked ? '#fbbf24' : '#ffffff', fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{focusTask.title}</p>
+                    <div style={{ display: 'flex', gap: 3 }} onClick={e => e.stopPropagation()}>
+                      {isBlocked && (
+                        <button onClick={() => handleActivate(focusTask)} style={{
+                          flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
+                          background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
+                        }}>▶ Activate</button>
+                      )}
+                      <button onClick={() => handleDone(focusTask)} style={{
+                        flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
+                        background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+                      }}>✓ Done</button>
+                      <button onClick={() => handlePostpone(focusTask)} style={{
+                        flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.06)', color: '#ffffff',
+                      }}>↙ Later</button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )
         })()}
