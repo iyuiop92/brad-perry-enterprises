@@ -393,6 +393,7 @@ export default function CommandFeed({
   const [captureOpen, setCaptureOpen] = useState(false)
   const [focusNowOpen, setFocusNowOpen] = useState(true)
   const [cols, setCols]               = useState(4)
+  const [mobileOpen, setMobileOpen]   = useState({ focus: true, workspaces: false, tasks: false })
   const captureRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setLocalTasks(propTasks); setDismissed(new Set()) }, [propTasks])
@@ -463,6 +464,282 @@ export default function CommandFeed({
     return `[ ${abbr} ] ${t.title} — ${t.status.replace('_', ' ')}`
   }).join('   ·   ')
 
+  const isMobile = cols < 4
+
+  // ── Shared sub-renders ──────────────────────────────────────────────────────
+
+  function CaptureBar({ fullWidth }: { fullWidth?: boolean }) {
+    return (
+      <div style={{
+        flexShrink: 0,
+        borderBottom: '1px solid rgba(0,180,255,0.08)',
+        background: 'rgba(0,0,0,0.5)',
+        ...(fullWidth ? {} : {}),
+      }}>
+        {captureOpen ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, height: 42, padding: '0 14px' }}>
+            <span style={{ color: '#00b4ff', fontWeight: 800, fontSize: 14, textShadow: '0 0 10px rgba(0,180,255,0.7)' }}>›</span>
+            <input
+              ref={captureRef}
+              value={capture}
+              onChange={e => setCapture(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleCapture()
+                if (e.key === 'Escape') { setCapture(''); setCaptureOpen(false) }
+              }}
+              onBlur={() => { if (!capture.trim()) setCaptureOpen(false) }}
+              placeholder={captured ? '✓ Captured' : 'Type and press Enter...'}
+              disabled={capturing}
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                fontSize: 13, color: captured ? '#22c55e' : '#ffffff', caretColor: '#00b4ff',
+              }}
+            />
+            {capture.trim() && (
+              <button onClick={handleCapture} style={{
+                fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 4,
+                background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
+                border: '1px solid rgba(0,180,255,0.3)', cursor: 'pointer',
+              }}>GO</button>
+            )}
+            <button onClick={() => { setCapture(''); setCaptureOpen(false) }} style={{
+              fontSize: 11, color: '#8899aa', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 4px',
+            }}>✕</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { setCaptureOpen(true); setTimeout(() => captureRef.current?.focus(), 30) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+              height: 42, padding: '0 16px', background: 'transparent', border: 'none', cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 16, color: '#00b4ff', fontWeight: 800, textShadow: '0 0 8px rgba(0,180,255,0.6)' }}>+</span>
+            <span style={{ fontSize: 12, color: '#8899aa' }}>Capture idea or task...</span>
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  function AccordionHeader({
+    title, count, open, onToggle, accent,
+  }: { title: string; count?: number; open: boolean; onToggle: () => void; accent?: string }) {
+    return (
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', padding: '13px 16px', background: 'transparent', border: 'none',
+          borderBottom: open ? 'none' : '1px solid rgba(255,255,255,0.04)',
+          cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {accent && <div style={{ width: 5, height: 5, borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${accent}` }} />}
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#ffffff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{title}</span>
+          {count != null && count > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.08)', color: '#8899aa',
+            }}>{count}</span>
+          )}
+        </div>
+        <span style={{ fontSize: 10, color: '#8899aa' }}>{open ? '▲' : '▼'}</span>
+      </button>
+    )
+  }
+
+  // ── Mobile layout ───────────────────────────────────────────────────────────
+  if (isMobile) {
+    const focusTask = [...friction, ...active][0]
+    const fws = focusTask ? wsById[focusTask.workspace_id ?? ''] : undefined
+    const focusBlocked = focusTask?.status === 'blocked'
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#04040a' }}>
+
+        {/* Stats row */}
+        <div style={{
+          flexShrink: 0, display: 'flex',
+          background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid rgba(255,255,255,0.04)',
+        }}>
+          {([
+            { n: totalActive,      label: 'ACT', color: '#00b4ff',                                      glow: '0 0 10px rgba(0,180,255,0.5)' },
+            { n: totalFriction,    label: 'FRI', color: totalFriction > 0 ? '#f59e0b' : '#8899aa',     glow: totalFriction > 0 ? '0 0 10px rgba(245,158,11,0.5)' : 'none' },
+            { n: totalIdeas,       label: 'IDR', color: '#ffffff',                                       glow: 'none' },
+            { n: doneToday.length, label: 'DNE', color: doneToday.length > 0 ? '#22c55e' : '#8899aa',  glow: doneToday.length > 0 ? '0 0 10px rgba(34,197,94,0.4)' : 'none' },
+          ] as { n: number; label: string; color: string; glow: string }[]).map(({ n, label, color, glow }, i, arr) => (
+            <div key={label} style={{
+              flex: 1, textAlign: 'center', padding: '10px 4px',
+              borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+            }}>
+              <p style={{ fontSize: 22, fontWeight: 800, lineHeight: 1, color, textShadow: glow }}>{n}</p>
+              <p style={{ fontSize: 8, color: '#8899aa', letterSpacing: '0.1em', marginTop: 3 }}>{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Capture */}
+        <CaptureBar fullWidth />
+
+        {/* Scrollable accordion body */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+
+          {/* ── Focus Now ── */}
+          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <AccordionHeader
+              title="Focus Now"
+              open={mobileOpen.focus}
+              onToggle={() => setMobileOpen(s => ({ ...s, focus: !s.focus }))}
+              accent={focusTask ? (focusBlocked ? '#f59e0b' : '#00b4ff') : undefined}
+            />
+            {mobileOpen.focus && (
+              <div style={{ padding: '0 14px 14px' }}>
+                {focusTask ? (
+                  <div
+                    onClick={() => onSelectTask(focusTask)}
+                    style={{
+                      padding: '12px 14px', borderRadius: 8, cursor: 'pointer',
+                      background: focusBlocked ? 'rgba(245,158,11,0.06)' : 'rgba(0,180,255,0.06)',
+                      border: `1px solid ${focusBlocked ? 'rgba(245,158,11,0.2)' : 'rgba(0,180,255,0.18)'}`,
+                    }}
+                  >
+                    {fws && <p style={{ fontSize: 9, color: fws.color, fontWeight: 800, marginBottom: 4, letterSpacing: '0.04em' }}>{fws.name}</p>}
+                    <p style={{ fontSize: 13, color: focusBlocked ? '#fbbf24' : '#ffffff', fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>
+                      {focusTask.title}
+                    </p>
+                    <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                      {focusBlocked && (
+                        <button onClick={() => handleActivate(focusTask)} style={{
+                          flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
+                          background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
+                        }}>▶ Activate</button>
+                      )}
+                      <button onClick={() => handleDone(focusTask)} style={{
+                        flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
+                        background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+                      }}>✓ Done</button>
+                      <button onClick={() => handlePostpone(focusTask)} style={{
+                        flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.06)', color: '#ffffff',
+                      }}>↙ Later</button>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: '#8899aa', padding: '4px 0' }}>Nothing urgent. Clean slate.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Workspaces ── */}
+          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <AccordionHeader
+              title="Workspaces"
+              count={workspaces.length}
+              open={mobileOpen.workspaces}
+              onToggle={() => setMobileOpen(s => ({ ...s, workspaces: !s.workspaces }))}
+            />
+            {mobileOpen.workspaces && (
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1,
+                background: 'rgba(0,0,0,0.3)', padding: 1,
+              }}>
+                {workspaces.map(ws => (
+                  <WorkspaceTile key={ws.id} ws={ws} tasks={tasks}
+                    selected={selectedWs?.id === ws.id}
+                    focused={focusWsId === ws.id}
+                    onSelect={() => onSelectWs(ws)}
+                    onFocus={() => { setFocusWsId(ws.id); onSelectWs(ws) }}
+                    onOpenTask={onSelectTask}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Tasks ── */}
+          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <AccordionHeader
+              title="Tasks"
+              count={friction.length + active.length + ideas.length}
+              open={mobileOpen.tasks}
+              onToggle={() => setMobileOpen(s => ({ ...s, tasks: !s.tasks }))}
+            />
+            {mobileOpen.tasks && (
+              <div style={{ paddingBottom: 8 }}>
+                {friction.length > 0 && (
+                  <>
+                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#f59e0b', textShadow: '0 0 10px rgba(245,158,11,0.6)' }}>FRICTION</span>
+                      <span style={{ fontSize: 9, color: '#f59e0b' }}>{friction.length}</span>
+                    </div>
+                    {friction.map(t => (
+                      <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
+                        onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
+                        onPostpone={() => handlePostpone(t)} onActivate={() => handleActivate(t)} />
+                    ))}
+                  </>
+                )}
+                {active.length > 0 && (
+                  <>
+                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#00b4ff' }}>ACTIVE</span>
+                      <span style={{ fontSize: 9, color: '#00b4ff' }}>{active.length}</span>
+                    </div>
+                    {active.map(t => (
+                      <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
+                        onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
+                        onPostpone={() => handlePostpone(t)} />
+                    ))}
+                  </>
+                )}
+                {ideas.length > 0 && (
+                  <>
+                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#ffffff' }}>IDEAS</span>
+                      <span style={{ fontSize: 9, color: '#ffffff' }}>{ideas.length}</span>
+                    </div>
+                    {ideas.map(t => (
+                      <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
+                        onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
+                        onPostpone={() => handlePostpone(t)} />
+                    ))}
+                  </>
+                )}
+                {doneToday.length > 0 && (
+                  <>
+                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#22c55e' }}>DONE TODAY</span>
+                      <span style={{ fontSize: 9, color: '#22c55e' }}>{doneToday.length}</span>
+                    </div>
+                    {doneToday.slice(0, 6).map(t => (
+                      <button key={t.id} onClick={() => onSelectTask(t)} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, height: 36, padding: '0 16px',
+                        width: '100%', background: 'transparent', border: 'none',
+                        borderBottom: '1px solid rgba(255,255,255,0.02)',
+                        cursor: 'pointer', textAlign: 'left',
+                      }}>
+                        <span style={{ fontSize: 10, color: '#22c55e', flexShrink: 0 }}>✓</span>
+                        <span style={{ fontSize: 12, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+                {friction.length === 0 && active.length === 0 && ideas.length === 0 && (
+                  <p style={{ fontSize: 12, color: '#8899aa', padding: '8px 16px' }}>Clean slate.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    )
+  }
+
+  // ── Desktop layout ──────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
