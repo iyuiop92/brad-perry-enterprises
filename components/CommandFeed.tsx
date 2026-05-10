@@ -151,7 +151,7 @@ function TaskCard({
           }}>{abbr}</span>
           <span style={{
             flex: 1, fontSize: 12, fontWeight: blocked ? 600 : p1 ? 500 : 400,
-            color: blocked ? '#fbbf24' : p1 ? '#e2e8f0' : '#94a3b8',
+            color: blocked ? '#fbbf24' : '#ffffff',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{task.title}</span>
           <span style={{
@@ -260,7 +260,7 @@ function WorkspaceTile({
         }} />
         <span style={{
           flex: 1, fontSize: 11, fontWeight: 700, letterSpacing: '-0.01em',
-          color: hasWork ? '#e2e8f0' : '#475569',
+          color: hasWork ? '#ffffff' : '#64748b',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{ws.name}</span>
         <Sparkline seed={ws.id} color={sparkColor} />
@@ -315,7 +315,7 @@ function WorkspaceTile({
               }} />
               <span style={{
                 flex: 1, fontSize: 10, fontWeight: isBlocked ? 600 : 400,
-                color: isBlocked ? '#fbbf24' : isP1 ? '#94a3b8' : '#475569',
+                color: isBlocked ? '#fbbf24' : '#ffffff',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{t.title}</span>
               <span style={{ fontSize: 8, color: isP1 ? '#334155' : '#1e293b', flexShrink: 0, letterSpacing: '0.04em' }}>
@@ -463,7 +463,7 @@ export default function CommandFeed({
             disabled={capturing}
             style={{
               flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 12, color: captured ? '#22c55e' : '#94a3b8', caretColor: '#00b4ff',
+              fontSize: 12, color: captured ? '#22c55e' : '#ffffff', caretColor: '#00b4ff',
             }}
           />
           {capture.trim() && (
@@ -495,8 +495,8 @@ export default function CommandFeed({
           {active.length > 0 && (
             <>
               <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#334155' }}>ACTIVE</span>
-                <span style={{ fontSize: 9, color: '#283044' }}>{active.length}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#00b4ff' }}>ACTIVE</span>
+                <span style={{ fontSize: 9, color: '#475569' }}>{active.length}</span>
               </div>
               {active.map(t => (
                 <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
@@ -627,7 +627,7 @@ export default function CommandFeed({
           </div>
           {insights.map((text, i) => (
             <div key={i} style={{ padding: '4px 6px', marginBottom: 3, borderRadius: 4, background: 'rgba(0,180,255,0.04)', border: '1px solid rgba(0,180,255,0.08)' }}>
-              <p style={{ fontSize: 10, color: '#475569', lineHeight: 1.35 }}>
+              <p style={{ fontSize: 10, color: '#ffffff', lineHeight: 1.35 }}>
                 <span style={{ color: '#00b4ff', marginRight: 4 }}>✦</span>{text}
               </p>
             </div>
@@ -655,7 +655,7 @@ export default function CommandFeed({
             {inbox.map(item => (
               <div key={item.id} style={{ display: 'flex', gap: 5, padding: '4px 10px', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.025)' }}>
                 <span style={{ fontSize: 9, color: '#334155', flexShrink: 0, marginTop: 1 }}>·</span>
-                <span style={{ fontSize: 10, color: '#334155', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 10, color: '#ffffff', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {item.content}
                 </span>
               </div>
