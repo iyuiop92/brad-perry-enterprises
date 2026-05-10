@@ -252,17 +252,17 @@ function WorkspaceTile({
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px 4px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 3px', flexShrink: 0 }}>
         <div style={{
-          width: 7, height: 7, borderRadius: '50%', background: ws.color, flexShrink: 0,
-          boxShadow: hasWork ? `0 0 8px ${ws.color}, 0 0 18px ${ws.color}55` : `0 0 4px ${ws.color}44`,
+          width: 6, height: 6, borderRadius: '50%', background: ws.color, flexShrink: 0,
+          boxShadow: hasWork ? `0 0 7px ${ws.color}, 0 0 14px ${ws.color}55` : `0 0 3px ${ws.color}44`,
         }} />
         <span style={{
-          flex: 1, fontSize: 11, fontWeight: 700, letterSpacing: '-0.01em',
+          flex: 1, fontSize: 10, fontWeight: 700, letterSpacing: '-0.01em',
           color: '#ffffff',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{ws.name}</span>
-        <Sparkline seed={ws.id} color={sparkColor} />
+        <Sparkline seed={ws.id} color={sparkColor} w={48} h={18} />
       </div>
 
       {/* Stats bar */}
@@ -281,8 +281,8 @@ function WorkspaceTile({
             flex: 1, textAlign: 'center', padding: '4px 2px',
             borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
           }}>
-            <p style={{ fontSize: 12, fontWeight: 800, color, textShadow: glow, lineHeight: 1 }}>{val}</p>
-            <p style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.1em', marginTop: 1 }}>{label}</p>
+            <p style={{ fontSize: 11, fontWeight: 800, color, textShadow: glow, lineHeight: 1 }}>{val}</p>
+            <p style={{ fontSize: 6, color: '#8899aa', letterSpacing: '0.08em', marginTop: 1 }}>{label}</p>
           </div>
         ))}
       </div>
@@ -302,7 +302,7 @@ function WorkspaceTile({
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                padding: '3px 10px', height: 24,
+                padding: '2px 8px', height: 20,
                 background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
                 transition: 'background 0.08s',
               }}
@@ -313,11 +313,11 @@ function WorkspaceTile({
                 boxShadow: isBlocked ? '0 0 5px rgba(245,158,11,0.7)' : isP1 ? '0 0 5px rgba(0,180,255,0.7)' : 'none',
               }} />
               <span style={{
-                flex: 1, fontSize: 10, fontWeight: isBlocked ? 600 : 400,
+                flex: 1, fontSize: 9, fontWeight: isBlocked ? 600 : 400,
                 color: isBlocked ? '#fbbf24' : '#ffffff',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{t.title}</span>
-              <span style={{ fontSize: 8, color: '#8899aa', flexShrink: 0, letterSpacing: '0.04em' }}>
+              <span style={{ fontSize: 7, color: '#8899aa', flexShrink: 0, letterSpacing: '0.04em' }}>
                 {t.priority === 'high' ? 'P1' : t.priority === 'medium' ? 'P2' : 'P3'}
               </span>
             </button>
@@ -328,11 +328,11 @@ function WorkspaceTile({
       {/* AI score footer */}
       <div style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
-        padding: '3px 10px',
+        padding: '2px 8px',
         borderTop: '1px solid rgba(255,255,255,0.04)',
         background: 'rgba(0,0,0,0.2)',
       }}>
-        <span style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.1em', flexShrink: 0 }}>AI SCORE</span>
+        <span style={{ fontSize: 6, color: '#8899aa', letterSpacing: '0.08em', flexShrink: 0 }}>AI SCORE</span>
         <div style={{ flex: 1, height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1 }}>
           <div style={{
             height: '100%', width: `${aiScore}%`, borderRadius: 1,
@@ -430,7 +430,7 @@ export default function CommandFeed({
   const totalFriction = tasks.filter(t => t.status === 'blocked').length
   const totalIdeas    = tasks.filter(t => t.status === 'idea').length
   const insights   = computeInsights(workspaces, tasks)
-  const tileRows   = Math.max(1, Math.ceil(workspaces.length / 2))
+  const tileRows   = Math.max(1, Math.ceil(workspaces.length / 4))
 
   const recent = [...tasks].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10)
   const ticker = recent.map(t => {
@@ -572,7 +572,7 @@ export default function CommandFeed({
       <div style={{
         flex: 1, minWidth: 0, height: '100%',
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
+        gridTemplateColumns: 'repeat(4, 1fr)',
         gridTemplateRows: `repeat(${tileRows}, 1fr)`,
         gap: 1, background: 'rgba(0,0,0,0.3)', overflow: 'hidden',
       }}>
@@ -581,9 +581,9 @@ export default function CommandFeed({
             selected={selectedWs?.id === ws.id}
             onSelect={() => onSelectWs(ws)} onOpenTask={onSelectTask} />
         ))}
-        {workspaces.length % 2 !== 0 && (
-          <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
-        )}
+        {Array.from({ length: (4 - (workspaces.length % 4)) % 4 }).map((_, i) => (
+          <div key={`filler-${i}`} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
+        ))}
       </div>
 
       {/* ── RIGHT: Stats + Focus + Health + Inbox (20%) ── */}
