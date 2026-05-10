@@ -217,12 +217,14 @@ function TaskCard({
 
 // ── Workspace tile (center grid) ──────────────────────────────────────────
 function WorkspaceTile({
-  ws, tasks, selected, onSelect, onOpenTask,
+  ws, tasks, selected, focused, onSelect, onFocus, onOpenTask,
 }: {
   ws: Workspace
   tasks: Task[]
   selected: boolean
+  focused: boolean
   onSelect: () => void
+  onFocus: () => void
   onOpenTask: (t: Task) => void
 }) {
   const [hov, setHov] = useState(false)
@@ -262,6 +264,19 @@ function WorkspaceTile({
           color: '#ffffff',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{ws.name}</span>
+        {hov && (
+          <button
+            onClick={e => { e.stopPropagation(); onFocus() }}
+            title={focused ? 'Exit focus' : 'Focus mode'}
+            style={{
+              flexShrink: 0, width: 16, height: 16, borderRadius: 3, border: 'none',
+              cursor: 'pointer', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: focused ? 'rgba(0,180,255,0.25)' : 'rgba(255,255,255,0.08)',
+              color: focused ? '#00b4ff' : '#8899aa',
+              marginRight: 4,
+            }}
+          >⊙</button>
+        )}
         <Sparkline seed={ws.id} color={sparkColor} w={48} h={18} />
       </div>
 
@@ -374,6 +389,7 @@ export default function CommandFeed({
   const [capturing, setCapturing]   = useState(false)
   const [captured, setCaptured]     = useState(false)
   const [inbox, setInbox]           = useState<InboxItem[]>([])
+  const [focusWsId, setFocusWsId]   = useState<string | null>(null)
   const captureRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setLocalTasks(propTasks); setDismissed(new Set()) }, [propTasks])
@@ -443,7 +459,7 @@ export default function CommandFeed({
 
       {/* ── LEFT: Task list + ticker (30%) ── */}
       <div style={{
-        width: '30%', minWidth: 240, display: 'flex', flexDirection: 'column',
+        width: '18%', minWidth: 180, display: 'flex', flexDirection: 'column',
         borderRight: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
       }}>
         {/* Quick capture bar */}
@@ -568,27 +584,61 @@ export default function CommandFeed({
         )}
       </div>
 
-      {/* ── CENTER: Workspace tile grid (always fills) ── */}
-      <div style={{
-        flex: 1, minWidth: 0, height: '100%',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gridTemplateRows: `repeat(${tileRows}, 1fr)`,
-        gap: 1, background: 'rgba(0,0,0,0.3)', overflow: 'hidden',
-      }}>
-        {workspaces.map(ws => (
-          <WorkspaceTile key={ws.id} ws={ws} tasks={tasks}
-            selected={selectedWs?.id === ws.id}
-            onSelect={() => onSelectWs(ws)} onOpenTask={onSelectTask} />
-        ))}
-        {Array.from({ length: (4 - (workspaces.length % 4)) % 4 }).map((_, i) => (
-          <div key={`filler-${i}`} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
-        ))}
-      </div>
+      {/* ── CENTER: Workspace tile grid ── */}
+      {focusWsId ? (() => {
+        const fw = workspaces.find(w => w.id === focusWsId)
+        if (!fw) return null
+        return (
+          <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0 12px', height: 26,
+              background: `${fw.color}18`, borderBottom: `1px solid ${fw.color}33`,
+            }}>
+              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: fw.color }}>
+                ⊙ FOCUS — {fw.name.toUpperCase()}
+              </span>
+              <button
+                onClick={() => setFocusWsId(null)}
+                style={{
+                  fontSize: 9, fontWeight: 800, padding: '1px 8px', borderRadius: 4,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#ffffff', cursor: 'pointer', letterSpacing: '0.06em',
+                }}
+              >✕ EXIT</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <WorkspaceTile ws={fw} tasks={tasks}
+                selected focused
+                onSelect={() => {}} onFocus={() => setFocusWsId(null)} onOpenTask={onSelectTask} />
+            </div>
+          </div>
+        )
+      })() : (
+        <div style={{
+          flex: 1, minWidth: 0, height: '100%',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateRows: `repeat(${tileRows}, 1fr)`,
+          gap: 1, background: 'rgba(0,0,0,0.3)', overflow: 'hidden',
+        }}>
+          {workspaces.map(ws => (
+            <WorkspaceTile key={ws.id} ws={ws} tasks={tasks}
+              selected={selectedWs?.id === ws.id}
+              focused={focusWsId === ws.id}
+              onSelect={() => onSelectWs(ws)}
+              onFocus={() => { setFocusWsId(ws.id); onSelectWs(ws) }}
+              onOpenTask={onSelectTask} />
+          ))}
+          {Array.from({ length: (4 - (workspaces.length % 4)) % 4 }).map((_, i) => (
+            <div key={`filler-${i}`} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
+          ))}
+        </div>
+      )}
 
       {/* ── RIGHT: Stats + Focus + Health + Inbox (20%) ── */}
       <div style={{
-        width: '20%', minWidth: 180, display: 'flex', flexDirection: 'column',
+        width: '13%', minWidth: 150, display: 'flex', flexDirection: 'column',
         borderLeft: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
       }}>
 
