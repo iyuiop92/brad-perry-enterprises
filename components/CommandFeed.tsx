@@ -586,51 +586,91 @@ export default function CommandFeed({
         )}
       </div>
 
-      {/* ── RIGHT: Overview + insights + inbox (20%) ── */}
+      {/* ── RIGHT: Stats + Focus + Health + Inbox (20%) ── */}
       <div style={{
         width: '20%', minWidth: 180, display: 'flex', flexDirection: 'column',
         borderLeft: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
       }}>
-        {/* Stats 2×2 */}
-        <div style={{
-          flexShrink: 0, padding: '10px',
-          background: 'rgba(0,0,0,0.35)',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
-        }}>
-          <p style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', color: '#8899aa', marginBottom: 8 }}>PORTFOLIO</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-            {[
-              { n: totalActive,      label: 'Active',     color: '#00b4ff',                                       glow: '0 0 14px rgba(0,180,255,0.55)' },
-              { n: totalFriction,    label: 'Friction',   color: totalFriction > 0 ? '#f59e0b' : '#8899aa',      glow: totalFriction > 0 ? '0 0 14px rgba(245,158,11,0.6)' : 'none' },
-              { n: totalIdeas,       label: 'Ideas',      color: totalIdeas > 0 ? '#ffffff' : '#8899aa',          glow: 'none' },
-              { n: doneToday.length, label: 'Done Today', color: doneToday.length > 0 ? '#22c55e' : '#8899aa',   glow: doneToday.length > 0 ? '0 0 12px rgba(34,197,94,0.45)' : 'none' },
-            ].map(({ n, label, color, glow }) => (
-              <div key={label} style={{ textAlign: 'center', padding: '7px 4px', background: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
-                <p style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color, textShadow: glow, fontFamily: 'var(--font-outfit)' }}>{n}</p>
-                <p style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Wendy insights */}
-        <div style={{ flexShrink: 0, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-            <div style={{
-              width: 5, height: 5, borderRadius: '50%', background: '#00b4ff',
-              boxShadow: '0 0 8px rgba(0,180,255,0.8), 0 0 16px rgba(0,180,255,0.4)',
-              animation: 'breathe 2s ease-in-out infinite',
-              '--glow-color': 'rgba(0,180,255,0.4)', '--glow-min': '3px', '--glow-max': '8px',
-            } as React.CSSProperties} />
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: '#00b4ff' }}>WENDY</span>
-          </div>
-          {insights.map((text, i) => (
-            <div key={i} style={{ padding: '4px 6px', marginBottom: 3, borderRadius: 4, background: 'rgba(0,180,255,0.04)', border: '1px solid rgba(0,180,255,0.08)' }}>
-              <p style={{ fontSize: 10, color: '#ffffff', lineHeight: 1.35 }}>
-                <span style={{ color: '#00b4ff', marginRight: 4 }}>✦</span>{text}
-              </p>
+        {/* Compact stats row */}
+        <div style={{
+          flexShrink: 0, display: 'flex', gap: 3, padding: '7px 8px',
+          background: 'rgba(0,0,0,0.35)', borderBottom: '1px solid rgba(255,255,255,0.04)',
+        }}>
+          {([
+            { n: totalActive,      label: 'ACT', color: '#00b4ff',                                       glow: '0 0 10px rgba(0,180,255,0.5)' },
+            { n: totalFriction,    label: 'FRI', color: totalFriction > 0 ? '#f59e0b' : '#8899aa',      glow: totalFriction > 0 ? '0 0 10px rgba(245,158,11,0.5)' : 'none' },
+            { n: totalIdeas,       label: 'IDR', color: '#ffffff',                                        glow: 'none' },
+            { n: doneToday.length, label: 'DNE', color: doneToday.length > 0 ? '#22c55e' : '#8899aa',   glow: doneToday.length > 0 ? '0 0 10px rgba(34,197,94,0.4)' : 'none' },
+          ] as { n: number; label: string; color: string; glow: string }[]).map(({ n, label, color, glow }) => (
+            <div key={label} style={{ flex: 1, textAlign: 'center', padding: '4px 2px', background: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
+              <p style={{ fontSize: 18, fontWeight: 800, lineHeight: 1, color, textShadow: glow, fontFamily: 'var(--font-outfit)' }}>{n}</p>
+              <p style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.08em', marginTop: 2 }}>{label}</p>
             </div>
           ))}
+        </div>
+
+        {/* Focus Now — top priority task with quick actions */}
+        {(() => {
+          const focusTask = [...friction, ...active][0]
+          if (!focusTask) return null
+          const ws = wsById[focusTask.workspace_id ?? '']
+          const isBlocked = focusTask.status === 'blocked'
+          return (
+            <div style={{ flexShrink: 0, padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <p style={{ fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', color: '#8899aa', marginBottom: 5 }}>FOCUS NOW</p>
+              <div
+                onClick={() => onSelectTask(focusTask)}
+                style={{
+                  padding: '7px 8px', borderRadius: 5, cursor: 'pointer',
+                  background: isBlocked ? 'rgba(245,158,11,0.06)' : 'rgba(0,180,255,0.06)',
+                  border: `1px solid ${isBlocked ? 'rgba(245,158,11,0.2)' : 'rgba(0,180,255,0.18)'}`,
+                }}
+              >
+                {ws && <p style={{ fontSize: 8, color: ws.color, fontWeight: 800, marginBottom: 3, letterSpacing: '0.04em' }}>{ws.name}</p>}
+                <p style={{ fontSize: 11, color: isBlocked ? '#fbbf24' : '#ffffff', fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{focusTask.title}</p>
+                <div style={{ display: 'flex', gap: 3 }} onClick={e => e.stopPropagation()}>
+                  {isBlocked && (
+                    <button onClick={() => handleActivate(focusTask)} style={{
+                      flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
+                      background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
+                    }}>▶ Activate</button>
+                  )}
+                  <button onClick={() => handleDone(focusTask)} style={{
+                    flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
+                    background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+                  }}>✓ Done</button>
+                  <button onClick={() => handlePostpone(focusTask)} style={{
+                    flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.06)', color: '#ffffff',
+                  }}>↙ Later</button>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Workspace health */}
+        <div style={{ flexShrink: 0, padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <p style={{ fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', color: '#8899aa', marginBottom: 5 }}>WORKSPACES</p>
+          {workspaces.map(ws => {
+            const wsTasks    = tasks.filter(t => t.workspace_id === ws.id && t.status !== 'done')
+            const wsActive   = wsTasks.filter(t => t.status === 'in_progress').length
+            const wsFriction = wsTasks.filter(t => t.status === 'blocked').length
+            return (
+              <div key={ws.id} onClick={() => onSelectWs(ws)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer',
+              }}>
+                <div style={{
+                  width: 5, height: 5, borderRadius: '50%', background: ws.color, flexShrink: 0,
+                  boxShadow: wsActive > 0 ? `0 0 5px ${ws.color}` : 'none',
+                }} />
+                <span style={{ flex: 1, fontSize: 9, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+                {wsActive > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: '#00b4ff' }}>{wsActive}</span>}
+                {wsFriction > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: '#f59e0b' }}>⚠{wsFriction}</span>}
+              </div>
+            )
+          })}
         </div>
 
         {/* Inbox */}
