@@ -104,10 +104,10 @@ function TaskCard({
   const [hov, setHov] = useState(false)
   const blocked  = task.status === 'blocked'
   const p1       = task.priority === 'high'
-  const wsColor  = workspace?.color ?? '#475569'
+  const wsColor  = workspace?.color ?? '#8899aa'
   const phase    = task.phase
   const pLabel   = phase ? (PHASE_ABBR[phase] ?? phase.slice(0, 4).toUpperCase()) : null
-  const pColor   = phase ? (PHASE_COLOR[phase] ?? '#475569') : '#475569'
+  const pColor   = phase ? (PHASE_COLOR[phase] ?? '#8899aa') : '#8899aa'
   const progress = computeProgress(task)
   const aiScore  = seededInt(task.id, 72, 99)
   const barColor = blocked ? '#f59e0b' : '#00b4ff'
@@ -164,9 +164,9 @@ function TaskCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{
             fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, flexShrink: 0,
-            color: p1 ? '#00b4ff' : blocked ? '#f59e0b' : '#475569',
-            background: p1 ? 'rgba(0,180,255,0.1)' : blocked ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.05)',
-            border: `1px solid ${p1 ? 'rgba(0,180,255,0.2)' : blocked ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.07)'}`,
+            color: p1 ? '#00b4ff' : blocked ? '#f59e0b' : '#8899aa',
+            background: p1 ? 'rgba(0,180,255,0.1)' : blocked ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.06)',
+            border: `1px solid ${p1 ? 'rgba(0,180,255,0.2)' : blocked ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.1)'}`,
             letterSpacing: '0.05em',
           }}>
             {task.priority === 'high' ? 'P1' : task.priority === 'medium' ? 'P2' : 'P3'}
@@ -178,9 +178,9 @@ function TaskCard({
             }}>{pLabel}</span>
           )}
           <span style={{ flex: 1 }} />
-          <span style={{ fontSize: 8, color: '#283044', fontWeight: 600, letterSpacing: '0.04em' }}>
+          <span style={{ fontSize: 8, color: '#8899aa', fontWeight: 600, letterSpacing: '0.04em' }}>
             AI <span style={{
-              color: aiScore >= 90 ? '#22c55e' : aiScore >= 80 ? '#00b4ff' : '#64748b',
+              color: aiScore >= 90 ? '#22c55e' : '#00b4ff',
               fontWeight: 800,
               textShadow: aiScore >= 90 ? '0 0 8px rgba(34,197,94,0.4)' : '0 0 6px rgba(0,180,255,0.3)',
             }}>{aiScore}</span>
@@ -199,7 +199,7 @@ function TaskCard({
             )}
             <button onClick={onPostpone} title="Postpone to Ideas" style={{
               width: 18, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 8, border: 'none',
-              background: 'rgba(255,255,255,0.06)', color: '#475569',
+              background: 'rgba(255,255,255,0.08)', color: '#ffffff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>↙</button>
             <button onClick={onDone} title="Mark Done" style={{
@@ -235,8 +235,7 @@ function WorkspaceTile({
   const aiScore  = seededInt(ws.id, 70, 98)
   const hasWork  = active.length > 0 || friction.length > 0
   const topTasks = byPriority([...friction, ...active, ...ideas])
-  const dotColor = friction.length > 0 ? '#f59e0b' : hasWork ? ws.color : '#334155'
-  const sparkColor = friction.length > 0 ? '#f59e0b' : hasWork ? ws.color : '#334155'
+  const sparkColor = friction.length > 0 ? '#f59e0b' : hasWork ? ws.color : '#8899aa'
 
   return (
     <div
@@ -260,7 +259,7 @@ function WorkspaceTile({
         }} />
         <span style={{
           flex: 1, fontSize: 11, fontWeight: 700, letterSpacing: '-0.01em',
-          color: hasWork ? '#ffffff' : '#64748b',
+          color: '#ffffff',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{ws.name}</span>
         <Sparkline seed={ws.id} color={sparkColor} />
@@ -273,17 +272,17 @@ function WorkspaceTile({
         borderBottom: '1px solid rgba(255,255,255,0.04)',
       }}>
         {([
-          { label: 'ACTIVE',    val: active.length,   color: active.length > 0 ? '#00b4ff' : '#1e293b',   glow: active.length > 0 ? '0 0 8px rgba(0,180,255,0.4)' : 'none' },
-          { label: 'FRICTION',  val: friction.length, color: friction.length > 0 ? '#f59e0b' : '#1e293b', glow: friction.length > 0 ? '0 0 8px rgba(245,158,11,0.4)' : 'none' },
-          { label: 'IDEAS',     val: ideas.length,    color: ideas.length > 0 ? '#334155' : '#1e293b',    glow: 'none' },
-          { label: 'VELOCITY',  val: `${velocity}%`,  color: velocity > 50 ? '#22c55e' : velocity > 20 ? '#00b4ff' : '#283044', glow: velocity > 50 ? '0 0 8px rgba(34,197,94,0.3)' : 'none' },
+          { label: 'ACTIVE',   val: active.length,   color: active.length > 0 ? '#00b4ff' : '#8899aa',   glow: active.length > 0 ? '0 0 8px rgba(0,180,255,0.4)' : 'none' },
+          { label: 'FRICTION', val: friction.length, color: friction.length > 0 ? '#f59e0b' : '#8899aa', glow: friction.length > 0 ? '0 0 8px rgba(245,158,11,0.4)' : 'none' },
+          { label: 'IDEAS',    val: ideas.length,    color: ideas.length > 0 ? '#ffffff' : '#8899aa',     glow: 'none' },
+          { label: 'VELOCITY', val: `${velocity}%`,  color: velocity > 50 ? '#22c55e' : velocity > 20 ? '#00b4ff' : '#8899aa', glow: velocity > 50 ? '0 0 8px rgba(34,197,94,0.3)' : 'none' },
         ] as { label: string; val: string | number; color: string; glow: string }[]).map(({ label, val, color, glow }, i, arr) => (
           <div key={label} style={{
             flex: 1, textAlign: 'center', padding: '4px 2px',
             borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
           }}>
             <p style={{ fontSize: 12, fontWeight: 800, color, textShadow: glow, lineHeight: 1 }}>{val}</p>
-            <p style={{ fontSize: 7, color: '#1e293b', letterSpacing: '0.1em', marginTop: 1 }}>{label}</p>
+            <p style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.1em', marginTop: 1 }}>{label}</p>
           </div>
         ))}
       </div>
@@ -291,7 +290,7 @@ function WorkspaceTile({
       {/* Task list */}
       <div style={{ flex: 1, overflow: 'hidden', padding: '2px 0' }}>
         {topTasks.length === 0 ? (
-          <p style={{ fontSize: 10, color: '#1e293b', padding: '6px 10px' }}>No work queued</p>
+          <p style={{ fontSize: 10, color: '#8899aa', padding: '6px 10px' }}>No work queued</p>
         ) : topTasks.map(t => {
           const isBlocked = t.status === 'blocked'
           const isP1      = t.priority === 'high'
@@ -318,7 +317,7 @@ function WorkspaceTile({
                 color: isBlocked ? '#fbbf24' : '#ffffff',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{t.title}</span>
-              <span style={{ fontSize: 8, color: isP1 ? '#334155' : '#1e293b', flexShrink: 0, letterSpacing: '0.04em' }}>
+              <span style={{ fontSize: 8, color: '#8899aa', flexShrink: 0, letterSpacing: '0.04em' }}>
                 {t.priority === 'high' ? 'P1' : t.priority === 'medium' ? 'P2' : 'P3'}
               </span>
             </button>
@@ -333,7 +332,7 @@ function WorkspaceTile({
         borderTop: '1px solid rgba(255,255,255,0.04)',
         background: 'rgba(0,0,0,0.2)',
       }}>
-        <span style={{ fontSize: 7, color: '#1e293b', letterSpacing: '0.1em', flexShrink: 0 }}>AI SCORE</span>
+        <span style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.1em', flexShrink: 0 }}>AI SCORE</span>
         <div style={{ flex: 1, height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1 }}>
           <div style={{
             height: '100%', width: `${aiScore}%`, borderRadius: 1,
@@ -482,7 +481,7 @@ export default function CommandFeed({
             <>
               <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
                 <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#f59e0b', textShadow: '0 0 10px rgba(245,158,11,0.6)' }}>FRICTION</span>
-                <span style={{ fontSize: 9, color: '#78350f' }}>{friction.length}</span>
+                <span style={{ fontSize: 9, color: '#f59e0b' }}>{friction.length}</span>
               </div>
               {friction.map(t => (
                 <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
@@ -496,7 +495,7 @@ export default function CommandFeed({
             <>
               <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
                 <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#00b4ff' }}>ACTIVE</span>
-                <span style={{ fontSize: 9, color: '#475569' }}>{active.length}</span>
+                <span style={{ fontSize: 9, color: '#00b4ff' }}>{active.length}</span>
               </div>
               {active.map(t => (
                 <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
@@ -509,8 +508,8 @@ export default function CommandFeed({
           {ideas.length > 0 && (
             <>
               <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#283044' }}>IDEAS</span>
-                <span style={{ fontSize: 9, color: '#1e293b' }}>{ideas.length}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#ffffff' }}>IDEAS</span>
+                <span style={{ fontSize: 9, color: '#ffffff' }}>{ideas.length}</span>
               </div>
               {ideas.map(t => (
                 <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
@@ -523,8 +522,8 @@ export default function CommandFeed({
           {doneToday.length > 0 && (
             <>
               <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#1e293b' }}>DONE TODAY</span>
-                <span style={{ fontSize: 9, color: '#0f172a' }}>{doneToday.length}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#22c55e' }}>DONE TODAY</span>
+                <span style={{ fontSize: 9, color: '#22c55e' }}>{doneToday.length}</span>
               </div>
               {doneToday.slice(0, 6).map(t => (
                 <button key={t.id} onClick={() => onSelectTask(t)}
@@ -538,7 +537,7 @@ export default function CommandFeed({
                   }}
                 >
                   <span style={{ fontSize: 9, color: '#22c55e', flexShrink: 0, textShadow: '0 0 8px rgba(34,197,94,0.5)' }}>✓</span>
-                  <span style={{ fontSize: 11, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                  <span style={{ fontSize: 11, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
                 </button>
               ))}
             </>
@@ -546,7 +545,7 @@ export default function CommandFeed({
 
           {friction.length === 0 && active.length === 0 && ideas.length === 0 && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 11, color: '#1e293b' }}>Clean slate.</span>
+              <span style={{ fontSize: 11, color: '#8899aa' }}>Clean slate.</span>
             </div>
           )}
         </div>
@@ -562,8 +561,8 @@ export default function CommandFeed({
               display: 'inline-flex', whiteSpace: 'nowrap',
               animation: 'bpe-ticker 50s linear infinite', padding: '4px 0',
             }}>
-              <span style={{ fontSize: 9, color: '#1e293b', paddingRight: 60 }}>{ticker}</span>
-              <span style={{ fontSize: 9, color: '#1e293b', paddingRight: 60 }}>{ticker}</span>
+              <span style={{ fontSize: 9, color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
+              <span style={{ fontSize: 9, color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
             </div>
           </div>
         )}
@@ -598,17 +597,17 @@ export default function CommandFeed({
           background: 'rgba(0,0,0,0.35)',
           borderBottom: '1px solid rgba(255,255,255,0.04)',
         }}>
-          <p style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', color: '#1e293b', marginBottom: 8 }}>PORTFOLIO</p>
+          <p style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.15em', color: '#8899aa', marginBottom: 8 }}>PORTFOLIO</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
             {[
-              { n: totalActive,   label: 'Active',     color: '#00b4ff',                                      glow: '0 0 14px rgba(0,180,255,0.55)' },
-              { n: totalFriction, label: 'Friction',    color: totalFriction > 0 ? '#f59e0b' : '#283044',     glow: totalFriction > 0 ? '0 0 14px rgba(245,158,11,0.6)' : 'none' },
-              { n: totalIdeas,    label: 'Ideas',       color: '#334155',                                      glow: 'none' },
-              { n: doneToday.length, label: 'Done Today', color: doneToday.length > 0 ? '#22c55e' : '#1e293b', glow: doneToday.length > 0 ? '0 0 12px rgba(34,197,94,0.45)' : 'none' },
+              { n: totalActive,      label: 'Active',     color: '#00b4ff',                                       glow: '0 0 14px rgba(0,180,255,0.55)' },
+              { n: totalFriction,    label: 'Friction',   color: totalFriction > 0 ? '#f59e0b' : '#8899aa',      glow: totalFriction > 0 ? '0 0 14px rgba(245,158,11,0.6)' : 'none' },
+              { n: totalIdeas,       label: 'Ideas',      color: totalIdeas > 0 ? '#ffffff' : '#8899aa',          glow: 'none' },
+              { n: doneToday.length, label: 'Done Today', color: doneToday.length > 0 ? '#22c55e' : '#8899aa',   glow: doneToday.length > 0 ? '0 0 12px rgba(34,197,94,0.45)' : 'none' },
             ].map(({ n, label, color, glow }) => (
               <div key={label} style={{ textAlign: 'center', padding: '7px 4px', background: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
                 <p style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color, textShadow: glow, fontFamily: 'var(--font-outfit)' }}>{n}</p>
-                <p style={{ fontSize: 7, color: '#1e293b', letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{label}</p>
+                <p style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.1em', marginTop: 2, textTransform: 'uppercase' }}>{label}</p>
               </div>
             ))}
           </div>
@@ -637,8 +636,8 @@ export default function CommandFeed({
         {/* Inbox */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div style={{ padding: '6px 10px 3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#283044' }}>INBOX</span>
-            {inbox.length > 0 && <span style={{ fontSize: 9, color: '#1e293b' }}>{inbox.length}</span>}
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#ffffff' }}>INBOX</span>
+            {inbox.length > 0 && <span style={{ fontSize: 9, color: '#ffffff' }}>{inbox.length}</span>}
           </div>
           <div
             onClick={() => captureRef.current?.focus()}
@@ -649,19 +648,19 @@ export default function CommandFeed({
             }}
           >
             <span style={{ fontSize: 10, color: '#00b4ff', fontWeight: 700 }}>›</span>
-            <span style={{ fontSize: 10, color: '#1e293b' }}>Quick capture...</span>
+            <span style={{ fontSize: 10, color: '#8899aa' }}>Quick capture...</span>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {inbox.map(item => (
               <div key={item.id} style={{ display: 'flex', gap: 5, padding: '4px 10px', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.025)' }}>
-                <span style={{ fontSize: 9, color: '#334155', flexShrink: 0, marginTop: 1 }}>·</span>
+                <span style={{ fontSize: 9, color: '#8899aa', flexShrink: 0, marginTop: 1 }}>·</span>
                 <span style={{ fontSize: 10, color: '#ffffff', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {item.content}
                 </span>
               </div>
             ))}
             {inbox.length === 0 && (
-              <p style={{ fontSize: 10, color: '#1e293b', padding: '4px 10px' }}>Nothing yet.</p>
+              <p style={{ fontSize: 10, color: '#8899aa', padding: '4px 10px' }}>Nothing yet.</p>
             )}
           </div>
         </div>
