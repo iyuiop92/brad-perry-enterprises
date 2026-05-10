@@ -37,10 +37,6 @@ export default function DashboardPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [wendyOpen])
 
-  const active  = tasks.filter(t => t.status === 'in_progress').length
-  const friction = tasks.filter(t => t.status === 'blocked').length
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       <ParticleField />
@@ -55,66 +51,7 @@ export default function DashboardPage() {
           backdropFilter: 'blur(20px)',
         }}
       >
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 20 }}>
-          <div
-            style={{
-              width: 8, height: 8, borderRadius: '50%', background: '#00b4ff',
-              boxShadow: '0 0 8px #00b4ff, 0 0 18px rgba(0,180,255,0.55), 0 0 36px rgba(0,180,255,0.2)',
-              animation: 'breathe 2.5s ease-in-out infinite',
-              '--glow-color': 'rgba(0,180,255,0.45)',
-              '--glow-min': '6px',
-              '--glow-max': '20px',
-            } as React.CSSProperties}
-          />
-          <span style={{
-            fontSize: 14, fontWeight: 800, color: '#e2e8f0',
-            letterSpacing: '-0.02em', fontFamily: 'var(--font-outfit)',
-          }}>
-            BPE{' '}
-            <span style={{ color: '#00b4ff', textShadow: '0 0 20px rgba(0,180,255,0.35)' }}>
-              Command Center
-            </span>
-          </span>
-        </div>
-
-        {/* Live counts */}
-        {!loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {active > 0 && (
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{
-                  fontSize: 18, fontWeight: 800, color: '#00b4ff',
-                  fontFamily: 'var(--font-outfit)',
-                  textShadow: '0 0 14px rgba(0,180,255,0.55)',
-                }}>
-                  {active}
-                </span>
-                <span style={{ fontSize: 9, fontWeight: 600, color: '#283044', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                  active
-                </span>
-              </div>
-            )}
-            {friction > 0 && (
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{
-                  fontSize: 18, fontWeight: 800, color: '#f59e0b',
-                  fontFamily: 'var(--font-outfit)',
-                  textShadow: '0 0 14px rgba(245,158,11,0.65), 0 0 30px rgba(245,158,11,0.25)',
-                }}>
-                  {friction}
-                </span>
-                <span style={{ fontSize: 9, fontWeight: 600, color: '#78350f', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                  friction
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
         <div style={{ flex: 1 }} />
-
-        <span style={{ fontSize: 11, color: '#283044', marginRight: 16 }}>{today}</span>
 
         {/* Wendy toggle */}
         <button
