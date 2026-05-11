@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const projectTypes = [
   {
@@ -56,10 +56,20 @@ const estimates: Record<string, string> = {
 export default function ContactForm() {
   const [selected, setSelected] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', budget: '', timeline: '', description: '' })
+  const [form, setForm] = useState({ name: '', email: '', budget: '', timeline: '', description: '', website: '' })
+  const loadedAt = useRef(Date.now())
+
+  const isReady =
+    selected !== null &&
+    form.name.trim().length >= 2 &&
+    form.email.includes('@') &&
+    form.description.trim().length >= 20 &&
+    form.website === ''
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!isReady) return
+    if (Date.now() - loadedAt.current < 4000) return
     setSent(true)
   }
 
@@ -127,6 +137,17 @@ export default function ContactForm() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                {/* honeypot — bots fill this, humans don't */}
+                <input
+                  type="text"
+                  name="website"
+                  value={form.website}
+                  onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}
+                />
                 <div className="text-white font-[700] text-sm mb-1">Project Details</div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -192,7 +213,8 @@ export default function ContactForm() {
                 </div>
                 <button
                   type="submit"
-                  className="flex items-center justify-center gap-2 bg-white text-[#04040a] font-[700] py-3.5 rounded-lg text-sm hover:bg-[#00b4ff] hover:text-white transition-all duration-200"
+                  disabled={!isReady}
+                  className="flex items-center justify-center gap-2 bg-white text-[#04040a] font-[700] py-3.5 rounded-lg text-sm transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:bg-[#00b4ff] enabled:hover:text-white"
                 >
                   Send Project Brief
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
