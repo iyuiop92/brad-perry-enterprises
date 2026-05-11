@@ -16,7 +16,7 @@ const phases = [
     duration: '2-3 weeks',
     description: 'Create user-centered designs that maximize conversions and deliver exceptional experiences.',
     deliverables: ['Brand Guidelines', 'Wireframes', 'UI/UX Mockups', 'Content Strategy'],
-    tools: ['Figma', 'Adobe Creative Suite', 'Maze', 'UserTesting'],
+    tools: ['Vercel', 'Supabase', 'Maze', 'UserTesting'],
   },
   {
     id: 'build',

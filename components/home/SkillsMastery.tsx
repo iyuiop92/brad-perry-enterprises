@@ -33,7 +33,7 @@ const skillsData: Record<Tab, { title: string; skills: Skill[] }> = {
     title: 'Design Mastery',
     skills: [
       { name: 'UI/UX Design', level: 90, type: 'Interface', years: 6, projects: 60, description: 'Creating intuitive user experiences that convert' },
-      { name: 'Figma', level: 88, type: 'Tooling', years: 4, projects: 45, description: 'Design systems, prototyping, and handoff workflows' },
+      { name: 'Vercel', level: 88, type: 'Tooling', years: 4, projects: 45, description: 'Deploying and scaling production apps with zero-config infrastructure' },
       { name: 'Brand Identity', level: 85, type: 'Branding', years: 8, projects: 30, description: 'Building memorable brands that stand out in their market' },
       { name: 'Motion Design', level: 75, type: 'Animation', years: 3, projects: 20, description: 'Purposeful micro-interactions and page transitions' },
     ],
