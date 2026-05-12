@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/require-auth'
 
 export async function GET() {
-  const supabase = await createClient()
+  const { supabase, unauthorized } = await requireAuth()
+  if (unauthorized) return unauthorized
 
   const { data, error } = await supabase
     .from('bpe_tasks')
@@ -18,7 +19,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const { supabase, unauthorized } = await requireAuth()
+  if (unauthorized) return unauthorized
 
   const body = await request.json()
 

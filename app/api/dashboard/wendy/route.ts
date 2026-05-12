@@ -1,6 +1,6 @@
 import { convertToModelMessages, streamText, UIMessage } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
-import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/require-auth'
 import { NextResponse } from 'next/server'
 
 const anthropic = createAnthropic({
@@ -12,7 +12,8 @@ export const maxDuration = 60
 export async function POST(request: Request) {
   const { messages }: { messages: UIMessage[] } = await request.json()
 
-  const supabase = await createClient()
+  const { supabase, unauthorized } = await requireAuth()
+  if (unauthorized) return unauthorized
 
   const [{ data: workspaces }, { data: tasks }] = await Promise.all([
     supabase.from('bpe_workspaces').select('id, name, slug, type, color').order('sort_order'),
