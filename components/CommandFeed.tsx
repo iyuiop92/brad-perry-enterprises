@@ -667,6 +667,7 @@ export default function CommandFeed({
                     onSelect={() => onSelectWs(ws)}
                     onFocus={() => { setFocusWsId(ws.id); onSelectWs(ws) }}
                     onOpenTask={onSelectTask}
+                    onTaskDone={async (id) => { await patchTask(id, { status: 'done' }); onRefresh() }}
                   />
                 ))}
               </div>
@@ -927,7 +928,8 @@ export default function CommandFeed({
             <div style={{ flex: 1, overflow: 'hidden' }}>
               <WorkspaceTile ws={fw} tasks={tasks}
                 selected focused
-                onSelect={() => {}} onFocus={() => setFocusWsId(null)} onOpenTask={onSelectTask} />
+                onSelect={() => {}} onFocus={() => setFocusWsId(null)} onOpenTask={onSelectTask}
+                onTaskDone={async (id) => { await patchTask(id, { status: 'done' }); onRefresh() }} />
             </div>
           </div>
         )
