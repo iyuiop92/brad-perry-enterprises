@@ -7,6 +7,7 @@ import CommandFeed from '@/components/CommandFeed'
 import WendyPanel from '@/components/WendyPanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
+import AddWorkspacePanel from '@/components/AddWorkspacePanel'
 import PersonalFeed from '@/components/PersonalFeed'
 
 export default function DashboardPage() {
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [selectedWs, setSelectedWs] = useState<Workspace | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showAddPanel, setShowAddPanel] = useState(false)
+  const [showAddWorkspace, setShowAddWorkspace] = useState(false)
   const [wendyOpen, setWendyOpen]   = useState(false)
 
   const fetchAll = useCallback(async () => {
@@ -130,6 +132,7 @@ export default function DashboardPage() {
             onSelectTask={setSelectedTask}
             onSelectWs={ws => setSelectedWs(prev => prev?.id === ws.id ? null : ws)}
             onAddTask={() => setShowAddPanel(true)}
+            onAddWorkspace={() => setShowAddWorkspace(true)}
             onRefresh={fetchAll}
           />
         )}
@@ -170,6 +173,12 @@ export default function DashboardPage() {
           onTaskAdded={() => { setShowAddPanel(false); fetchAll() }}
           defaultBrand={selectedWs?.name}
           defaultWorkspaceId={selectedWs?.id}
+        />
+      )}
+      {showAddWorkspace && (
+        <AddWorkspacePanel
+          onClose={() => setShowAddWorkspace(false)}
+          onAdded={() => { setShowAddWorkspace(false); fetchAll() }}
         />
       )}
       {selectedTask && (

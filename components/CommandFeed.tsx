@@ -217,7 +217,7 @@ function TaskCard({
 
 // ── Workspace tile (center grid) ──────────────────────────────────────────
 function WorkspaceTile({
-  ws, tasks, selected, focused, onSelect, onFocus, onOpenTask,
+  ws, tasks, selected, focused, onSelect, onFocus, onOpenTask, onTaskDone,
 }: {
   ws: Workspace
   tasks: Task[]
@@ -225,6 +225,7 @@ function WorkspaceTile({
   focused: boolean
   onSelect: () => void
   onFocus: () => void
+  onTaskDone: (id: string) => void
   onOpenTask: (t: Task) => void
 }) {
   const [hov, setHov] = useState(false)
@@ -310,32 +311,43 @@ function WorkspaceTile({
           const isBlocked = t.status === 'blocked'
           const isP1      = t.priority === 'high'
           return (
-            <button
+            <div
               key={t.id}
-              onClick={e => { e.stopPropagation(); onOpenTask(t) }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                 padding: '2px 8px', height: 20,
-                background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-                transition: 'background 0.08s',
+                background: 'transparent', transition: 'background 0.08s',
               }}
             >
-              <div style={{
-                width: 4, height: 4, borderRadius: '50%', flexShrink: 0,
-                background: isBlocked ? '#f59e0b' : '#00b4ff',
-                boxShadow: isBlocked ? '0 0 5px rgba(245,158,11,0.7)' : isP1 ? '0 0 5px rgba(0,180,255,0.7)' : 'none',
-              }} />
-              <span style={{
-                flex: 1, fontSize: 9, fontWeight: isBlocked ? 600 : 400,
-                color: isBlocked ? '#fbbf24' : '#ffffff',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>{t.title}</span>
+              <button
+                onClick={e => { e.stopPropagation(); onTaskDone(t.id) }}
+                title="Mark done"
+                style={{
+                  flexShrink: 0, width: 11, height: 11, borderRadius: '50%', cursor: 'pointer',
+                  border: `1.5px solid ${isBlocked ? '#f59e0b' : '#00b4ff'}`,
+                  background: 'transparent',
+                  boxShadow: isBlocked ? '0 0 4px rgba(245,158,11,0.4)' : isP1 ? '0 0 4px rgba(0,180,255,0.4)' : 'none',
+                  transition: 'background 0.1s',
+                  padding: 0,
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = isBlocked ? 'rgba(245,158,11,0.25)' : 'rgba(0,180,255,0.25)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+              />
+              <span
+                onClick={e => { e.stopPropagation(); onOpenTask(t) }}
+                style={{
+                  flex: 1, fontSize: 9, fontWeight: isBlocked ? 600 : 400,
+                  color: isBlocked ? '#fbbf24' : '#ffffff',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                }}
+              >{t.title}</span>
               <span style={{ fontSize: 7, color: '#8899aa', flexShrink: 0, letterSpacing: '0.04em' }}>
                 {t.priority === 'high' ? 'P1' : t.priority === 'medium' ? 'P2' : 'P3'}
               </span>
-            </button>
+            </div>
           )
         })}
       </div>
@@ -374,6 +386,7 @@ export default function CommandFeed({
   onSelectWs,
   onAddTask: _onAddTask,
   onRefresh,
+  onAddWorkspace,
 }: {
   tasks: Task[]
   workspaces: Workspace[]
@@ -382,6 +395,7 @@ export default function CommandFeed({
   onSelectWs: (w: Workspace) => void
   onAddTask: () => void
   onRefresh: () => void
+  onAddWorkspace: () => void
 }) {
   const [dismissed, setDismissed]     = useState<Set<string>>(new Set())
   const [localTasks, setLocalTasks]   = useState<Task[]>(propTasks)
@@ -456,7 +470,7 @@ export default function CommandFeed({
   const totalFriction = tasks.filter(t => t.status === 'blocked').length
   const totalIdeas    = tasks.filter(t => t.status === 'idea').length
   const insights   = computeInsights(workspaces, tasks)
-  const tileRows   = Math.max(1, Math.ceil(workspaces.length / cols))
+  const tileRows   = Math.max(1, Math.ceil((workspaces.length + 1) / cols))
 
   const recent = [...tasks].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10)
   const ticker = recent.map(t => {
@@ -931,9 +945,23 @@ export default function CommandFeed({
               focused={focusWsId === ws.id}
               onSelect={() => onSelectWs(ws)}
               onFocus={() => { setFocusWsId(ws.id); onSelectWs(ws) }}
-              onOpenTask={onSelectTask} />
+              onOpenTask={onSelectTask}
+              onTaskDone={async (id) => { await patchTask(id, { status: 'done' }); onRefresh() }} />
           ))}
-          {Array.from({ length: (cols - (workspaces.length % cols)) % cols }).map((_, i) => (
+          <button
+            onClick={onAddWorkspace}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 6, cursor: 'pointer', border: '1px dashed rgba(0,180,255,0.15)',
+              background: 'rgba(0,0,0,0.1)', transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,180,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(0,180,255,0.3)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = 'rgba(0,180,255,0.15)' }}
+          >
+            <span style={{ fontSize: 18, color: 'rgba(0,180,255,0.4)', lineHeight: 1 }}>+</span>
+            <span style={{ fontSize: 8, color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Add Panel</span>
+          </button>
+          {Array.from({ length: (cols - ((workspaces.length + 1) % cols)) % cols }).map((_, i) => (
             <div key={`filler-${i}`} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
           ))}
         </div>
