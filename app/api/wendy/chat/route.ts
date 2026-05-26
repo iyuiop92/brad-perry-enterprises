@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { generateText } from 'ai'
+import { createAnthropic } from '@ai-sdk/anthropic'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const anthropic = createAnthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY_BPE ?? process.env.ANTHROPIC_API_KEY,
+})
 
 const WENDY_SYSTEM = `You are Wendy — Brad Perry's AI business partner, executive assistant, and strategic mentor. You have full context of his entire business portfolio:
 - AetherHockey.com — flagship hockey coaching platform, membership tiers, 1,258-title content library
@@ -28,13 +31,11 @@ export async function POST(req: NextRequest) {
 
   const messages: Message[] = [...(history ?? []), { role: 'user', content: text }]
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 512,
+  const { text: reply } = await generateText({
+    model: anthropic('claude-sonnet-4-6'),
     system: WENDY_SYSTEM,
     messages,
   })
 
-  const reply = response.content[0].type === 'text' ? response.content[0].text : ''
   return NextResponse.json({ reply })
 }

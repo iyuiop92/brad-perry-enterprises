@@ -53,6 +53,8 @@ export default function WendyPanel({
 }) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { messages, sendMessage, status } = useChat({
@@ -63,8 +65,18 @@ export default function WendyPanel({
   const isStreaming = status === 'streaming'
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollContainerRef.current
+    if (!el) return
+    if (isAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+    }
   }, [messages])
+
+  function handleScroll() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+  }
 
   function handleSend() {
     const text = input.trim()
@@ -135,7 +147,7 @@ export default function WendyPanel({
       </div>
 
       {/* Chat messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
         {messages.length === 0 && (
           <div className="flex flex-col gap-2 mt-2">
             <p className="text-[10px] px-1" style={{ color: '#1e293b' }}>
@@ -233,15 +245,20 @@ export default function WendyPanel({
             className="flex-1 bg-transparent outline-none text-xs"
             style={{ color: '#cbd5e1', caretColor: '#00b4ff' }}
           />
-          {input.trim() && !isStreaming && (
-            <button
-              onClick={handleSend}
-              className="shrink-0 text-[9px] font-[700] px-2 py-1 rounded-md transition-opacity hover:opacity-80"
-              style={{ background: 'rgba(0,180,255,0.12)', color: '#00b4ff', border: '1px solid rgba(0,180,255,0.2)' }}
-            >
-              SEND
-            </button>
-          )}
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || isStreaming}
+            className="shrink-0 text-[9px] font-[700] px-2 py-1 rounded-md transition-all"
+            style={{
+              background: 'rgba(0,180,255,0.12)',
+              color: '#00b4ff',
+              border: '1px solid rgba(0,180,255,0.2)',
+              opacity: input.trim() && !isStreaming ? 1 : 0,
+              pointerEvents: input.trim() && !isStreaming ? 'auto' : 'none',
+            }}
+          >
+            SEND
+          </button>
         </div>
         <p className="text-[8px] text-center mt-1.5" style={{ color: '#1e293b' }}>
           Wendy knows your full portfolio — Wendy AI
