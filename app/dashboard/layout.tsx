@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
+import Link from 'next/link'
 
 export default async function DashboardLayout({
   children,
@@ -17,6 +18,52 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#04040a' }}>
+      {/* Top nav */}
+      <nav style={{
+        height: 38,
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '0 16px',
+        background: 'rgba(5,7,10,0.98)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        zIndex: 100,
+      }}>
+        <Link
+          href="/dashboard"
+          style={{
+            height: 26, padding: '0 12px', borderRadius: 5,
+            display: 'flex', alignItems: 'center',
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+            color: '#64748b', textDecoration: 'none',
+          }}
+        >
+          Board
+        </Link>
+        <Link
+          href="/dashboard/subscriptions"
+          style={{
+            height: 26, padding: '0 12px', borderRadius: 5,
+            display: 'flex', alignItems: 'center',
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+            color: '#64748b', textDecoration: 'none',
+          }}
+        >
+          Subscriptions
+        </Link>
+        <Link
+          href="/dashboard/wendy"
+          style={{
+            height: 26, padding: '0 12px', borderRadius: 5,
+            display: 'flex', alignItems: 'center',
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+            color: '#00b4ff', textDecoration: 'none',
+          }}
+        >
+          Wendy
+        </Link>
+      </nav>
       {children}
     </div>
   )
