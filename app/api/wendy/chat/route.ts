@@ -31,11 +31,15 @@ export async function POST(req: NextRequest) {
 
   const messages: Message[] = [...(history ?? []), { role: 'user', content: text }]
 
-  const { text: reply } = await generateText({
-    model: anthropic('claude-sonnet-4-6'),
-    system: WENDY_SYSTEM,
-    messages,
-  })
-
-  return NextResponse.json({ reply })
+  try {
+    const { text: reply } = await generateText({
+      model: anthropic('claude-sonnet-4-6'),
+      system: WENDY_SYSTEM,
+      messages,
+    })
+    return NextResponse.json({ reply })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'AI error'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
