@@ -405,6 +405,7 @@ export default function CommandFeed({
   const [inbox, setInbox]             = useState<InboxItem[]>([])
   const [focusWsId, setFocusWsId]     = useState<string | null>(null)
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [captureError, setCaptureError] = useState(false)
   const [focusNowOpen, setFocusNowOpen] = useState(true)
   const [cols, setCols]               = useState(4)
   const [mobileOpen, setMobileOpen]   = useState({ focus: true, workspaces: false, tasks: false })
@@ -440,6 +441,7 @@ export default function CommandFeed({
     const text = capture.trim()
     if (!text || capturing) return
     setCapturing(true)
+    setCaptureError(false)
     try {
       const res = await fetch('/api/inbox', {
         method: 'POST',
@@ -452,7 +454,13 @@ export default function CommandFeed({
         setCapture('')
         setCaptured(true)
         setTimeout(() => setCaptured(false), 1800)
+      } else {
+        setCaptureError(true)
+        setTimeout(() => setCaptureError(false), 3000)
       }
+    } catch {
+      setCaptureError(true)
+      setTimeout(() => setCaptureError(false), 3000)
     } finally {
       setCapturing(false)
     }
@@ -501,19 +509,21 @@ export default function CommandFeed({
                 if (e.key === 'Enter') handleCapture()
                 if (e.key === 'Escape') { setCapture(''); setCaptureOpen(false) }
               }}
-              onBlur={() => { if (!capture.trim()) setCaptureOpen(false) }}
-              placeholder={captured ? '✓ Captured' : 'Type and press Enter...'}
+              onBlur={() => { setTimeout(() => { if (!captureRef.current || document.activeElement !== captureRef.current) { if (!capture.trim()) setCaptureOpen(false) } }, 300) }}
+              placeholder={captured ? '✓ Captured' : captureError ? '✗ Save failed — try again' : 'Type and press Enter...'}
               disabled={capturing}
               style={{
                 flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                fontSize: 13, color: captured ? '#22c55e' : '#ffffff', caretColor: '#00b4ff',
+                fontSize: 13, color: captured ? '#22c55e' : captureError ? '#f87171' : '#ffffff', caretColor: '#00b4ff',
               }}
             />
             {capture.trim() && (
               <button onClick={handleCapture} style={{
                 fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 4,
-                background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
-                border: '1px solid rgba(0,180,255,0.3)', cursor: 'pointer',
+                background: captureError ? 'rgba(248,113,113,0.12)' : 'rgba(0,180,255,0.12)',
+                color: captureError ? '#f87171' : '#00b4ff',
+                border: `1px solid ${captureError ? 'rgba(248,113,113,0.3)' : 'rgba(0,180,255,0.3)'}`,
+                cursor: 'pointer',
               }}>GO</button>
             )}
             <button onClick={() => { setCapture(''); setCaptureOpen(false) }} style={{
@@ -584,13 +594,18 @@ export default function CommandFeed({
             { n: totalIdeas,       label: 'IDR', color: '#ffffff',                                       glow: 'none' },
             { n: doneToday.length, label: 'DNE', color: doneToday.length > 0 ? '#22c55e' : '#8899aa',  glow: doneToday.length > 0 ? '0 0 10px rgba(34,197,94,0.4)' : 'none' },
           ] as { n: number; label: string; color: string; glow: string }[]).map(({ n, label, color, glow }, i, arr) => (
-            <div key={label} style={{
-              flex: 1, textAlign: 'center', padding: '10px 4px',
-              borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-            }}>
+            <button
+              key={label}
+              onClick={() => setMobileOpen(s => ({ ...s, tasks: true }))}
+              style={{
+                flex: 1, textAlign: 'center', padding: '10px 4px',
+                borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                background: 'transparent', border: 'none', cursor: 'pointer',
+              }}
+            >
               <p style={{ fontSize: 22, fontWeight: 800, lineHeight: 1, color, textShadow: glow }}>{n}</p>
               <p style={{ fontSize: 8, color: '#8899aa', letterSpacing: '0.1em', marginTop: 3 }}>{label}</p>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -638,6 +653,11 @@ export default function CommandFeed({
                         flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
                         background: 'rgba(255,255,255,0.06)', color: '#ffffff',
                       }}>↙ Later</button>
+                      <button onClick={() => onSelectTask(focusTask)} style={{
+                        flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.04)', color: '#8899aa',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                      }}>✎ Edit</button>
                     </div>
                   </div>
                 ) : (
@@ -776,7 +796,7 @@ export default function CommandFeed({
                   if (e.key === 'Enter') handleCapture()
                   if (e.key === 'Escape') { setCapture(''); setCaptureOpen(false) }
                 }}
-                onBlur={() => { if (!capture.trim()) setCaptureOpen(false) }}
+                onBlur={() => { setTimeout(() => { if (!captureRef.current || document.activeElement !== captureRef.current) { if (!capture.trim()) setCaptureOpen(false) } }, 300) }}
                 placeholder={captured ? '✓ Captured' : 'Type and press Enter...'}
                 disabled={capturing}
                 style={{
@@ -887,16 +907,16 @@ export default function CommandFeed({
         {/* Activity ticker */}
         {ticker && (
           <div style={{
-            flexShrink: 0, height: 22, overflow: 'hidden',
+            flexShrink: 0, height: 28, display: 'flex', alignItems: 'center', overflow: 'hidden',
             background: 'rgba(0,0,0,0.5)', borderTop: '1px solid rgba(0,180,255,0.06)',
           }}>
             <style>{`@keyframes bpe-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
             <div style={{
               display: 'inline-flex', whiteSpace: 'nowrap',
-              animation: 'bpe-ticker 50s linear infinite', padding: '4px 0',
+              animation: 'bpe-ticker 50s linear infinite',
             }}>
-              <span style={{ fontSize: 9, color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
-              <span style={{ fontSize: 9, color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
+              <span style={{ fontSize: 9, lineHeight: '1', color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
+              <span style={{ fontSize: 9, lineHeight: '1', color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
             </div>
           </div>
         )}
