@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase-admin'
+import { hasDashboardSession } from '@/lib/password-auth'
 
 export async function requireAuth() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
+  if (!(await hasDashboardSession())) {
     return {
-      user: null,
-      supabase,
+      supabase: null,
       unauthorized: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
     }
   }
 
-  return { user, supabase, unauthorized: null }
+  return { supabase: createAdminClient(), unauthorized: null }
 }

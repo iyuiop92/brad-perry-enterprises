@@ -1,8 +1,36 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
-import type { Task, Workspace, InboxItem } from '@/lib/types'
 
-// ── Utilities ────────────────────────────────────────────────────────────────
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import type { InboxItem, Task, Workspace } from '@/lib/types'
+
+type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
+type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
+type WorkLane = 'Revenue' | 'Momentum' | 'Maintenance' | 'Explore'
+type ViewMode = 'active' | 'blocked' | 'ideas' | 'shipped'
+
+const priorityRank = { high: 0, medium: 1, low: 2 } as const
+const priorityLabel = { high: 'P1', medium: 'P2', low: 'P3' } as const
+const statusLabel = {
+  idea: 'Idea',
+  in_progress: 'Active',
+  blocked: 'Blocked',
+  done: 'Done',
+} as const
+
+const modeOptions: { id: OperatingMode; label: string; time: string; color: string; intent: string }[] = [
+  { id: 'sprint', label: 'Sprint', time: '45m', color: '#38bdf8', intent: 'ship the next visible output' },
+  { id: 'deep', label: 'Deep', time: '90m', color: '#a78bfa', intent: 'protect one hard build block' },
+  { id: 'admin', label: 'Sweep', time: '20m', color: '#f59e0b', intent: 'clear drag and tiny loops' },
+  { id: 'closeout', label: 'Close', time: '10m', color: '#22c55e', intent: 'log the day and choose tomorrow' },
+]
+
+const laneTheme: Record<WorkLane, { color: string; tint: string }> = {
+  Revenue: { color: '#22c55e', tint: 'rgba(34,197,94,0.12)' },
+  Momentum: { color: '#38bdf8', tint: 'rgba(56,189,248,0.12)' },
+  Maintenance: { color: '#f59e0b', tint: 'rgba(245,158,11,0.12)' },
+  Explore: { color: '#f472b6', tint: 'rgba(244,114,182,0.12)' },
+}
 
 async function patchTask(id: string, body: Record<string, unknown>) {
   await fetch(`/api/tasks/${id}`, {
@@ -12,379 +40,252 @@ async function patchTask(id: string, body: Record<string, unknown>) {
   }).catch(() => {})
 }
 
-function wsAbbr(name: string) {
+function workspaceAbbr(name?: string | null) {
+  if (!name) return 'BP'
   const caps = name.replace(/[^A-Z]/g, '')
   return caps.length >= 2 ? caps.slice(0, 2) : name.slice(0, 2).toUpperCase()
 }
 
-function seededInt(seed: string, min: number, max: number): number {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 0x9e3779b9) | 0
-  return min + Math.abs(h) % (max - min + 1)
+function taskText(task: Task) {
+  return `${task.title} ${task.notes ?? ''}`.toLowerCase()
 }
 
-function seededSparkline(seed: string, points = 10): number[] {
-  let h = 0
-  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 0x9e3779b9) | 0
-  return Array.from({ length: points }, (_, i) => {
-    h = Math.imul(h ^ i, 0x9e3779b9) | 0
-    return 20 + Math.abs(h) % 80
+function extractLine(notes: string | null, labels: string[]) {
+  if (!notes) return null
+  const lines = notes.split('\n').map(line => line.trim()).filter(Boolean)
+  for (const line of lines) {
+    const match = labels.find(label => line.toLowerCase().startsWith(label))
+    if (match) return line.slice(match.length).replace(/^[:\- ]+/, '').trim()
+  }
+  return null
+}
+
+function inferNextAction(task: Task) {
+  const direct = extractLine(task.notes, ['next action', 'next', 'today'])
+  if (direct) return direct
+  const text = taskText(task)
+  if (text.includes('cancel')) return 'Open the vendor account and finish the cancellation.'
+  if (text.includes('video')) return 'Open the editor and export one publishable video.'
+  if (text.includes('write') || text.includes('article') || text.includes('content')) return 'Draft the first publishable version.'
+  if (text.includes('lead') || text.includes('client') || text.includes('proposal')) return 'Send one concrete client-facing message or asset.'
+  if (text.includes('build') || text.includes('mcp') || text.includes('automation')) return 'Ship the smallest working slice.'
+  if (task.status === 'blocked') return 'Name the person, decision, or missing input that removes the blocker.'
+  return 'Turn this into one physical action you can finish in a work block.'
+}
+
+function inferDoneMeans(task: Task) {
+  const direct = extractLine(task.notes, ['done means', 'definition of done', 'done'])
+  if (direct) return direct
+  const text = taskText(task)
+  if (text.includes('video')) return 'The video is exported, uploaded or scheduled, and the link is saved.'
+  if (text.includes('cancel')) return 'The cancellation is confirmed.'
+  if (text.includes('write') || text.includes('article') || text.includes('content')) return 'A publishable draft exists in the right destination.'
+  if (text.includes('lead') || text.includes('client')) return 'The next customer touch is sent.'
+  if (text.includes('build')) return 'A small working version is live, testable, or linked.'
+  return 'There is a visible output, link, decision, or shipped artifact.'
+}
+
+function inferWhy(task: Task) {
+  const text = taskText(task)
+  if (text.includes('revenue') || text.includes('client') || text.includes('lead') || text.includes('stripe')) return 'Closest to money or a customer conversation.'
+  if (text.includes('video') || text.includes('content') || text.includes('article')) return 'Creates visible audience momentum instead of more planning.'
+  if (text.includes('cancel')) return 'Removes avoidable spend and mental drag.'
+  if (text.includes('launch') || text.includes('tier')) return 'Moves an offer closer to being sellable.'
+  if (task.status === 'blocked') return 'Clearing this gives other work its oxygen back.'
+  return 'This is one of the strongest open loops in the portfolio.'
+}
+
+function classifyWork(task: Task): WorkLane {
+  const text = taskText(task)
+  if (text.includes('revenue') || text.includes('client') || text.includes('lead') || text.includes('proposal') || text.includes('stripe') || text.includes('tier')) return 'Revenue'
+  if (text.includes('video') || text.includes('content') || text.includes('article') || text.includes('youtube') || text.includes('social')) return 'Momentum'
+  if (text.includes('cancel') || text.includes('fix') || text.includes('seo') || text.includes('traffic data') || text.includes('dashboard')) return 'Maintenance'
+  return 'Explore'
+}
+
+function needleScore(task: Task) {
+  const text = taskText(task)
+  let score = 50
+  if (task.priority === 'high') score += 26
+  if (task.priority === 'medium') score += 12
+  if (task.status === 'in_progress') score += 18
+  if (task.status === 'blocked') score += 14
+  if (text.includes('revenue') || text.includes('client') || text.includes('lead')) score += 18
+  if (text.includes('video') || text.includes('content') || text.includes('article')) score += 14
+  if (text.includes('launch') || text.includes('tier')) score += 10
+  if (text.includes('cancel')) score += 8
+  if (text.includes('mcp') || text.includes('platform') || text.includes('automation')) score -= 8
+  if (text.includes('define') || text.includes('review status')) score -= 6
+  return Math.max(1, Math.min(99, score))
+}
+
+function sortForExecution(tasks: Task[]) {
+  return [...tasks].sort((a, b) => {
+    const statusWeight = (t: Task) => t.status === 'blocked' ? 0 : t.status === 'in_progress' ? 1 : 2
+    return statusWeight(a) - statusWeight(b)
+      || (priorityRank[a.priority] ?? 2) - (priorityRank[b.priority] ?? 2)
+      || needleScore(b) - needleScore(a)
+      || a.sort_order - b.sort_order
   })
 }
 
-function computeProgress(task: Task): number {
-  if (task.deliverables?.length > 0) {
-    const done = task.deliverables.filter(d => d.done).length
-    return Math.round((done / task.deliverables.length) * 100)
-  }
-  return task.status === 'done' ? 100 : task.status === 'in_progress' ? 50 : 10
+function isSameDay(date: string, reference: Date) {
+  return new Date(date).toDateString() === reference.toDateString()
 }
 
-const P_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
-const PHASE_ABBR: Record<string, string> = {
-  discovery: 'DISC', design: 'DSGN', build: 'BUILD', launch: 'LNCH', live: 'LIVE',
-}
-const PHASE_COLOR: Record<string, string> = {
-  discovery: '#8b5cf6', design: '#3b82f6', build: '#00b4ff', launch: '#22c55e', live: '#10b981',
-}
-
-function byPriority(list: Task[]) {
-  return [...list].sort((a, b) => (P_ORDER[a.priority] ?? 2) - (P_ORDER[b.priority] ?? 2))
-}
-
-function computeInsights(workspaces: Workspace[], tasks: Task[]): string[] {
-  const blocked  = tasks.filter(t => t.status === 'blocked')
-  const p1       = tasks.filter(t => t.priority === 'high' && t.status !== 'done')
-  const mostActive = [...workspaces].sort((a, b) => b.active_count - a.active_count)[0]
-  const out: string[] = []
-  if (blocked.length) out.push(`${blocked.length} task${blocked.length > 1 ? 's' : ''} need unblocking`)
-  if (p1.length)      out.push(`${p1.length} P1 item${p1.length > 1 ? 's' : ''} in flight`)
-  if (mostActive?.active_count > 0) out.push(`${mostActive.name} leads momentum`)
-  if (!out.length)    out.push('Portfolio operating cleanly')
-  return out.slice(0, 3)
-}
-
-// ── Sparkline SVG ─────────────────────────────────────────────────────────
-function Sparkline({ seed, color, w = 72, h = 22 }: { seed: string; color: string; w?: number; h?: number }) {
-  const vals = seededSparkline(seed)
-  const min  = Math.min(...vals), max = Math.max(...vals)
-  const rng  = max - min || 1
-  const pts  = vals.map((v, i) => [
-    (i / (vals.length - 1)) * w,
-    h - ((v - min) / rng) * (h - 2) - 1,
-  ])
-  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
-  const area = [...pts, [w, h], [0, h]].map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ') + 'Z'
-  const gid  = `sg${seed.replace(/[^a-z0-9]/gi, '').slice(-8)}`
+function Card({ children, style }: { children: React.ReactNode; style?: CSSProperties }) {
   return (
-    <svg width={w} height={h} style={{ display: 'block', flexShrink: 0 }}>
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${gid})`} />
-      <path d={line} fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.85" />
-    </svg>
+    <section
+      style={{
+        background: 'linear-gradient(180deg, rgba(13,19,31,0.84), rgba(5,8,14,0.78))',
+        border: '1px solid rgba(148,163,184,0.12)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        boxShadow: '0 18px 60px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.045)',
+        backdropFilter: 'blur(20px)',
+        ...style,
+      }}
+    >
+      {children}
+    </section>
   )
 }
 
-// ── Task card (left column) ──────────────────────────────────────────────
-function TaskCard({
-  task, workspace, onOpen, onDone, onPostpone, onActivate,
+function SectionTitle({ label, detail, right }: { label: string; detail?: string; right?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 11, fontWeight: 850, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#f8fafc' }}>{label}</p>
+        {detail && <p style={{ marginTop: 3, fontSize: 11, color: '#8fa0b7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</p>}
+      </div>
+      {right}
+    </div>
+  )
+}
+
+function ActionButton({
+  children,
+  onClick,
+  tone = '#94a3b8',
+  disabled,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  tone?: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        height: 32,
+        padding: '0 12px',
+        borderRadius: 6,
+        border: `1px solid ${tone}44`,
+        background: `${tone}18`,
+        color: tone,
+        fontSize: 11,
+        fontWeight: 850,
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function EmptyState({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div style={{ padding: 18 }}>
+      <p style={{ color: '#f8fafc', fontSize: 13, fontWeight: 850 }}>{title}</p>
+      <p style={{ marginTop: 6, color: '#8fa0b7', fontSize: 11, lineHeight: 1.5 }}>{detail}</p>
+    </div>
+  )
+}
+
+function TaskRow({
+  task,
+  workspace,
+  onOpen,
+  onStatus,
 }: {
   task: Task
   workspace?: Workspace
   onOpen: () => void
-  onDone: () => void
-  onPostpone: () => void
-  onActivate?: () => void
+  onStatus: (status: TaskAction) => void
 }) {
-  const [hov, setHov] = useState(false)
-  const blocked  = task.status === 'blocked'
-  const p1       = task.priority === 'high'
-  const wsColor  = workspace?.color ?? '#8899aa'
-  const phase    = task.phase
-  const pLabel   = phase ? (PHASE_ABBR[phase] ?? phase.slice(0, 4).toUpperCase()) : null
-  const pColor   = phase ? (PHASE_COLOR[phase] ?? '#8899aa') : '#8899aa'
-  const progress = computeProgress(task)
-  const aiScore  = seededInt(task.id, 72, 99)
-  const barColor = blocked ? '#f59e0b' : '#00b4ff'
-  const abbr     = workspace ? wsAbbr(workspace.name) : '··'
+  const lane = classifyWork(task)
+  const theme = laneTheme[lane]
+  const statusColor = task.status === 'blocked' ? '#f59e0b' : task.status === 'in_progress' ? '#38bdf8' : task.status === 'done' ? '#22c55e' : '#94a3b8'
 
   return (
-    <div
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        position: 'relative', flexShrink: 0,
-        borderLeft: `2px solid ${blocked ? 'rgba(245,158,11,0.55)' : p1 ? 'rgba(0,180,255,0.45)' : 'rgba(255,255,255,0.06)'}`,
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
-        background: blocked
-          ? hov ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.04)'
-          : hov ? 'rgba(0,180,255,0.04)' : 'transparent',
-        transition: 'background 0.1s',
-      }}
-    >
-      {/* Progress strip at bottom */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,0.04)' }}>
-        <div style={{ height: '100%', width: `${progress}%`, background: barColor, opacity: 0.55, transition: 'width 0.6s' }} />
-      </div>
-
-      {/* Card body */}
-      <div style={{ padding: '8px 10px 10px', cursor: 'pointer' }} onClick={onOpen}>
-        {/* Row 1: dot + ws chip + title + progress % */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-          <div style={{
-            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-            background: blocked ? '#f59e0b' : '#00b4ff',
-            boxShadow: blocked
-              ? '0 0 6px rgba(245,158,11,0.9), 0 0 14px rgba(245,158,11,0.4)'
-              : p1 ? '0 0 7px rgba(0,180,255,1), 0 0 14px rgba(0,180,255,0.5)'
-              : '0 0 4px rgba(0,180,255,0.4)',
-          }} />
-          <span style={{
-            fontSize: 9, fontWeight: 800, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
-            background: `${wsColor}18`, color: wsColor, border: `1px solid ${wsColor}28`,
-            letterSpacing: '0.04em', textShadow: `0 0 8px ${wsColor}55`,
-          }}>{abbr}</span>
-          <span style={{
-            flex: 1, fontSize: 12, fontWeight: blocked ? 600 : p1 ? 500 : 400,
-            color: blocked ? '#fbbf24' : '#ffffff',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>{task.title}</span>
-          <span style={{
-            fontSize: 10, fontWeight: 800, color: barColor, flexShrink: 0,
-            textShadow: blocked ? '0 0 8px rgba(245,158,11,0.4)' : '0 0 8px rgba(0,180,255,0.4)',
-          }}>{progress}%</span>
-        </div>
-
-        {/* Row 2: badges + AI score + actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{
-            fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 3, flexShrink: 0,
-            color: p1 ? '#00b4ff' : blocked ? '#f59e0b' : '#8899aa',
-            background: p1 ? 'rgba(0,180,255,0.1)' : blocked ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.06)',
-            border: `1px solid ${p1 ? 'rgba(0,180,255,0.2)' : blocked ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.1)'}`,
-            letterSpacing: '0.05em',
-          }}>
-            {task.priority === 'high' ? 'P1' : task.priority === 'medium' ? 'P2' : 'P3'}
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <button onClick={onOpen} style={{ minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: theme.color, boxShadow: `0 0 14px ${theme.color}99`, flexShrink: 0 }} />
+          <span style={{ flexShrink: 0, color: workspace?.color ?? '#38bdf8', fontSize: 9, fontWeight: 900, border: `1px solid ${(workspace?.color ?? '#38bdf8')}44`, borderRadius: 4, padding: '2px 5px', background: `${workspace?.color ?? '#38bdf8'}14` }}>
+            {workspaceAbbr(workspace?.name ?? task.brand)}
           </span>
-          {pLabel && (
-            <span style={{
-              fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
-              color: pColor, border: `1px solid ${pColor}28`, letterSpacing: '0.04em',
-            }}>{pLabel}</span>
-          )}
-          <span style={{ flex: 1 }} />
-          <span style={{ fontSize: 8, color: '#8899aa', fontWeight: 600, letterSpacing: '0.04em' }}>
-            AI <span style={{
-              color: aiScore >= 90 ? '#22c55e' : '#00b4ff',
-              fontWeight: 800,
-              textShadow: aiScore >= 90 ? '0 0 8px rgba(34,197,94,0.4)' : '0 0 6px rgba(0,180,255,0.3)',
-            }}>{aiScore}</span>
-          </span>
-          <div
-            style={{ display: 'flex', gap: 3, opacity: hov ? 1 : 0, transition: 'opacity 0.15s', marginLeft: 6 }}
-            onClick={e => e.stopPropagation()}
-          >
-            {blocked && onActivate && (
-              <button onClick={onActivate} title="Activate" style={{
-                width: 18, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 8, border: 'none',
-                background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
-                boxShadow: '0 0 6px rgba(0,180,255,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>▶</button>
-            )}
-            <button onClick={onPostpone} title="Postpone to Ideas" style={{
-              width: 18, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 8, border: 'none',
-              background: 'rgba(255,255,255,0.08)', color: '#ffffff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>↙</button>
-            <button onClick={onDone} title="Mark Done" style={{
-              width: 18, height: 18, borderRadius: 3, cursor: 'pointer', fontSize: 9, border: 'none',
-              background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-              boxShadow: '0 0 6px rgba(34,197,94,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>✓</button>
-          </div>
+          <span style={{ minWidth: 0, color: '#f8fafc', fontSize: 13, fontWeight: 780, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
         </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <span style={{ color: '#cbd5e1', fontSize: 9, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '2px 7px' }}>{priorityLabel[task.priority]}</span>
+          <span style={{ color: statusColor, fontSize: 9, border: `1px solid ${statusColor}33`, borderRadius: 999, padding: '2px 7px' }}>{statusLabel[task.status]}</span>
+          <span style={{ color: theme.color, fontSize: 9, border: `1px solid ${theme.color}33`, borderRadius: 999, padding: '2px 7px' }}>{lane}</span>
+        </div>
+      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {task.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => onStatus('in_progress')}>Start</ActionButton>}
+        {task.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => onStatus('blocked')}>Block</ActionButton>}
+        {task.status !== 'done' && <ActionButton tone="#22c55e" onClick={() => onStatus('done')}>Done</ActionButton>}
       </div>
     </div>
   )
 }
 
-// ── Workspace tile (center grid) ──────────────────────────────────────────
-function WorkspaceTile({
-  ws, tasks, selected, focused, onSelect, onFocus, onOpenTask, onTaskDone,
+function LaneButton({
+  label,
+  count,
+  color,
+  selected,
+  onClick,
 }: {
-  ws: Workspace
-  tasks: Task[]
+  label: string
+  count: number
+  color: string
   selected: boolean
-  focused: boolean
-  onSelect: () => void
-  onFocus: () => void
-  onTaskDone: (id: string) => void
-  onOpenTask: (t: Task) => void
+  onClick: () => void
 }) {
-  const [hov, setHov] = useState(false)
-  const wsTasks  = tasks.filter(t => t.workspace_id === ws.id && t.status !== 'done')
-  const active   = wsTasks.filter(t => t.status === 'in_progress')
-  const friction = wsTasks.filter(t => t.status === 'blocked')
-  const ideas    = wsTasks.filter(t => t.status === 'idea')
-  const total    = wsTasks.length
-  const velocity = total > 0 ? Math.round(((active.length) / total) * 100) : 0
-  const aiScore  = seededInt(ws.id, 70, 98)
-  const hasWork  = active.length > 0 || friction.length > 0
-  const topTasks = byPriority([...friction, ...active, ...ideas])
-  const sparkColor = friction.length > 0 ? '#f59e0b' : hasWork ? ws.color : '#8899aa'
-
   return (
-    <div
-      onClick={onSelect}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+    <button
+      onClick={onClick}
       style={{
-        display: 'flex', flexDirection: 'column', overflow: 'hidden', cursor: 'pointer',
-        background: selected ? 'rgba(0,180,255,0.04)' : hov ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.22)',
-        borderTop: `3px solid ${hasWork ? ws.color : ws.color + '33'}`,
-        border: `1px solid ${selected ? 'rgba(0,180,255,0.2)' : 'rgba(255,255,255,0.04)'}`,
-        boxShadow: selected ? `0 0 24px ${ws.color}1a` : 'none',
-        transition: 'all 0.15s',
+        minHeight: 68,
+        borderRadius: 8,
+        border: `1px solid ${selected ? color : 'rgba(255,255,255,0.08)'}`,
+        background: selected ? `${color}18` : 'rgba(255,255,255,0.035)',
+        boxShadow: selected ? `0 0 28px ${color}1f` : 'none',
+        padding: 12,
+        textAlign: 'left',
+        cursor: 'pointer',
       }}
     >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 3px', flexShrink: 0 }}>
-        <div style={{
-          width: 6, height: 6, borderRadius: '50%', background: ws.color, flexShrink: 0,
-          boxShadow: hasWork ? `0 0 7px ${ws.color}, 0 0 14px ${ws.color}55` : `0 0 3px ${ws.color}44`,
-        }} />
-        <span style={{
-          flex: 1, fontSize: 10, fontWeight: 700, letterSpacing: '-0.01em',
-          color: '#ffffff',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{ws.name}</span>
-        {hov && (
-          <button
-            onClick={e => { e.stopPropagation(); onFocus() }}
-            title={focused ? 'Exit focus' : 'Focus mode'}
-            style={{
-              flexShrink: 0, width: 16, height: 16, borderRadius: 3, border: 'none',
-              cursor: 'pointer', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: focused ? 'rgba(0,180,255,0.25)' : 'rgba(255,255,255,0.08)',
-              color: focused ? '#00b4ff' : '#8899aa',
-              marginRight: 4,
-            }}
-          >⊙</button>
-        )}
-        <Sparkline seed={ws.id} color={sparkColor} w={48} h={18} />
-      </div>
-
-      {/* Stats bar */}
-      <div style={{
-        display: 'flex', flexShrink: 0,
-        borderTop: '1px solid rgba(255,255,255,0.04)',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
-      }}>
-        {([
-          { label: 'ACTIVE',   val: active.length,   color: active.length > 0 ? '#00b4ff' : '#8899aa',   glow: active.length > 0 ? '0 0 8px rgba(0,180,255,0.4)' : 'none' },
-          { label: 'FRICTION', val: friction.length, color: friction.length > 0 ? '#f59e0b' : '#8899aa', glow: friction.length > 0 ? '0 0 8px rgba(245,158,11,0.4)' : 'none' },
-          { label: 'IDEAS',    val: ideas.length,    color: ideas.length > 0 ? '#ffffff' : '#8899aa',     glow: 'none' },
-          { label: 'VELOCITY', val: `${velocity}%`,  color: velocity > 50 ? '#22c55e' : velocity > 20 ? '#00b4ff' : '#8899aa', glow: velocity > 50 ? '0 0 8px rgba(34,197,94,0.3)' : 'none' },
-        ] as { label: string; val: string | number; color: string; glow: string }[]).map(({ label, val, color, glow }, i, arr) => (
-          <div key={label} style={{
-            flex: 1, textAlign: 'center', padding: '4px 2px',
-            borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-          }}>
-            <p style={{ fontSize: 11, fontWeight: 800, color, textShadow: glow, lineHeight: 1 }}>{val}</p>
-            <p style={{ fontSize: 6, color: '#8899aa', letterSpacing: '0.08em', marginTop: 1 }}>{label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Task list */}
-      <div style={{ flex: 1, overflow: 'hidden', padding: '2px 0' }}>
-        {topTasks.length === 0 ? (
-          <p style={{ fontSize: 10, color: '#8899aa', padding: '6px 10px' }}>No work queued</p>
-        ) : topTasks.map(t => {
-          const isBlocked = t.status === 'blocked'
-          const isP1      = t.priority === 'high'
-          return (
-            <div
-              key={t.id}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                padding: '2px 8px', height: 20,
-                background: 'transparent', transition: 'background 0.08s',
-              }}
-            >
-              <button
-                onClick={e => { e.stopPropagation(); onTaskDone(t.id) }}
-                title="Mark done"
-                style={{
-                  flexShrink: 0, width: 11, height: 11, borderRadius: '50%', cursor: 'pointer',
-                  border: `1.5px solid ${isBlocked ? '#f59e0b' : '#00b4ff'}`,
-                  background: 'transparent',
-                  boxShadow: isBlocked ? '0 0 4px rgba(245,158,11,0.4)' : isP1 ? '0 0 4px rgba(0,180,255,0.4)' : 'none',
-                  transition: 'background 0.1s',
-                  padding: 0,
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = isBlocked ? 'rgba(245,158,11,0.25)' : 'rgba(0,180,255,0.25)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-              />
-              <span
-                onClick={e => { e.stopPropagation(); onOpenTask(t) }}
-                style={{
-                  flex: 1, fontSize: 9, fontWeight: isBlocked ? 600 : 400,
-                  color: isBlocked ? '#fbbf24' : '#ffffff',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                }}
-              >{t.title}</span>
-              <span style={{ fontSize: 7, color: '#8899aa', flexShrink: 0, letterSpacing: '0.04em' }}>
-                {t.priority === 'high' ? 'P1' : t.priority === 'medium' ? 'P2' : 'P3'}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* AI score footer */}
-      <div style={{
-        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
-        padding: '2px 8px',
-        borderTop: '1px solid rgba(255,255,255,0.04)',
-        background: 'rgba(0,0,0,0.2)',
-      }}>
-        <span style={{ fontSize: 6, color: '#8899aa', letterSpacing: '0.08em', flexShrink: 0 }}>AI SCORE</span>
-        <div style={{ flex: 1, height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 1 }}>
-          <div style={{
-            height: '100%', width: `${aiScore}%`, borderRadius: 1,
-            background: aiScore >= 90 ? '#22c55e' : '#00b4ff',
-            boxShadow: aiScore >= 90 ? '0 0 4px rgba(34,197,94,0.6)' : '0 0 4px rgba(0,180,255,0.5)',
-          }} />
-        </div>
-        <span style={{
-          fontSize: 10, fontWeight: 800, flexShrink: 0,
-          color: aiScore >= 90 ? '#22c55e' : '#00b4ff',
-          textShadow: aiScore >= 90 ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(0,180,255,0.4)',
-        }}>{aiScore}</span>
-      </div>
-    </div>
+      <p style={{ color, fontSize: 24, fontWeight: 950, lineHeight: 1 }}>{count}</p>
+      <p style={{ marginTop: 6, color: selected ? '#f8fafc' : '#94a3b8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</p>
+    </button>
   )
 }
 
-// ── Main export ──────────────────────────────────────────────────────────────
 export default function CommandFeed({
   tasks: propTasks,
   workspaces,
   selectedWs,
   onSelectTask,
   onSelectWs,
-  onAddTask: _onAddTask,
+  onAddTask,
   onRefresh,
   onAddWorkspace,
 }: {
@@ -397,51 +298,53 @@ export default function CommandFeed({
   onRefresh: () => void
   onAddWorkspace: () => void
 }) {
-  const [dismissed, setDismissed]     = useState<Set<string>>(new Set())
-  const [localTasks, setLocalTasks]   = useState<Task[]>(propTasks)
-  const [capture, setCapture]         = useState('')
-  const [capturing, setCapturing]     = useState(false)
-  const [captured, setCaptured]       = useState(false)
-  const [inbox, setInbox]             = useState<InboxItem[]>([])
-  const [focusWsId, setFocusWsId]     = useState<string | null>(null)
-  const [captureOpen, setCaptureOpen] = useState(false)
-  const [captureError, setCaptureError] = useState(false)
-  const [focusNowOpen, setFocusNowOpen] = useState(true)
-  const [cols, setCols]               = useState(4)
-  const [mobileOpen, setMobileOpen]   = useState({ focus: true, workspaces: false, tasks: false })
+  const [capture, setCapture] = useState('')
+  const [capturing, setCapturing] = useState(false)
+  const [inbox, setInbox] = useState<InboxItem[]>([])
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, TaskAction>>({})
+  const [mode, setMode] = useState<OperatingMode>('sprint')
+  const [view, setView] = useState<ViewMode>('active')
   const captureRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { setLocalTasks(propTasks); setDismissed(new Set()) }, [propTasks])
   useEffect(() => {
     fetch('/api/inbox').then(r => r.ok ? r.json() : []).then(setInbox).catch(() => {})
   }, [])
-  useEffect(() => {
-    function onResize() { setCols(window.innerWidth < 960 ? 2 : 4) }
-    onResize()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
 
-  async function handleDone(task: Task) {
-    setDismissed(prev => new Set([...prev, task.id]))
-    await patchTask(task.id, { status: 'done' })
+  const localTasks = useMemo(() => propTasks.map(task => (
+    statusOverrides[task.id] ? { ...task, status: statusOverrides[task.id] } : task
+  )), [propTasks, statusOverrides])
+  const workspaceById = useMemo(() => Object.fromEntries(workspaces.map(w => [w.id, w])), [workspaces])
+  const scopedTasks = useMemo(() => {
+    const open = localTasks.filter(t => t.status !== 'done')
+    return selectedWs ? open.filter(t => t.workspace_id === selectedWs.id) : open
+  }, [localTasks, selectedWs])
+
+  const active = sortForExecution(scopedTasks.filter(t => t.status === 'in_progress'))
+  const blocked = sortForExecution(scopedTasks.filter(t => t.status === 'blocked'))
+  const ideas = sortForExecution(scopedTasks.filter(t => t.status === 'idea'))
+  const doneToday = localTasks
+    .filter(t => t.status === 'done' && isSameDay(t.updated_at, new Date()))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+  const commandTask = sortForExecution([...blocked, ...active, ...ideas])[0]
+  const selectedMode = modeOptions.find(option => option.id === mode) ?? modeOptions[0]
+  const commandLane = commandTask ? classifyWork(commandTask) : 'Momentum'
+  const commandTheme = laneTheme[commandLane]
+  const laneTasks = view === 'active' ? active : view === 'blocked' ? blocked : view === 'ideas' ? ideas : doneToday
+  const workspaceRows = workspaces.map(ws => {
+    const open = localTasks.filter(t => t.workspace_id === ws.id && t.status !== 'done')
+    return { ws, count: open.length, next: sortForExecution(open)[0] }
+  })
+
+  async function setTaskStatus(task: Task, status: TaskAction) {
+    setStatusOverrides(prev => ({ ...prev, [task.id]: status }))
+    await patchTask(task.id, { status })
     onRefresh()
   }
-  async function handlePostpone(task: Task) {
-    setDismissed(prev => new Set([...prev, task.id]))
-    await patchTask(task.id, { status: 'idea' })
-    onRefresh()
-  }
-  async function handleActivate(task: Task) {
-    setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'in_progress' as const } : t))
-    await patchTask(task.id, { status: 'in_progress' })
-    onRefresh()
-  }
+
   async function handleCapture() {
     const text = capture.trim()
     if (!text || capturing) return
     setCapturing(true)
-    setCaptureError(false)
     try {
       const res = await fetch('/api/inbox', {
         method: 'POST',
@@ -452,675 +355,305 @@ export default function CommandFeed({
         const item = await res.json()
         setInbox(prev => [item, ...prev])
         setCapture('')
-        setCaptured(true)
-        setTimeout(() => setCaptured(false), 1800)
-      } else {
-        setCaptureError(true)
-        setTimeout(() => setCaptureError(false), 3000)
       }
-    } catch {
-      setCaptureError(true)
-      setTimeout(() => setCaptureError(false), 3000)
     } finally {
       setCapturing(false)
     }
   }
 
-  const tasks      = localTasks.filter(t => !dismissed.has(t.id))
-  const scope      = selectedWs ? tasks.filter(t => t.workspace_id === selectedWs.id) : tasks
-  const friction   = byPriority(scope.filter(t => t.status === 'blocked'))
-  const active     = byPriority(scope.filter(t => t.status === 'in_progress'))
-  const ideas      = byPriority(scope.filter(t => t.status === 'idea'))
-  const wsById     = Object.fromEntries(workspaces.map(w => [w.id, w]))
-  const todayStr   = new Date().toDateString()
-  const doneToday  = tasks.filter(t => t.status === 'done' && new Date(t.updated_at).toDateString() === todayStr)
-  const totalActive   = tasks.filter(t => t.status === 'in_progress').length
-  const totalFriction = tasks.filter(t => t.status === 'blocked').length
-  const totalIdeas    = tasks.filter(t => t.status === 'idea').length
-  const insights   = computeInsights(workspaces, tasks)
-  const tileRows   = Math.max(1, Math.ceil((workspaces.length + 1) / cols))
+  function workspaceFor(task: Task) {
+    return task.workspace_id ? workspaceById[task.workspace_id] : undefined
+  }
 
-  const recent = [...tasks].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 10)
-  const ticker = recent.map(t => {
-    const abbr = t.workspace_id ? wsAbbr(wsById[t.workspace_id]?.name ?? '··') : '··'
-    return `[ ${abbr} ] ${t.title} — ${t.status.replace('_', ' ')}`
-  }).join('   ·   ')
-
-  const isMobile = cols < 4
-
-  // ── Shared sub-renders ──────────────────────────────────────────────────────
-
-  function CaptureBar({ fullWidth }: { fullWidth?: boolean }) {
-    return (
-      <div style={{
-        flexShrink: 0,
-        borderBottom: '1px solid rgba(0,180,255,0.08)',
-        background: 'rgba(0,0,0,0.5)',
-        ...(fullWidth ? {} : {}),
-      }}>
-        {captureOpen ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, height: 42, padding: '0 14px' }}>
-            <span style={{ color: '#00b4ff', fontWeight: 800, fontSize: 14, textShadow: '0 0 10px rgba(0,180,255,0.7)' }}>›</span>
-            <input
-              ref={captureRef}
-              value={capture}
-              onChange={e => setCapture(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') handleCapture()
-                if (e.key === 'Escape') { setCapture(''); setCaptureOpen(false) }
-              }}
-              onBlur={() => { setTimeout(() => { if (!captureRef.current || document.activeElement !== captureRef.current) { if (!capture.trim()) setCaptureOpen(false) } }, 300) }}
-              placeholder={captured ? '✓ Captured' : captureError ? '✗ Save failed — try again' : 'Type and press Enter...'}
-              disabled={capturing}
-              style={{
-                flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                fontSize: 13, color: captured ? '#22c55e' : captureError ? '#f87171' : '#ffffff', caretColor: '#00b4ff',
-              }}
-            />
-            {capture.trim() && (
-              <button onClick={handleCapture} style={{
-                fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 4,
-                background: captureError ? 'rgba(248,113,113,0.12)' : 'rgba(0,180,255,0.12)',
-                color: captureError ? '#f87171' : '#00b4ff',
-                border: `1px solid ${captureError ? 'rgba(248,113,113,0.3)' : 'rgba(0,180,255,0.3)'}`,
-                cursor: 'pointer',
-              }}>GO</button>
-            )}
-            <button onClick={() => { setCapture(''); setCaptureOpen(false) }} style={{
-              fontSize: 11, color: '#8899aa', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 4px',
-            }}>✕</button>
-          </div>
-        ) : (
-          <button
-            onClick={() => { setCaptureOpen(true); setTimeout(() => captureRef.current?.focus(), 30) }}
+  return (
+    <div
+      style={{
+        height: '100%',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 330px',
+        gap: 16,
+        padding: 16,
+        overflow: 'hidden',
+        background: `
+          radial-gradient(circle at 12% 0%, rgba(56,189,248,0.18), transparent 34%),
+          radial-gradient(circle at 88% 12%, rgba(244,114,182,0.13), transparent 30%),
+          radial-gradient(circle at 52% 98%, rgba(34,197,94,0.10), transparent 34%),
+          linear-gradient(180deg, rgba(4,8,15,0.96), rgba(2,5,9,0.99))
+        `,
+      }}
+    >
+      <div style={{ minWidth: 0, overflow: 'auto', paddingRight: 2 }}>
+        <div style={{ display: 'grid', gap: 16, minWidth: 720 }}>
+          <Card
             style={{
-              display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-              height: 42, padding: '0 16px', background: 'transparent', border: 'none', cursor: 'pointer',
+              position: 'relative',
+              borderColor: `${commandTheme.color}44`,
+              background: `linear-gradient(135deg, rgba(8,14,24,0.92), ${commandTheme.tint}, rgba(7,10,18,0.9))`,
+              boxShadow: `0 24px 80px rgba(0,0,0,0.34), 0 0 70px ${commandTheme.color}17`,
             }}
           >
-            <span style={{ fontSize: 16, color: '#00b4ff', fontWeight: 800, textShadow: '0 0 8px rgba(0,180,255,0.6)' }}>+</span>
-            <span style={{ fontSize: 12, color: '#8899aa' }}>Capture idea or task...</span>
-          </button>
-        )}
-      </div>
-    )
-  }
+            <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 16, alignItems: 'start' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: commandTheme.color, boxShadow: `0 0 16px ${commandTheme.color}` }} />
+                  <p style={{ color: commandTheme.color, fontSize: 11, fontWeight: 950, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+                    {selectedWs ? `${selectedWs.name} operation` : 'Brad Perry Enterprises operation'}
+                  </p>
+                  <span style={{ color: '#7f8da3', fontSize: 11 }}>
+                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+                <h1 style={{ color: '#f8fafc', fontSize: 34, lineHeight: 1.04, fontWeight: 950, letterSpacing: 0, marginTop: 12 }}>
+                  {commandTask ? 'One beautiful win.' : 'Choose today’s win.'}
+                </h1>
+                <p style={{ color: '#9ca9bb', fontSize: 13, lineHeight: 1.55, marginTop: 9, maxWidth: 720 }}>
+                  {selectedMode.label} mode, {selectedMode.time}: {selectedMode.intent}. The room stays calm until one thing ships.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 250 }}>
+                {modeOptions.map(option => {
+                  const selected = option.id === mode
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setMode(option.id)}
+                      style={{
+                        height: 34,
+                        padding: '0 10px',
+                        borderRadius: 999,
+                        border: `1px solid ${selected ? option.color : 'rgba(255,255,255,0.1)'}`,
+                        background: selected ? `${option.color}1f` : 'rgba(255,255,255,0.035)',
+                        color: selected ? '#f8fafc' : '#94a3b8',
+                        fontSize: 11,
+                        fontWeight: 850,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {option.label} {option.time}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </Card>
 
-  function AccordionHeader({
-    title, count, open, onToggle, accent,
-  }: { title: string; count?: number; open: boolean; onToggle: () => void; accent?: string }) {
-    return (
-      <button
-        onClick={onToggle}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          width: '100%', padding: '13px 16px', background: 'transparent', border: 'none',
-          borderBottom: open ? 'none' : '1px solid rgba(255,255,255,0.04)',
-          cursor: 'pointer', textAlign: 'left',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {accent && <div style={{ width: 5, height: 5, borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${accent}` }} />}
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#ffffff', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{title}</span>
-          {count != null && count > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10,
-              background: 'rgba(255,255,255,0.08)', color: '#8899aa',
-            }}>{count}</span>
-          )}
-        </div>
-        <span style={{ fontSize: 10, color: '#8899aa' }}>{open ? '▲' : '▼'}</span>
-      </button>
-    )
-  }
+          <Card style={{ borderColor: `${commandTheme.color}33` }}>
+            {commandTask ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: 0 }}>
+                <div style={{ padding: 22, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ color: workspaceFor(commandTask)?.color ?? commandTheme.color, fontSize: 11, fontWeight: 900, letterSpacing: '0.1em' }}>
+                      {workspaceFor(commandTask)?.name ?? commandTask.brand ?? 'Unassigned'}
+                    </span>
+                    <span style={{ color: '#cbd5e1', fontSize: 10, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>{priorityLabel[commandTask.priority]}</span>
+                    <span style={{ color: commandTheme.color, fontSize: 10, border: `1px solid ${commandTheme.color}33`, borderRadius: 999, padding: '2px 8px' }}>{commandLane}</span>
+                  </div>
+                  <h2 style={{ marginTop: 13, color: '#f8fafc', fontSize: 30, lineHeight: 1.08, fontWeight: 920, letterSpacing: 0 }}>
+                    {commandTask.title}
+                  </h2>
+                  <p style={{ color: '#9ca9bb', fontSize: 13, lineHeight: 1.55, marginTop: 11 }}>{inferWhy(commandTask)}</p>
 
-  // ── Mobile layout ───────────────────────────────────────────────────────────
-  if (isMobile) {
-    const focusTask = [...friction, ...active][0]
-    const fws = focusTask ? wsById[focusTask.workspace_id ?? ''] : undefined
-    const focusBlocked = focusTask?.status === 'blocked'
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#04040a' }}>
-
-        {/* Stats row */}
-        <div style={{
-          flexShrink: 0, display: 'flex',
-          background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid rgba(255,255,255,0.04)',
-        }}>
-          {([
-            { n: totalActive,      label: 'ACT', color: '#00b4ff',                                      glow: '0 0 10px rgba(0,180,255,0.5)' },
-            { n: totalFriction,    label: 'FRI', color: totalFriction > 0 ? '#f59e0b' : '#8899aa',     glow: totalFriction > 0 ? '0 0 10px rgba(245,158,11,0.5)' : 'none' },
-            { n: totalIdeas,       label: 'IDR', color: '#ffffff',                                       glow: 'none' },
-            { n: doneToday.length, label: 'DNE', color: doneToday.length > 0 ? '#22c55e' : '#8899aa',  glow: doneToday.length > 0 ? '0 0 10px rgba(34,197,94,0.4)' : 'none' },
-          ] as { n: number; label: string; color: string; glow: string }[]).map(({ n, label, color, glow }, i, arr) => (
-            <button
-              key={label}
-              onClick={() => setMobileOpen(s => ({ ...s, tasks: true }))}
-              style={{
-                flex: 1, textAlign: 'center', padding: '10px 4px',
-                borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                background: 'transparent', border: 'none', cursor: 'pointer',
-              }}
-            >
-              <p style={{ fontSize: 22, fontWeight: 800, lineHeight: 1, color, textShadow: glow }}>{n}</p>
-              <p style={{ fontSize: 8, color: '#8899aa', letterSpacing: '0.1em', marginTop: 3 }}>{label}</p>
-            </button>
-          ))}
-        </div>
-
-        {/* Capture */}
-        <CaptureBar fullWidth />
-
-        {/* Scrollable accordion body */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-
-          {/* ── Focus Now ── */}
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-            <AccordionHeader
-              title="Focus Now"
-              open={mobileOpen.focus}
-              onToggle={() => setMobileOpen(s => ({ ...s, focus: !s.focus }))}
-              accent={focusTask ? (focusBlocked ? '#f59e0b' : '#00b4ff') : undefined}
-            />
-            {mobileOpen.focus && (
-              <div style={{ padding: '0 14px 14px' }}>
-                {focusTask ? (
-                  <div
-                    onClick={() => onSelectTask(focusTask)}
-                    style={{
-                      padding: '12px 14px', borderRadius: 8, cursor: 'pointer',
-                      background: focusBlocked ? 'rgba(245,158,11,0.06)' : 'rgba(0,180,255,0.06)',
-                      border: `1px solid ${focusBlocked ? 'rgba(245,158,11,0.2)' : 'rgba(0,180,255,0.18)'}`,
-                    }}
-                  >
-                    {fws && <p style={{ fontSize: 9, color: fws.color, fontWeight: 800, marginBottom: 4, letterSpacing: '0.04em' }}>{fws.name}</p>}
-                    <p style={{ fontSize: 13, color: focusBlocked ? '#fbbf24' : '#ffffff', fontWeight: 600, lineHeight: 1.4, marginBottom: 10 }}>
-                      {focusTask.title}
-                    </p>
-                    <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-                      {focusBlocked && (
-                        <button onClick={() => handleActivate(focusTask)} style={{
-                          flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
-                          background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
-                        }}>▶ Activate</button>
-                      )}
-                      <button onClick={() => handleDone(focusTask)} style={{
-                        flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
-                        background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-                      }}>✓ Done</button>
-                      <button onClick={() => handlePostpone(focusTask)} style={{
-                        flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, border: 'none', cursor: 'pointer',
-                        background: 'rgba(255,255,255,0.06)', color: '#ffffff',
-                      }}>↙ Later</button>
-                      <button onClick={() => onSelectTask(focusTask)} style={{
-                        flex: 1, fontSize: 11, padding: '7px 0', borderRadius: 6, cursor: 'pointer',
-                        background: 'rgba(255,255,255,0.04)', color: '#8899aa',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                      }}>✎ Edit</button>
+                  <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+                    <div style={{ border: `1px solid ${commandTheme.color}24`, background: `${commandTheme.color}0f`, borderRadius: 8, padding: 13 }}>
+                      <p style={{ color: commandTheme.color, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Next action</p>
+                      <p style={{ color: '#f8fafc', fontSize: 13, lineHeight: 1.45, marginTop: 7 }}>{inferNextAction(commandTask)}</p>
+                    </div>
+                    <div style={{ border: '1px solid rgba(34,197,94,0.22)', background: 'rgba(34,197,94,0.075)', borderRadius: 8, padding: 13 }}>
+                      <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Done means</p>
+                      <p style={{ color: '#dbeafe', fontSize: 13, lineHeight: 1.45, marginTop: 7 }}>{inferDoneMeans(commandTask)}</p>
                     </div>
                   </div>
-                ) : (
-                  <p style={{ fontSize: 12, color: '#8899aa', padding: '4px 0' }}>Nothing urgent. Clean slate.</p>
-                )}
+
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>
+                    {commandTask.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => setTaskStatus(commandTask, 'in_progress')}>Start</ActionButton>}
+                    <ActionButton tone="#f8fafc" onClick={() => onSelectTask(commandTask)}>Open</ActionButton>
+                    {commandTask.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => setTaskStatus(commandTask, 'blocked')}>Block</ActionButton>}
+                    <ActionButton tone="#22c55e" onClick={() => setTaskStatus(commandTask, 'done')}>Mark done</ActionButton>
+                  </div>
+                </div>
+
+                <div style={{ padding: 18, borderLeft: '1px solid rgba(255,255,255,0.06)', display: 'grid', alignContent: 'center', justifyItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 132,
+                    height: 132,
+                    borderRadius: '50%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: `conic-gradient(${commandTheme.color} ${needleScore(commandTask) * 3.6}deg, rgba(255,255,255,0.08) 0deg)`,
+                    boxShadow: `0 0 36px ${commandTheme.color}24`,
+                  }}>
+                    <div style={{ width: 104, height: 104, borderRadius: '50%', background: '#07101a', display: 'grid', placeItems: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ color: commandTheme.color, fontSize: 30, lineHeight: 1, fontWeight: 950 }}>{needleScore(commandTask)}</p>
+                        <p style={{ color: '#7f8da3', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 5 }}>Needle</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.45, textAlign: 'center' }}>
+                    A high score means this is probably worth finishing before browsing the rest.
+                  </p>
+                </div>
               </div>
+            ) : (
+              <EmptyState title="No open task in this scope" detail="Capture a thought or switch workspaces to choose today’s win." />
             )}
+          </Card>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+            <LaneButton label="Active" count={active.length} color="#38bdf8" selected={view === 'active'} onClick={() => setView('active')} />
+            <LaneButton label="Blocked" count={blocked.length} color="#f59e0b" selected={view === 'blocked'} onClick={() => setView('blocked')} />
+            <LaneButton label="Ideas" count={ideas.length} color="#f472b6" selected={view === 'ideas'} onClick={() => setView('ideas')} />
+            <LaneButton label="Shipped" count={doneToday.length} color="#22c55e" selected={view === 'shipped'} onClick={() => setView('shipped')} />
           </div>
 
-          {/* ── Workspaces ── */}
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-            <AccordionHeader
-              title="Workspaces"
-              count={workspaces.length}
-              open={mobileOpen.workspaces}
-              onToggle={() => setMobileOpen(s => ({ ...s, workspaces: !s.workspaces }))}
+          <Card>
+            <SectionTitle
+              label={view === 'active' ? 'Today tray' : view === 'blocked' ? 'Blocker bench' : view === 'ideas' ? 'Parking lot' : 'Ship log'}
+              detail={view === 'active' ? 'Keep this short enough to trust.' : view === 'blocked' ? 'Clear one stuck point at a time.' : view === 'ideas' ? 'Interesting, but not all today.' : 'Proof that the day moved.'}
+              right={<ActionButton tone="#38bdf8" onClick={onAddTask}>New task</ActionButton>}
             />
-            {mobileOpen.workspaces && (
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1,
-                background: 'rgba(0,0,0,0.3)', padding: 1,
-              }}>
-                {workspaces.map(ws => (
-                  <WorkspaceTile key={ws.id} ws={ws} tasks={tasks}
-                    selected={selectedWs?.id === ws.id}
-                    focused={focusWsId === ws.id}
-                    onSelect={() => onSelectWs(ws)}
-                    onFocus={() => { setFocusWsId(ws.id); onSelectWs(ws) }}
-                    onOpenTask={onSelectTask}
-                    onTaskDone={async (id) => { await patchTask(id, { status: 'done' }); onRefresh() }}
-                  />
-                ))}
-              </div>
+            {laneTasks.length ? laneTasks.slice(0, 8).map(task => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                workspace={workspaceFor(task)}
+                onOpen={() => onSelectTask(task)}
+                onStatus={status => setTaskStatus(task, status)}
+              />
+            )) : (
+              <EmptyState
+                title={view === 'shipped' ? 'Nothing shipped today yet' : 'This lane is clear'}
+                detail={view === 'shipped' ? 'Finish one visible output and this becomes your win board.' : 'A quiet lane is good. Keep the room light.'}
+              />
             )}
-          </div>
+          </Card>
 
-          {/* ── Tasks ── */}
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-            <AccordionHeader
-              title="Tasks"
-              count={friction.length + active.length + ideas.length}
-              open={mobileOpen.tasks}
-              onToggle={() => setMobileOpen(s => ({ ...s, tasks: !s.tasks }))}
-            />
-            {mobileOpen.tasks && (
-              <div style={{ paddingBottom: 8 }}>
-                {friction.length > 0 && (
-                  <>
-                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#f59e0b', textShadow: '0 0 10px rgba(245,158,11,0.6)' }}>FRICTION</span>
-                      <span style={{ fontSize: 9, color: '#f59e0b' }}>{friction.length}</span>
-                    </div>
-                    {friction.map(t => (
-                      <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                        onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
-                        onPostpone={() => handlePostpone(t)} onActivate={() => handleActivate(t)} />
-                    ))}
-                  </>
-                )}
-                {active.length > 0 && (
-                  <>
-                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#00b4ff' }}>ACTIVE</span>
-                      <span style={{ fontSize: 9, color: '#00b4ff' }}>{active.length}</span>
-                    </div>
-                    {active.map(t => (
-                      <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                        onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
-                        onPostpone={() => handlePostpone(t)} />
-                    ))}
-                  </>
-                )}
-                {ideas.length > 0 && (
-                  <>
-                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#ffffff' }}>IDEAS</span>
-                      <span style={{ fontSize: 9, color: '#ffffff' }}>{ideas.length}</span>
-                    </div>
-                    {ideas.map(t => (
-                      <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                        onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
-                        onPostpone={() => handlePostpone(t)} />
-                    ))}
-                  </>
-                )}
-                {doneToday.length > 0 && (
-                  <>
-                    <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#22c55e' }}>DONE TODAY</span>
-                      <span style={{ fontSize: 9, color: '#22c55e' }}>{doneToday.length}</span>
-                    </div>
-                    {doneToday.slice(0, 6).map(t => (
-                      <button key={t.id} onClick={() => onSelectTask(t)} style={{
-                        display: 'flex', alignItems: 'center', gap: 8, height: 36, padding: '0 16px',
-                        width: '100%', background: 'transparent', border: 'none',
-                        borderBottom: '1px solid rgba(255,255,255,0.02)',
-                        cursor: 'pointer', textAlign: 'left',
-                      }}>
-                        <span style={{ fontSize: 10, color: '#22c55e', flexShrink: 0 }}>✓</span>
-                        <span style={{ fontSize: 12, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-                {friction.length === 0 && active.length === 0 && ideas.length === 0 && (
-                  <p style={{ fontSize: 12, color: '#8899aa', padding: '8px 16px' }}>Clean slate.</p>
-                )}
-              </div>
-            )}
-          </div>
-
+          <Card>
+            <SectionTitle label="Portfolio pulse" detail="A soft scan, not a command center wall." right={<ActionButton onClick={onAddWorkspace}>Add</ActionButton>} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              {workspaceRows.slice(0, 8).map(({ ws, count, next }) => (
+                <button
+                  key={ws.id}
+                  onClick={() => onSelectWs(ws)}
+                  style={{
+                    minHeight: 104,
+                    textAlign: 'left',
+                    padding: 14,
+                    border: 'none',
+                    borderRight: '1px solid rgba(255,255,255,0.05)',
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    background: selectedWs?.id === ws.id ? `${ws.color}16` : 'transparent',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: ws.color, boxShadow: `0 0 12px ${ws.color}88` }} />
+                    <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+                    <span style={{ marginLeft: 'auto', color: ws.color, fontSize: 11, fontWeight: 850 }}>{count}</span>
+                  </div>
+                  <p style={{ color: next ? '#94a3b8' : '#64748b', fontSize: 11, lineHeight: 1.4, marginTop: 12, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {next ? next.title : 'Clear for now'}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </Card>
         </div>
       </div>
-    )
-  }
 
-  // ── Desktop layout ──────────────────────────────────────────────────────────
-  return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+      <aside style={{ minWidth: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 16, overflow: 'hidden' }}>
+        <Card style={{ borderColor: 'rgba(56,189,248,0.22)', background: 'linear-gradient(180deg, rgba(8,18,29,0.9), rgba(5,8,14,0.8))' }}>
+          <SectionTitle label="Wendy chief of staff" detail="Clear, opinionated, useful." />
+          <div style={{ padding: 14, display: 'grid', gap: 13 }}>
+            <div>
+              <p style={{ color: '#38bdf8', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Do this next</p>
+              <p style={{ color: '#f8fafc', fontSize: 13, lineHeight: 1.45, marginTop: 6 }}>
+                {commandTask ? inferNextAction(commandTask) : 'Choose one open task and make it active.'}
+              </p>
+            </div>
+            <div>
+              <p style={{ color: '#f472b6', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Protect against</p>
+              <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>
+                Wandering into the parking lot before the focus card is finished.
+              </p>
+            </div>
+            <div>
+              <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Tiny win</p>
+              <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>
+                {commandTask ? inferDoneMeans(commandTask) : 'End with one saved link, sent message, or closed loop.'}
+              </p>
+            </div>
+          </div>
+        </Card>
 
-      {/* ── LEFT: Task list + ticker (30%) ── */}
-      <div style={{
-        width: '18%', minWidth: 180, display: 'flex', flexDirection: 'column',
-        borderRight: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
-      }}>
-        {/* Quick capture — collapsible */}
-        <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(0,180,255,0.08)', background: 'rgba(0,0,0,0.5)' }}>
-          {captureOpen ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 10px' }}>
-              <span style={{ color: '#00b4ff', fontWeight: 800, fontSize: 14, textShadow: '0 0 10px rgba(0,180,255,0.7)' }}>›</span>
+        <Card>
+          <SectionTitle label="Quick capture" detail="Get it out of your head." />
+          <div style={{ padding: 12 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               <input
                 ref={captureRef}
                 value={capture}
                 onChange={e => setCapture(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter') handleCapture()
-                  if (e.key === 'Escape') { setCapture(''); setCaptureOpen(false) }
                 }}
-                onBlur={() => { setTimeout(() => { if (!captureRef.current || document.activeElement !== captureRef.current) { if (!capture.trim()) setCaptureOpen(false) } }, 300) }}
-                placeholder={captured ? '✓ Captured' : 'Type and press Enter...'}
+                placeholder="Task, thought, reminder..."
                 disabled={capturing}
                 style={{
-                  flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                  fontSize: 12, color: captured ? '#22c55e' : '#ffffff', caretColor: '#00b4ff',
+                  flex: 1,
+                  minWidth: 0,
+                  height: 36,
+                  borderRadius: 7,
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'rgba(255,255,255,0.045)',
+                  color: '#f8fafc',
+                  padding: '0 11px',
+                  outline: 'none',
+                  fontSize: 12,
                 }}
               />
-              {capture.trim() && (
-                <button onClick={handleCapture} style={{
-                  fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
-                  background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
-                  border: '1px solid rgba(0,180,255,0.3)', cursor: 'pointer',
-                }}>GO</button>
-              )}
-              <button onClick={() => { setCapture(''); setCaptureOpen(false) }} style={{
-                fontSize: 10, color: '#8899aa', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 2px',
-              }}>✕</button>
+              <ActionButton tone="#38bdf8" onClick={handleCapture} disabled={!capture.trim() || capturing}>Add</ActionButton>
             </div>
-          ) : (
-            <button
-              onClick={() => { setCaptureOpen(true); setTimeout(() => captureRef.current?.focus(), 30) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                height: 30, padding: '0 12px', background: 'transparent', border: 'none', cursor: 'pointer',
-              }}
-            >
-              <span style={{ fontSize: 13, color: '#00b4ff', fontWeight: 800, textShadow: '0 0 8px rgba(0,180,255,0.6)' }}>+</span>
-              <span style={{ fontSize: 10, color: '#8899aa' }}>Capture idea or task...</span>
-            </button>
-          )}
-        </div>
-
-        {/* Scrollable task cards */}
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {friction.length > 0 && (
-            <>
-              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#f59e0b', textShadow: '0 0 10px rgba(245,158,11,0.6)' }}>FRICTION</span>
-                <span style={{ fontSize: 9, color: '#f59e0b' }}>{friction.length}</span>
-              </div>
-              {friction.map(t => (
-                <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                  onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
-                  onPostpone={() => handlePostpone(t)} onActivate={() => handleActivate(t)} />
+            <div style={{ marginTop: 12, display: 'grid', gap: 7 }}>
+              {inbox.slice(0, 4).map(item => (
+                <p key={item.id} style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.35, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 7 }}>
+                  {item.content}
+                </p>
               ))}
-            </>
-          )}
-
-          {active.length > 0 && (
-            <>
-              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#00b4ff' }}>ACTIVE</span>
-                <span style={{ fontSize: 9, color: '#00b4ff' }}>{active.length}</span>
-              </div>
-              {active.map(t => (
-                <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                  onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
-                  onPostpone={() => handlePostpone(t)} />
-              ))}
-            </>
-          )}
-
-          {ideas.length > 0 && (
-            <>
-              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#ffffff' }}>IDEAS</span>
-                <span style={{ fontSize: 9, color: '#ffffff' }}>{ideas.length}</span>
-              </div>
-              {ideas.map(t => (
-                <TaskCard key={t.id} task={t} workspace={wsById[t.workspace_id ?? '']}
-                  onOpen={() => onSelectTask(t)} onDone={() => handleDone(t)}
-                  onPostpone={() => handlePostpone(t)} />
-              ))}
-            </>
-          )}
-
-          {doneToday.length > 0 && (
-            <>
-              <div style={{ padding: '6px 10px 3px', display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#22c55e' }}>DONE TODAY</span>
-                <span style={{ fontSize: 9, color: '#22c55e' }}>{doneToday.length}</span>
-              </div>
-              {doneToday.slice(0, 6).map(t => (
-                <button key={t.id} onClick={() => onSelectTask(t)}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.03)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 10px',
-                    width: '100%', background: 'transparent', border: 'none',
-                    borderBottom: '1px solid rgba(255,255,255,0.02)',
-                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s',
-                  }}
-                >
-                  <span style={{ fontSize: 9, color: '#22c55e', flexShrink: 0, textShadow: '0 0 8px rgba(34,197,94,0.5)' }}>✓</span>
-                  <span style={{ fontSize: 11, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
-                </button>
-              ))}
-            </>
-          )}
-
-          {friction.length === 0 && active.length === 0 && ideas.length === 0 && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 11, color: '#8899aa' }}>Clean slate.</span>
-            </div>
-          )}
-        </div>
-
-        {/* Activity ticker */}
-        {ticker && (
-          <div style={{
-            flexShrink: 0, height: 28, display: 'flex', alignItems: 'center', overflow: 'hidden',
-            background: 'rgba(0,0,0,0.5)', borderTop: '1px solid rgba(0,180,255,0.06)',
-          }}>
-            <style>{`@keyframes bpe-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
-            <div style={{
-              display: 'inline-flex', whiteSpace: 'nowrap',
-              animation: 'bpe-ticker 50s linear infinite',
-            }}>
-              <span style={{ fontSize: 9, lineHeight: '1', color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
-              <span style={{ fontSize: 9, lineHeight: '1', color: '#8899aa', paddingRight: 60 }}>{ticker}</span>
+              {!inbox.length && <p style={{ color: '#64748b', fontSize: 11 }}>No inbox items.</p>}
             </div>
           </div>
-        )}
-      </div>
+        </Card>
 
-      {/* ── CENTER: Workspace tile grid ── */}
-      {focusWsId ? (() => {
-        const fw = workspaces.find(w => w.id === focusWsId)
-        if (!fw) return null
-        return (
-          <div style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{
-              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '0 12px', height: 26,
-              background: `${fw.color}18`, borderBottom: `1px solid ${fw.color}33`,
-            }}>
-              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: fw.color }}>
-                ⊙ FOCUS — {fw.name.toUpperCase()}
-              </span>
+        <Card style={{ overflow: 'hidden' }}>
+          <SectionTitle label="Workspaces" detail={selectedWs ? `Filtered to ${selectedWs.name}` : 'Portfolio'} />
+          <div style={{ overflow: 'auto', maxHeight: '100%', padding: 8 }}>
+            {workspaces.map(ws => (
               <button
-                onClick={() => setFocusWsId(null)}
+                key={ws.id}
+                onClick={() => onSelectWs(ws)}
                 style={{
-                  fontSize: 9, fontWeight: 800, padding: '1px 8px', borderRadius: 4,
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#ffffff', cursor: 'pointer', letterSpacing: '0.06em',
-                }}
-              >✕ EXIT</button>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <WorkspaceTile ws={fw} tasks={tasks}
-                selected focused
-                onSelect={() => {}} onFocus={() => setFocusWsId(null)} onOpenTask={onSelectTask}
-                onTaskDone={async (id) => { await patchTask(id, { status: 'done' }); onRefresh() }} />
-            </div>
-          </div>
-        )
-      })() : (
-        <div style={{
-          flex: 1, minWidth: 0, height: '100%',
-          display: 'grid',
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridTemplateRows: `repeat(${tileRows}, 1fr)`,
-          gap: 1, background: 'rgba(0,0,0,0.3)', overflow: 'hidden',
-        }}>
-          {workspaces.map(ws => (
-            <WorkspaceTile key={ws.id} ws={ws} tasks={tasks}
-              selected={selectedWs?.id === ws.id}
-              focused={focusWsId === ws.id}
-              onSelect={() => onSelectWs(ws)}
-              onFocus={() => { setFocusWsId(ws.id); onSelectWs(ws) }}
-              onOpenTask={onSelectTask}
-              onTaskDone={async (id) => { await patchTask(id, { status: 'done' }); onRefresh() }} />
-          ))}
-          <button
-            onClick={onAddWorkspace}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: 6, cursor: 'pointer', border: '1px dashed rgba(0,180,255,0.15)',
-              background: 'rgba(0,0,0,0.1)', transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,180,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(0,180,255,0.3)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = 'rgba(0,180,255,0.15)' }}
-          >
-            <span style={{ fontSize: 18, color: 'rgba(0,180,255,0.4)', lineHeight: 1 }}>+</span>
-            <span style={{ fontSize: 8, color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Add Panel</span>
-          </button>
-          {Array.from({ length: (cols - ((workspaces.length + 1) % cols)) % cols }).map((_, i) => (
-            <div key={`filler-${i}`} style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.02)' }} />
-          ))}
-        </div>
-      )}
-
-      {/* ── RIGHT: Stats + Focus + Health + Inbox (20%) ── */}
-      <div style={{
-        width: '13%', minWidth: 150, display: 'flex', flexDirection: 'column',
-        borderLeft: '1px solid rgba(255,255,255,0.04)', overflow: 'hidden',
-      }}>
-
-        {/* Compact stats row */}
-        <div style={{
-          flexShrink: 0, display: 'flex', gap: 3, padding: '7px 8px',
-          background: 'rgba(0,0,0,0.35)', borderBottom: '1px solid rgba(255,255,255,0.04)',
-        }}>
-          {([
-            { n: totalActive,      label: 'ACT', color: '#00b4ff',                                       glow: '0 0 10px rgba(0,180,255,0.5)' },
-            { n: totalFriction,    label: 'FRI', color: totalFriction > 0 ? '#f59e0b' : '#8899aa',      glow: totalFriction > 0 ? '0 0 10px rgba(245,158,11,0.5)' : 'none' },
-            { n: totalIdeas,       label: 'IDR', color: '#ffffff',                                        glow: 'none' },
-            { n: doneToday.length, label: 'DNE', color: doneToday.length > 0 ? '#22c55e' : '#8899aa',   glow: doneToday.length > 0 ? '0 0 10px rgba(34,197,94,0.4)' : 'none' },
-          ] as { n: number; label: string; color: string; glow: string }[]).map(({ n, label, color, glow }) => (
-            <div key={label} style={{ flex: 1, textAlign: 'center', padding: '4px 2px', background: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
-              <p style={{ fontSize: 18, fontWeight: 800, lineHeight: 1, color, textShadow: glow, fontFamily: 'var(--font-outfit)' }}>{n}</p>
-              <p style={{ fontSize: 7, color: '#8899aa', letterSpacing: '0.08em', marginTop: 2 }}>{label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Focus Now — collapsible */}
-        {(() => {
-          const focusTask = [...friction, ...active][0]
-          if (!focusTask) return null
-          const ws = wsById[focusTask.workspace_id ?? '']
-          const isBlocked = focusTask.status === 'blocked'
-          return (
-            <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-              <button
-                onClick={() => setFocusNowOpen(o => !o)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  width: '100%', padding: '5px 10px', background: 'transparent', border: 'none', cursor: 'pointer',
+                  width: '100%',
+                  minHeight: 36,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  padding: '7px 8px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: selectedWs?.id === ws.id ? `${ws.color}18` : 'transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left',
                 }}
               >
-                <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', color: '#8899aa' }}>FOCUS NOW</span>
-                <span style={{ fontSize: 8, color: '#8899aa' }}>{focusNowOpen ? '▲' : '▼'}</span>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: ws.color, boxShadow: selectedWs?.id === ws.id ? `0 0 12px ${ws.color}` : 'none', flexShrink: 0 }} />
+                <span style={{ flex: 1, color: '#e2e8f0', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+                <span style={{ color: '#64748b', fontSize: 11 }}>{ws.idea_count}</span>
               </button>
-              {focusNowOpen && (
-                <div style={{ padding: '0 10px 7px' }}>
-                  <div
-                    onClick={() => onSelectTask(focusTask)}
-                    style={{
-                      padding: '7px 8px', borderRadius: 5, cursor: 'pointer',
-                      background: isBlocked ? 'rgba(245,158,11,0.06)' : 'rgba(0,180,255,0.06)',
-                      border: `1px solid ${isBlocked ? 'rgba(245,158,11,0.2)' : 'rgba(0,180,255,0.18)'}`,
-                    }}
-                  >
-                    {ws && <p style={{ fontSize: 8, color: ws.color, fontWeight: 800, marginBottom: 3, letterSpacing: '0.04em' }}>{ws.name}</p>}
-                    <p style={{ fontSize: 11, color: isBlocked ? '#fbbf24' : '#ffffff', fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{focusTask.title}</p>
-                    <div style={{ display: 'flex', gap: 3 }} onClick={e => e.stopPropagation()}>
-                      {isBlocked && (
-                        <button onClick={() => handleActivate(focusTask)} style={{
-                          flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
-                          background: 'rgba(0,180,255,0.12)', color: '#00b4ff',
-                        }}>▶ Activate</button>
-                      )}
-                      <button onClick={() => handleDone(focusTask)} style={{
-                        flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
-                        background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-                      }}>✓ Done</button>
-                      <button onClick={() => handlePostpone(focusTask)} style={{
-                        flex: 1, fontSize: 8, padding: '3px 0', borderRadius: 3, border: 'none', cursor: 'pointer',
-                        background: 'rgba(255,255,255,0.06)', color: '#ffffff',
-                      }}>↙ Later</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* Workspace health */}
-        <div style={{ flexShrink: 0, padding: '7px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <p style={{ fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', color: '#8899aa', marginBottom: 5 }}>WORKSPACES</p>
-          {workspaces.map(ws => {
-            const wsTasks    = tasks.filter(t => t.workspace_id === ws.id && t.status !== 'done')
-            const wsActive   = wsTasks.filter(t => t.status === 'in_progress').length
-            const wsFriction = wsTasks.filter(t => t.status === 'blocked').length
-            return (
-              <div key={ws.id} onClick={() => onSelectWs(ws)} style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', cursor: 'pointer',
-              }}>
-                <div style={{
-                  width: 5, height: 5, borderRadius: '50%', background: ws.color, flexShrink: 0,
-                  boxShadow: wsActive > 0 ? `0 0 5px ${ws.color}` : 'none',
-                }} />
-                <span style={{ flex: 1, fontSize: 9, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
-                {wsActive > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: '#00b4ff' }}>{wsActive}</span>}
-                {wsFriction > 0 && <span style={{ fontSize: 8, fontWeight: 700, color: '#f59e0b' }}>⚠{wsFriction}</span>}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Inbox */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ padding: '6px 10px 3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: '#ffffff' }}>INBOX</span>
-            {inbox.length > 0 && <span style={{ fontSize: 9, color: '#ffffff' }}>{inbox.length}</span>}
-          </div>
-          <div
-            onClick={() => captureRef.current?.focus()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              margin: '0 10px 5px', padding: '4px 7px', borderRadius: 5, cursor: 'text', flexShrink: 0,
-              background: 'rgba(0,180,255,0.04)', border: '1px solid rgba(0,180,255,0.08)',
-            }}
-          >
-            <span style={{ fontSize: 10, color: '#00b4ff', fontWeight: 700 }}>›</span>
-            <span style={{ fontSize: 10, color: '#8899aa' }}>Quick capture...</span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            {inbox.map(item => (
-              <div key={item.id} style={{ display: 'flex', gap: 5, padding: '4px 10px', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.025)' }}>
-                <span style={{ fontSize: 9, color: '#8899aa', flexShrink: 0, marginTop: 1 }}>·</span>
-                <span style={{ fontSize: 10, color: '#ffffff', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {item.content}
-                </span>
-              </div>
             ))}
-            {inbox.length === 0 && (
-              <p style={{ fontSize: 10, color: '#8899aa', padding: '4px 10px' }}>Nothing yet.</p>
-            )}
           </div>
-        </div>
-      </div>
+        </Card>
+      </aside>
     </div>
   )
 }

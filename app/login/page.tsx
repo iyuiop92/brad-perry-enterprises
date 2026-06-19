@@ -3,9 +3,8 @@
 import { useState } from 'react'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -14,25 +13,21 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const res = await fetch('/api/auth/magic-link', {
+      const res = await fetch('/api/auth/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-        }),
+        body: JSON.stringify({ password }),
       })
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error ?? 'Something went wrong.')
+      if (res.ok) {
+        window.location.assign('/dashboard')
         return
       }
 
-      setSent(true)
+      const data = await res.json()
+      setError(data.error ?? 'Could not sign in.')
     } catch {
-      setError('Something went wrong. Check your connection and try again.')
+      setError('Something went wrong. Try again.')
     } finally {
       setLoading(false)
     }
@@ -50,7 +45,6 @@ export default function LoginPage() {
           border: '1px solid rgba(0, 180, 255, 0.13)',
         }}
       >
-        {/* Monogram */}
         <div className="flex flex-col items-center gap-1">
           <span
             className="text-5xl font-[800] tracking-tight"
@@ -66,66 +60,56 @@ export default function LoginPage() {
           </span>
         </div>
 
-        {sent ? (
-          <div className="text-center flex flex-col gap-2">
-            <p className="font-semibold" style={{ color: '#e2e8f0' }}>
-              Check your email
-            </p>
-            <p className="text-sm" style={{ color: '#64748b' }}>
-              We sent a magic link to <span style={{ color: '#00b4ff' }}>{email}</span>
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="email"
-                className="text-xs uppercase tracking-wider"
-                style={{ color: '#64748b' }}
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full rounded-[10px] px-4 py-2.5 text-sm outline-none transition-all"
-                style={{
-                  background: '#04040a',
-                  border: '1px solid rgba(0, 180, 255, 0.13)',
-                  color: '#e2e8f0',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.border = '1px solid rgba(0, 180, 255, 0.5)'
-                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(0, 180, 255, 0.08)'
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.border = '1px solid rgba(0, 180, 255, 0.13)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              />
-            </div>
-
-            {error && (
-              <p className="text-xs text-red-400">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-[10px] py-2.5 text-sm font-semibold transition-all disabled:opacity-50"
-              style={{
-                background: '#00b4ff',
-                color: '#04040a',
-              }}
+        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="password"
+              className="text-xs uppercase tracking-wider"
+              style={{ color: '#64748b' }}
             >
-              {loading ? 'Sending...' : 'Send Magic Link'}
-            </button>
-          </form>
-        )}
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter dashboard password"
+              autoComplete="current-password"
+              className="w-full rounded-[10px] px-4 py-2.5 text-sm outline-none transition-all"
+              style={{
+                background: '#04040a',
+                border: '1px solid rgba(0, 180, 255, 0.13)',
+                color: '#e2e8f0',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.border = '1px solid rgba(0, 180, 255, 0.5)'
+                e.currentTarget.style.boxShadow = '0 0 0 2px rgba(0, 180, 255, 0.08)'
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.border = '1px solid rgba(0, 180, 255, 0.13)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-[10px] py-2.5 text-sm font-semibold transition-all disabled:opacity-50"
+            style={{
+              background: '#00b4ff',
+              color: '#04040a',
+            }}
+          >
+            {loading ? 'Entering...' : 'Enter Dashboard'}
+          </button>
+        </form>
       </div>
     </div>
   )
