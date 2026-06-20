@@ -5,9 +5,12 @@ import type { Task, Workspace } from '@/lib/types'
 import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
 import WendyPanel from '@/components/WendyPanel'
+import ElliePanel from '@/components/ElliePanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
 import AddWorkspacePanel from '@/components/AddWorkspacePanel'
+
+type AssistantPanel = 'wendy' | 'ellie' | null
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -17,7 +20,7 @@ export default function DashboardPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showAddPanel, setShowAddPanel] = useState(false)
   const [showAddWorkspace, setShowAddWorkspace] = useState(false)
-  const [wendyOpen, setWendyOpen]   = useState(false)
+  const [assistantPanel, setAssistantPanel] = useState<AssistantPanel>(null)
 
   const fetchAll = useCallback(async () => {
     const [wsRes, taskRes] = await Promise.all([
@@ -36,11 +39,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && wendyOpen) setWendyOpen(false)
+      if (e.key === 'Escape' && assistantPanel) setAssistantPanel(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [wendyOpen])
+  }, [assistantPanel])
 
   return (
     <div className="dashboard-page-shell" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
@@ -59,7 +62,7 @@ export default function DashboardPage() {
         }}
       >
         <button
-          onClick={() => setWendyOpen(o => !o)}
+          onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
           style={{
             display: 'flex', alignItems: 'center',
             height: 28, padding: '0 4px', cursor: 'pointer',
@@ -69,8 +72,24 @@ export default function DashboardPage() {
             transition: 'all 0.2s',
           }}
         >
-          <span style={{ fontSize: 11, fontWeight: 700, color: wendyOpen ? '#00b4ff' : '#64748b', letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'wendy' ? '#00b4ff' : '#64748b', letterSpacing: '0.05em' }}>
             Wendy
+          </span>
+        </button>
+
+        <button
+          onClick={() => setAssistantPanel(panel => panel === 'ellie' ? null : 'ellie')}
+          style={{
+            display: 'flex', alignItems: 'center',
+            height: 28, padding: '0 4px', cursor: 'pointer',
+            background: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'ellie' ? '#a78bfa' : '#64748b', letterSpacing: '0.05em' }}>
+            Ellie
           </span>
         </button>
 
@@ -176,26 +195,31 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* ── Wendy drawer (slides in from right) ── */}
+      {/* ── Assistant drawer (slides in from right) ── */}
       <div
         style={{
           position: 'fixed', top: 38, right: 0, bottom: 0, width: 320, zIndex: 50,
-          transform: wendyOpen ? 'translateX(0)' : 'translateX(100%)',
+          transform: assistantPanel ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           background: 'rgba(4,4,10,0.98)',
-          borderLeft: '1px solid rgba(0,180,255,0.12)',
-          boxShadow: wendyOpen
-            ? '-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px rgba(0,180,255,0.05)'
+          borderLeft: `1px solid ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.16)' : 'rgba(0,180,255,0.12)'}`,
+          boxShadow: assistantPanel
+            ? `-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.06)' : 'rgba(0,180,255,0.05)'}`
             : 'none',
         }}
       >
-        <WendyPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
+        {assistantPanel === 'wendy' && (
+          <WendyPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
+        )}
+        {assistantPanel === 'ellie' && (
+          <ElliePanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
+        )}
       </div>
 
       {/* Backdrop */}
-      {wendyOpen && (
+      {assistantPanel && (
         <div
-          onClick={() => setWendyOpen(false)}
+          onClick={() => setAssistantPanel(null)}
           style={{
             position: 'fixed', inset: 0, zIndex: 40,
             background: 'rgba(0,0,0,0.25)',
