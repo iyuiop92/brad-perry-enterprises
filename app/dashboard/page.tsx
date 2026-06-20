@@ -8,7 +8,6 @@ import WendyPanel from '@/components/WendyPanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
 import AddWorkspacePanel from '@/components/AddWorkspacePanel'
-import PersonalFeed from '@/components/PersonalFeed'
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -30,7 +29,10 @@ export default function DashboardPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchAll() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchAll])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -44,62 +46,98 @@ export default function DashboardPage() {
     <div className="dashboard-page-shell" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       <ParticleField />
 
-      {/* ── Header ── */}
-      <header
+      {/* ── Nav actions ── */}
+      <div
         style={{
-          height: 44, flexShrink: 0, position: 'relative', zIndex: 20,
-          display: 'flex', alignItems: 'center', padding: '0 20px',
-          background: 'rgba(5,7,10,0.97)',
-          borderBottom: '1px solid rgba(0,180,255,0.07)',
-          backdropFilter: 'blur(20px)',
+          position: 'fixed',
+          top: 5,
+          right: 20,
+          zIndex: 120,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
         }}
       >
-        <div style={{ flex: 1 }} />
-
-        {/* Wendy toggle */}
         <button
           onClick={() => setWendyOpen(o => !o)}
           style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            height: 28, padding: '0 12px', borderRadius: 7, marginRight: 10, cursor: 'pointer',
-            background: wendyOpen ? 'rgba(0,180,255,0.1)' : 'rgba(255,255,255,0.03)',
-            border: `1px solid ${wendyOpen ? 'rgba(0,180,255,0.3)' : 'rgba(255,255,255,0.07)'}`,
-            boxShadow: wendyOpen ? '0 0 16px rgba(0,180,255,0.15), inset 0 0 12px rgba(0,180,255,0.05)' : 'none',
+            display: 'flex', alignItems: 'center',
+            height: 28, padding: '0 4px', cursor: 'pointer',
+            background: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
             transition: 'all 0.2s',
           }}
         >
-          <div
-            style={{
-              width: 6, height: 6, borderRadius: '50%', background: '#00b4ff',
-              boxShadow: '0 0 8px rgba(0,180,255,0.8), 0 0 16px rgba(0,180,255,0.4)',
-              animation: 'breathe 2s ease-in-out infinite',
-              '--glow-color': 'rgba(0,180,255,0.5)',
-              '--glow-min': '4px',
-              '--glow-max': '12px',
-            } as React.CSSProperties}
-          />
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#00b4ff', letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: wendyOpen ? '#00b4ff' : '#64748b', letterSpacing: '0.05em' }}>
             Wendy
           </span>
         </button>
 
-        {/* New */}
         <button
           onClick={() => setShowAddPanel(true)}
           style={{
-            height: 28, padding: '0 14px', borderRadius: 7, cursor: 'pointer',
-            background: '#00b4ff', color: '#04040a',
-            fontSize: 11, fontWeight: 800, letterSpacing: '0.06em',
+            height: 28, padding: '0 4px', cursor: 'pointer',
+            background: 'transparent', color: '#64748b',
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
             border: 'none',
-            boxShadow: '0 0 14px rgba(0,180,255,0.45), 0 0 30px rgba(0,180,255,0.15)',
+            boxShadow: 'none',
           }}
         >
-          + NEW
+          New
         </button>
-      </header>
+      </div>
 
-      {/* ── Personal Feed ── */}
-      <PersonalFeed />
+      {/* ── Activity ticker ── */}
+      {tasks.length > 0 && (() => {
+        const recentTasks = [...tasks]
+          .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+          .slice(0, 10)
+        const btnStyle: React.CSSProperties = {
+          background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 11, lineHeight: '1', color: '#8899aa', padding: '0 2px',
+          whiteSpace: 'nowrap', fontFamily: 'var(--font-outfit)',
+        }
+        const sepStyle: React.CSSProperties = { fontSize: 11, color: '#1e293b', padding: '0 10px', userSelect: 'none' }
+        function TickerSet({ prefix }: { prefix: string }) {
+          return (
+            <>
+              {recentTasks.map((t, i) => (
+                <span key={`${prefix}-${t.id}`} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <button
+                    style={btnStyle}
+                    onClick={() => setSelectedTask(t)}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#00b4ff' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#8899aa' }}
+                  >
+                    {t.title} — {t.status === 'blocked' ? 'to do' : t.status.replace('_', ' ')}
+                  </button>
+                  {i < recentTasks.length - 1 && <span style={sepStyle}>·</span>}
+                </span>
+              ))}
+              <span style={{ paddingRight: 60 }} />
+            </>
+          )
+        }
+        return (
+          <div style={{
+            flexShrink: 0, height: 28, display: 'flex', alignItems: 'center', overflow: 'hidden',
+            background: 'rgba(0,0,0,0.6)', borderBottom: '1px solid rgba(0,180,255,0.06)',
+            position: 'relative', zIndex: 20,
+          }}>
+            <style>{`@keyframes dash-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+            <div
+              data-ticker
+              style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', animation: 'dash-ticker 50s linear infinite', paddingLeft: 12 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.animationPlayState = 'paused' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.animationPlayState = 'running' }}
+            >
+              <TickerSet prefix="a" />
+              <TickerSet prefix="b" />
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Body ── */}
       <main className="dashboard-page-main" style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
@@ -141,7 +179,7 @@ export default function DashboardPage() {
       {/* ── Wendy drawer (slides in from right) ── */}
       <div
         style={{
-          position: 'fixed', top: 44, right: 0, bottom: 0, width: 320, zIndex: 50,
+          position: 'fixed', top: 38, right: 0, bottom: 0, width: 320, zIndex: 50,
           transform: wendyOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           background: 'rgba(4,4,10,0.98)',

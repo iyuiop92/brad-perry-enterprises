@@ -14,13 +14,13 @@ const priorityLabel = { high: 'P1', medium: 'P2', low: 'P3' } as const
 const statusLabel = {
   idea: 'Idea',
   in_progress: 'Active',
-  blocked: 'Blocked',
+  blocked: 'To do',
   done: 'Done',
 } as const
 
 const modeOptions: { id: OperatingMode; label: string; time: string; color: string; intent: string }[] = [
   { id: 'sprint', label: 'Sprint', time: '45m', color: '#38bdf8', intent: 'ship the next visible output' },
-  { id: 'deep', label: 'Deep', time: '90m', color: '#a78bfa', intent: 'protect one hard build block' },
+  { id: 'deep', label: 'Deep', time: '90m', color: '#a78bfa', intent: 'protect one hard build session' },
   { id: 'admin', label: 'Sweep', time: '20m', color: '#f59e0b', intent: 'clear drag and tiny loops' },
   { id: 'closeout', label: 'Close', time: '10m', color: '#22c55e', intent: 'log the day and choose tomorrow' },
 ]
@@ -50,49 +50,19 @@ function taskText(task: Task) {
   return `${task.title} ${task.notes ?? ''}`.toLowerCase()
 }
 
-function extractLine(notes: string | null, labels: string[]) {
-  if (!notes) return null
-  const lines = notes.split('\n').map(line => line.trim()).filter(Boolean)
-  for (const line of lines) {
-    const match = labels.find(label => line.toLowerCase().startsWith(label))
-    if (match) return line.slice(match.length).replace(/^[:\- ]+/, '').trim()
-  }
-  return null
-}
-
-function inferNextAction(task: Task) {
-  const direct = extractLine(task.notes, ['next action', 'next', 'today'])
-  if (direct) return direct
-  const text = taskText(task)
-  if (text.includes('cancel')) return 'Open the vendor account and finish the cancellation.'
-  if (text.includes('video')) return 'Open the editor and export one publishable video.'
-  if (text.includes('write') || text.includes('article') || text.includes('content')) return 'Draft the first publishable version.'
-  if (text.includes('lead') || text.includes('client') || text.includes('proposal')) return 'Send one concrete client-facing message or asset.'
-  if (text.includes('build') || text.includes('mcp') || text.includes('automation')) return 'Ship the smallest working slice.'
-  if (task.status === 'blocked') return 'Name the person, decision, or missing input that removes the blocker.'
-  return 'Turn this into one physical action you can finish in a work block.'
-}
-
-function inferDoneMeans(task: Task) {
-  const direct = extractLine(task.notes, ['done means', 'definition of done', 'done'])
-  if (direct) return direct
-  const text = taskText(task)
-  if (text.includes('video')) return 'The video is exported, uploaded or scheduled, and the link is saved.'
-  if (text.includes('cancel')) return 'The cancellation is confirmed.'
-  if (text.includes('write') || text.includes('article') || text.includes('content')) return 'A publishable draft exists in the right destination.'
-  if (text.includes('lead') || text.includes('client')) return 'The next customer touch is sent.'
-  if (text.includes('build')) return 'A small working version is live, testable, or linked.'
-  return 'There is a visible output, link, decision, or shipped artifact.'
-}
-
 function inferWhy(task: Task) {
   const text = taskText(task)
   if (text.includes('revenue') || text.includes('client') || text.includes('lead') || text.includes('stripe')) return 'Closest to money or a customer conversation.'
   if (text.includes('video') || text.includes('content') || text.includes('article')) return 'Creates visible audience momentum instead of more planning.'
   if (text.includes('cancel')) return 'Removes avoidable spend and mental drag.'
   if (text.includes('launch') || text.includes('tier')) return 'Moves an offer closer to being sellable.'
-  if (task.status === 'blocked') return 'Clearing this gives other work its oxygen back.'
+  if (task.status === 'blocked') return 'This is ready to be pulled into focus when you choose.'
   return 'This is one of the strongest open loops in the portfolio.'
+}
+
+function notePreview(task: Task) {
+  const clean = task.notes?.split('\n').map(line => line.trim()).find(Boolean)
+  return clean ?? 'Open this task to add notes, links, context, or a cleaner next step.'
 }
 
 function classifyWork(task: Task): WorkLane {
@@ -239,7 +209,7 @@ function TaskRow({
       </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {task.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => onStatus('in_progress')}>Start</ActionButton>}
-        {task.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => onStatus('blocked')}>Block</ActionButton>}
+        {task.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => onStatus('blocked')}>To do</ActionButton>}
         {task.status !== 'done' && <ActionButton tone="#22c55e" onClick={() => onStatus('done')}>Done</ActionButton>}
       </div>
     </div>
@@ -263,18 +233,22 @@ function LaneButton({
     <button
       onClick={onClick}
       style={{
-        minHeight: 68,
+        minHeight: 42,
         borderRadius: 8,
         border: `1px solid ${selected ? color : 'rgba(255,255,255,0.08)'}`,
         background: selected ? `${color}18` : 'rgba(255,255,255,0.035)',
         boxShadow: selected ? `0 0 28px ${color}1f` : 'none',
-        padding: 12,
+        padding: '9px 10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
         textAlign: 'left',
         cursor: 'pointer',
       }}
     >
-      <p style={{ color, fontSize: 24, fontWeight: 950, lineHeight: 1 }}>{count}</p>
-      <p style={{ marginTop: 6, color: selected ? '#f8fafc' : '#94a3b8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</p>
+      <p style={{ color: selected ? '#f8fafc' : '#94a3b8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</p>
+      <p style={{ color, fontSize: 15, fontWeight: 950, lineHeight: 1 }}>{count}</p>
     </button>
   )
 }
@@ -304,6 +278,7 @@ export default function CommandFeed({
   const [statusOverrides, setStatusOverrides] = useState<Record<string, TaskAction>>({})
   const [mode, setMode] = useState<OperatingMode>('sprint')
   const [view, setView] = useState<ViewMode>('active')
+  const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<string | null>(null)
   const captureRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -325,11 +300,18 @@ export default function CommandFeed({
   const doneToday = localTasks
     .filter(t => t.status === 'done' && isSameDay(t.updated_at, new Date()))
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-  const commandTask = sortForExecution([...blocked, ...active, ...ideas])[0]
+  const focusCandidates = sortForExecution([...active, ...blocked, ...ideas])
+  const commandTask = focusCandidates.find(t => t.id === selectedFocusTaskId) ?? focusCandidates[0]
   const selectedMode = modeOptions.find(option => option.id === mode) ?? modeOptions[0]
   const commandLane = commandTask ? classifyWork(commandTask) : 'Momentum'
   const commandTheme = laneTheme[commandLane]
   const laneTasks = view === 'active' ? active : view === 'blocked' ? blocked : view === 'ideas' ? ideas : doneToday
+  const todayLabel = new Date().toLocaleDateString('en-US', {
+    timeZone: 'America/Phoenix',
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
   const workspaceRows = workspaces.map(ws => {
     const open = localTasks.filter(t => t.workspace_id === ws.id && t.status !== 'done')
     return { ws, count: open.length, next: sortForExecution(open)[0] }
@@ -339,6 +321,17 @@ export default function CommandFeed({
     setStatusOverrides(prev => ({ ...prev, [task.id]: status }))
     await patchTask(task.id, { status })
     onRefresh()
+  }
+
+  function chooseFocus(task: Task) {
+    setSelectedFocusTaskId(task.id)
+  }
+
+  function chooseNextFocus() {
+    if (!focusCandidates.length) return
+    const currentIndex = commandTask ? focusCandidates.findIndex(t => t.id === commandTask.id) : -1
+    const next = focusCandidates[(currentIndex + 1 + focusCandidates.length) % focusCandidates.length]
+    if (next) chooseFocus(next)
   }
 
   async function handleCapture() {
@@ -385,59 +378,43 @@ export default function CommandFeed({
     >
       <div className="dashboard-command-primary" style={{ minWidth: 0, overflow: 'auto', paddingRight: 2 }}>
         <div className="dashboard-command-primary-inner" style={{ display: 'grid', gap: 16, minWidth: 720 }}>
-          <Card
-            style={{
-              position: 'relative',
-              borderColor: `${commandTheme.color}44`,
-              background: `linear-gradient(135deg, rgba(8,14,24,0.92), ${commandTheme.tint}, rgba(7,10,18,0.9))`,
-              boxShadow: `0 24px 80px rgba(0,0,0,0.34), 0 0 70px ${commandTheme.color}17`,
-            }}
-          >
-            <div className="dashboard-command-hero-layout" style={{ padding: 18, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 16, alignItems: 'start' }}>
-              <div className="dashboard-command-hero-copy" style={{ minWidth: 0 }}>
-                <div className="dashboard-operation-meta" style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: commandTheme.color, boxShadow: `0 0 16px ${commandTheme.color}` }} />
-                  <p style={{ color: commandTheme.color, fontSize: 11, fontWeight: 950, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-                    {selectedWs ? `${selectedWs.name} operation` : 'Brad Perry Enterprises operation'}
-                  </p>
-                  <span style={{ color: '#7f8da3', fontSize: 11 }}>
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                  </span>
-                </div>
-                <h1 style={{ color: '#f8fafc', fontSize: 34, lineHeight: 1.04, fontWeight: 950, letterSpacing: 0, marginTop: 12 }}>
-                  {commandTask ? 'One beautiful win.' : 'Choose today’s win.'}
-                </h1>
-                <p style={{ color: '#9ca9bb', fontSize: 13, lineHeight: 1.55, marginTop: 9, maxWidth: 720 }}>
-                  {selectedMode.label} mode, {selectedMode.time}: {selectedMode.intent}. The room stays calm until one thing ships.
-                </p>
-              </div>
-              <div className="dashboard-mode-bar" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 250 }}>
-                {modeOptions.map(option => {
-                  const selected = option.id === mode
-                  return (
-                    <button
-                      key={option.id}
-                      onClick={() => setMode(option.id)}
-                      className={`dashboard-mode-button ${selected ? 'is-selected' : ''}`}
-                      style={{
-                        height: 34,
-                        padding: '0 10px',
-                        borderRadius: 999,
-                        border: `1px solid ${selected ? option.color : 'rgba(255,255,255,0.1)'}`,
-                        background: selected ? `${option.color}1f` : 'rgba(255,255,255,0.035)',
-                        color: selected ? '#f8fafc' : '#94a3b8',
-                        fontSize: 11,
-                        fontWeight: 850,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {option.label} {option.time}
-                    </button>
-                  )
-                })}
-              </div>
+          <div className="dashboard-command-topbar" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, alignItems: 'center' }}>
+            <div className="dashboard-command-datebar" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: commandTheme.color, boxShadow: `0 0 16px ${commandTheme.color}`, flexShrink: 0 }} />
+              <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 900 }}>{todayLabel}</span>
+              <span style={{ color: commandTheme.color, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                {selectedWs ? selectedWs.name : 'All workspaces'}
+              </span>
+              <span style={{ color: '#7f8da3', fontSize: 11 }}>
+                {selectedMode.label} {selectedMode.time}: {selectedMode.intent}
+              </span>
             </div>
-          </Card>
+            <div className="dashboard-mode-bar" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {modeOptions.map(option => {
+                const selected = option.id === mode
+                return (
+                  <button
+                    key={option.id}
+                    onClick={() => setMode(option.id)}
+                    className={`dashboard-mode-button ${selected ? 'is-selected' : ''}`}
+                    style={{
+                      height: 30,
+                      padding: '0 9px',
+                      borderRadius: 5,
+                      border: `1px solid ${selected ? option.color : 'rgba(255,255,255,0.1)'}`,
+                      background: selected ? `${option.color}1f` : 'rgba(255,255,255,0.035)',
+                      color: selected ? '#f8fafc' : '#94a3b8',
+                      fontSize: 11,
+                      fontWeight: 850,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {option.label} {option.time}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           <Card style={{ borderColor: `${commandTheme.color}33` }}>
             {commandTask ? (
@@ -449,27 +426,38 @@ export default function CommandFeed({
                     </span>
                     <span style={{ color: '#cbd5e1', fontSize: 10, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>{priorityLabel[commandTask.priority]}</span>
                     <span style={{ color: commandTheme.color, fontSize: 10, border: `1px solid ${commandTheme.color}33`, borderRadius: 999, padding: '2px 8px' }}>{commandLane}</span>
+                    <span style={{ color: commandTask.status === 'in_progress' ? '#38bdf8' : commandTask.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 10, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>
+                      {statusLabel[commandTask.status]}
+                    </span>
                   </div>
-                  <h2 style={{ marginTop: 13, color: '#f8fafc', fontSize: 30, lineHeight: 1.08, fontWeight: 920, letterSpacing: 0 }}>
+                  <button
+                    onClick={() => onSelectTask(commandTask)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 13,
+                      padding: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#f8fafc',
+                      fontSize: 30,
+                      lineHeight: 1.08,
+                      fontWeight: 920,
+                      letterSpacing: 0,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
                     {commandTask.title}
-                  </h2>
-                  <p style={{ color: '#9ca9bb', fontSize: 13, lineHeight: 1.55, marginTop: 11 }}>{inferWhy(commandTask)}</p>
-
-                  <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
-                    <div style={{ border: `1px solid ${commandTheme.color}24`, background: `${commandTheme.color}0f`, borderRadius: 8, padding: 13 }}>
-                      <p style={{ color: commandTheme.color, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Next action</p>
-                      <p style={{ color: '#f8fafc', fontSize: 13, lineHeight: 1.45, marginTop: 7 }}>{inferNextAction(commandTask)}</p>
-                    </div>
-                    <div style={{ border: '1px solid rgba(34,197,94,0.22)', background: 'rgba(34,197,94,0.075)', borderRadius: 8, padding: 13 }}>
-                      <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Done means</p>
-                      <p style={{ color: '#dbeafe', fontSize: 13, lineHeight: 1.45, marginTop: 7 }}>{inferDoneMeans(commandTask)}</p>
-                    </div>
-                  </div>
+                  </button>
+                  <p style={{ color: '#9ca9bb', fontSize: 13, lineHeight: 1.55, marginTop: 11 }}>{notePreview(commandTask)}</p>
+                  <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.45, marginTop: 8 }}>{inferWhy(commandTask)}</p>
 
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>
                     {commandTask.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => setTaskStatus(commandTask, 'in_progress')}>Start</ActionButton>}
-                    <ActionButton tone="#f8fafc" onClick={() => onSelectTask(commandTask)}>Open</ActionButton>
-                    {commandTask.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => setTaskStatus(commandTask, 'blocked')}>Block</ActionButton>}
+                    <ActionButton tone="#f8fafc" onClick={() => onSelectTask(commandTask)}>Open / edit</ActionButton>
+                    <ActionButton tone="#a78bfa" onClick={chooseNextFocus}>Pick another</ActionButton>
+                    {commandTask.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => setTaskStatus(commandTask, 'blocked')}>To do</ActionButton>}
                     <ActionButton tone="#22c55e" onClick={() => setTaskStatus(commandTask, 'done')}>Mark done</ActionButton>
                   </div>
                 </div>
@@ -492,7 +480,7 @@ export default function CommandFeed({
                     </div>
                   </div>
                   <p style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.45, textAlign: 'center' }}>
-                    A high score means this is probably worth finishing before browsing the rest.
+                    Use this as a quick signal, not a command. Pick another anytime.
                   </p>
                 </div>
               </div>
@@ -503,15 +491,15 @@ export default function CommandFeed({
 
           <div className="dashboard-lane-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
             <LaneButton label="Active" count={active.length} color="#38bdf8" selected={view === 'active'} onClick={() => setView('active')} />
-            <LaneButton label="Blocked" count={blocked.length} color="#f59e0b" selected={view === 'blocked'} onClick={() => setView('blocked')} />
+            <LaneButton label="To do" count={blocked.length} color="#f59e0b" selected={view === 'blocked'} onClick={() => setView('blocked')} />
             <LaneButton label="Ideas" count={ideas.length} color="#f472b6" selected={view === 'ideas'} onClick={() => setView('ideas')} />
             <LaneButton label="Shipped" count={doneToday.length} color="#22c55e" selected={view === 'shipped'} onClick={() => setView('shipped')} />
           </div>
 
           <Card>
             <SectionTitle
-              label={view === 'active' ? 'Today tray' : view === 'blocked' ? 'Blocker bench' : view === 'ideas' ? 'Parking lot' : 'Ship log'}
-              detail={view === 'active' ? 'Keep this short enough to trust.' : view === 'blocked' ? 'Clear one stuck point at a time.' : view === 'ideas' ? 'Interesting, but not all today.' : 'Proof that the day moved.'}
+              label={view === 'active' ? 'Today tray' : view === 'blocked' ? 'To-do tray' : view === 'ideas' ? 'Parking lot' : 'Ship log'}
+              detail={view === 'active' ? 'Keep this short enough to trust.' : view === 'blocked' ? 'Pick one and move it into focus.' : view === 'ideas' ? 'Interesting, but not all today.' : 'Proof that the day moved.'}
               right={<ActionButton tone="#38bdf8" onClick={onAddTask}>New task</ActionButton>}
             />
             {laneTasks.length ? laneTasks.slice(0, 8).map(task => (
@@ -519,7 +507,7 @@ export default function CommandFeed({
                 key={task.id}
                 task={task}
                 workspace={workspaceFor(task)}
-                onOpen={() => onSelectTask(task)}
+                onOpen={() => { chooseFocus(task); onSelectTask(task) }}
                 onStatus={status => setTaskStatus(task, status)}
               />
             )) : (
@@ -564,30 +552,6 @@ export default function CommandFeed({
       </div>
 
       <aside className="dashboard-command-aside" style={{ minWidth: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 16, overflow: 'hidden' }}>
-        <Card style={{ borderColor: 'rgba(56,189,248,0.22)', background: 'linear-gradient(180deg, rgba(8,18,29,0.9), rgba(5,8,14,0.8))' }}>
-          <SectionTitle label="Wendy chief of staff" detail="Clear, opinionated, useful." />
-          <div style={{ padding: 14, display: 'grid', gap: 13 }}>
-            <div>
-              <p style={{ color: '#38bdf8', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Do this next</p>
-              <p style={{ color: '#f8fafc', fontSize: 13, lineHeight: 1.45, marginTop: 6 }}>
-                {commandTask ? inferNextAction(commandTask) : 'Choose one open task and make it active.'}
-              </p>
-            </div>
-            <div>
-              <p style={{ color: '#f472b6', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Protect against</p>
-              <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>
-                Wandering into the parking lot before the focus card is finished.
-              </p>
-            </div>
-            <div>
-              <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Tiny win</p>
-              <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.45, marginTop: 6 }}>
-                {commandTask ? inferDoneMeans(commandTask) : 'End with one saved link, sent message, or closed loop.'}
-              </p>
-            </div>
-          </div>
-        </Card>
-
         <Card>
           <SectionTitle label="Quick capture" detail="Get it out of your head." />
           <div style={{ padding: 12 }}>
@@ -624,6 +588,50 @@ export default function CommandFeed({
               ))}
               {!inbox.length && <p style={{ color: '#64748b', fontSize: 11 }}>No inbox items.</p>}
             </div>
+          </div>
+        </Card>
+
+        <Card style={{ borderColor: 'rgba(56,189,248,0.22)', background: 'linear-gradient(180deg, rgba(8,18,29,0.9), rgba(5,8,14,0.8))' }}>
+          <SectionTitle
+            label="Choose focus"
+            detail="Click one to put it in the main banner."
+          />
+          <div style={{ padding: 10, display: 'grid', gap: 7 }}>
+            {focusCandidates.length ? focusCandidates.slice(0, 7).map(task => {
+              const selected = commandTask?.id === task.id
+              const workspace = workspaceFor(task)
+              const lane = classifyWork(task)
+              const color = selected ? (workspace?.color ?? laneTheme[lane].color) : 'rgba(255,255,255,0.08)'
+              return (
+                <button
+                  key={task.id}
+                  onClick={() => chooseFocus(task)}
+                  style={{
+                    width: '100%',
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) auto',
+                    gap: 8,
+                    alignItems: 'center',
+                    textAlign: 'left',
+                    padding: '9px 10px',
+                    borderRadius: 7,
+                    border: `1px solid ${color}`,
+                    background: selected ? `${workspace?.color ?? laneTheme[lane].color}14` : 'rgba(255,255,255,0.025)',
+                    color: '#f8fafc',
+                    fontSize: 12,
+                    lineHeight: 1.35,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+                  <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 9, fontWeight: 850 }}>
+                    {statusLabel[task.status]}
+                  </span>
+                </button>
+              )}
+            ) : (
+              <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.45, padding: 4 }}>No open tasks in this scope.</p>
+            )}
           </div>
         </Card>
 

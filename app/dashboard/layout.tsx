@@ -47,17 +47,6 @@ export default async function DashboardLayout({
         >
           Subscriptions
         </Link>
-        <Link
-          href="/dashboard/wendy"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#00b4ff', textDecoration: 'none',
-          }}
-        >
-          Wendy
-        </Link>
       </nav>
       {children}
     </div>
