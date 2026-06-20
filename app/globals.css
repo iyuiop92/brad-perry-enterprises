@@ -63,3 +63,64 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 180, 255, 0.4);
 }
+
+@media (max-width: 767px) {
+  html,
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  .dashboard-page-shell {
+    height: auto !important;
+    min-height: calc(100svh - 38px);
+    overflow: visible !important;
+  }
+
+  .dashboard-page-main {
+    flex: initial !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .dashboard-command-feed {
+    height: auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    overflow: visible !important;
+    padding: 14px !important;
+  }
+
+  .dashboard-command-primary {
+    overflow: visible !important;
+    padding-right: 0 !important;
+  }
+
+  .dashboard-command-primary-inner {
+    min-width: 0 !important;
+    gap: 14px !important;
+  }
+
+  .dashboard-command-focus-grid {
+    display: block !important;
+  }
+
+  .dashboard-command-focus-score {
+    border-left: 0 !important;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .dashboard-lane-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-command-aside {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    overflow: visible !important;
+  }
+}

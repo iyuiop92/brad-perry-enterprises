@@ -367,6 +367,7 @@ export default function CommandFeed({
 
   return (
     <div
+      className="dashboard-command-feed"
       style={{
         height: '100%',
         display: 'grid',
@@ -382,8 +383,8 @@ export default function CommandFeed({
         `,
       }}
     >
-      <div style={{ minWidth: 0, overflow: 'auto', paddingRight: 2 }}>
-        <div style={{ display: 'grid', gap: 16, minWidth: 720 }}>
+      <div className="dashboard-command-primary" style={{ minWidth: 0, overflow: 'auto', paddingRight: 2 }}>
+        <div className="dashboard-command-primary-inner" style={{ display: 'grid', gap: 16, minWidth: 720 }}>
           <Card
             style={{
               position: 'relative',
@@ -439,7 +440,7 @@ export default function CommandFeed({
 
           <Card style={{ borderColor: `${commandTheme.color}33` }}>
             {commandTask ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: 0 }}>
+              <div className="dashboard-command-focus-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: 0 }}>
                 <div style={{ padding: 22, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ color: workspaceFor(commandTask)?.color ?? commandTheme.color, fontSize: 11, fontWeight: 900, letterSpacing: '0.1em' }}>
@@ -472,7 +473,7 @@ export default function CommandFeed({
                   </div>
                 </div>
 
-                <div style={{ padding: 18, borderLeft: '1px solid rgba(255,255,255,0.06)', display: 'grid', alignContent: 'center', justifyItems: 'center', gap: 12 }}>
+                <div className="dashboard-command-focus-score" style={{ padding: 18, borderLeft: '1px solid rgba(255,255,255,0.06)', display: 'grid', alignContent: 'center', justifyItems: 'center', gap: 12 }}>
                   <div style={{
                     width: 132,
                     height: 132,
@@ -499,7 +500,7 @@ export default function CommandFeed({
             )}
           </Card>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+          <div className="dashboard-lane-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
             <LaneButton label="Active" count={active.length} color="#38bdf8" selected={view === 'active'} onClick={() => setView('active')} />
             <LaneButton label="Blocked" count={blocked.length} color="#f59e0b" selected={view === 'blocked'} onClick={() => setView('blocked')} />
             <LaneButton label="Ideas" count={ideas.length} color="#f472b6" selected={view === 'ideas'} onClick={() => setView('ideas')} />
@@ -561,7 +562,7 @@ export default function CommandFeed({
         </div>
       </div>
 
-      <aside style={{ minWidth: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 16, overflow: 'hidden' }}>
+      <aside className="dashboard-command-aside" style={{ minWidth: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 16, overflow: 'hidden' }}>
         <Card style={{ borderColor: 'rgba(56,189,248,0.22)', background: 'linear-gradient(180deg, rgba(8,18,29,0.9), rgba(5,8,14,0.8))' }}>
           <SectionTitle label="Wendy chief of staff" detail="Clear, opinionated, useful." />
           <div style={{ padding: 14, display: 'grid', gap: 13 }}>
