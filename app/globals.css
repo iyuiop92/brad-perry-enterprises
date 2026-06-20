@@ -104,6 +104,60 @@ body {
     gap: 14px !important;
   }
 
+  .dashboard-command-hero-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    padding: 16px !important;
+  }
+
+  .dashboard-mode-bar {
+    order: 1;
+    width: 100%;
+    max-width: none !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px !important;
+    justify-content: stretch !important;
+  }
+
+  .dashboard-mode-button {
+    width: 100%;
+    min-width: 0;
+    height: 28px !important;
+    padding: 0 4px !important;
+    border-radius: 6px !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    font-size: 10px !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap;
+  }
+
+  .dashboard-mode-button.is-selected {
+    border-color: rgba(56,189,248,0.7) !important;
+    background: rgba(56,189,248,0.13) !important;
+  }
+
+  .dashboard-mode-button:not(:focus-visible) {
+    box-shadow: none !important;
+  }
+
+  .dashboard-command-hero-copy {
+    order: 2;
+    width: 100%;
+  }
+
+  .dashboard-operation-meta {
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .dashboard-operation-meta p {
+    max-width: 260px;
+    line-height: 1.35;
+  }
+
   .dashboard-command-focus-grid {
     display: block !important;
   }

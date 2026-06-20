@@ -393,9 +393,9 @@ export default function CommandFeed({
               boxShadow: `0 24px 80px rgba(0,0,0,0.34), 0 0 70px ${commandTheme.color}17`,
             }}
           >
-            <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 16, alignItems: 'start' }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+            <div className="dashboard-command-hero-layout" style={{ padding: 18, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 16, alignItems: 'start' }}>
+              <div className="dashboard-command-hero-copy" style={{ minWidth: 0 }}>
+                <div className="dashboard-operation-meta" style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: commandTheme.color, boxShadow: `0 0 16px ${commandTheme.color}` }} />
                   <p style={{ color: commandTheme.color, fontSize: 11, fontWeight: 950, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
                     {selectedWs ? `${selectedWs.name} operation` : 'Brad Perry Enterprises operation'}
@@ -411,13 +411,14 @@ export default function CommandFeed({
                   {selectedMode.label} mode, {selectedMode.time}: {selectedMode.intent}. The room stays calm until one thing ships.
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 250 }}>
+              <div className="dashboard-mode-bar" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 250 }}>
                 {modeOptions.map(option => {
                   const selected = option.id === mode
                   return (
                     <button
                       key={option.id}
                       onClick={() => setMode(option.id)}
+                      className={`dashboard-mode-button ${selected ? 'is-selected' : ''}`}
                       style={{
                         height: 34,
                         padding: '0 10px',
