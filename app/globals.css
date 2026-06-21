@@ -333,6 +333,19 @@ body {
     display: block !important;
   }
 
+  .dashboard-today-plan-grid {
+    display: block !important;
+  }
+
+  .dashboard-today-plan-grid > div {
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .dashboard-today-plan-grid > div:last-child {
+    border-bottom: 0;
+  }
+
   .dashboard-command-focus-score {
     border-left: 0 !important;
     border-top: 1px solid rgba(255,255,255,0.06);

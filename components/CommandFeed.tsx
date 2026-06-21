@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { Task, Workspace } from '@/lib/types'
+import type { HealthLog, Task, Workspace } from '@/lib/types'
 
 type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
 type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
@@ -101,6 +101,15 @@ function sortForExecution(tasks: Task[]) {
 
 function isSameDay(date: string, reference: Date) {
   return new Date(date).toDateString() === reference.toDateString()
+}
+
+function shortDateTime(date: string) {
+  return new Date(date).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function Card({ children, style }: { children: React.ReactNode; style?: CSSProperties }) {
@@ -278,6 +287,7 @@ export default function CommandFeed({
   const [mode, setMode] = useState<OperatingMode>('sprint')
   const [view, setView] = useState<ViewMode>('active')
   const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<string | null>(null)
+  const [healthLogs, setHealthLogs] = useState<HealthLog[]>([])
   const captureRef = useRef<HTMLInputElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
@@ -301,6 +311,13 @@ export default function CommandFeed({
     return () => window.removeEventListener('hashchange', handleDashboardHash)
   }, [])
 
+  useEffect(() => {
+    fetch('/api/health')
+      .then(res => res.ok ? res.json() : [])
+      .then((logs: HealthLog[]) => setHealthLogs(logs))
+      .catch(() => setHealthLogs([]))
+  }, [])
+
   const localTasks = useMemo(() => propTasks.map(task => (
     statusOverrides[task.id] ? { ...task, status: statusOverrides[task.id] } : task
   )), [propTasks, statusOverrides])
@@ -322,6 +339,11 @@ export default function CommandFeed({
   const commandLane = commandTask ? classifyWork(commandTask) : 'Momentum'
   const commandTheme = laneTheme[commandLane]
   const laneTasks = view === 'active' ? active : view === 'blocked' ? blocked : view === 'ideas' ? ideas : doneToday
+  const nextThree = focusCandidates.filter(t => t.id !== commandTask?.id).slice(0, 3)
+  const parkedToday = [...blocked, ...ideas].filter(t => t.id !== commandTask?.id).slice(0, 3)
+  const latestBloodPressure = healthLogs.find(log => log.entry_type === 'blood_pressure')
+  const latestNutrition = healthLogs.find(log => log.entry_type === 'nutrition')
+  const latestWorkout = healthLogs.find(log => log.entry_type === 'workout')
   const todayLabel = new Date().toLocaleDateString('en-US', {
     timeZone: 'America/Phoenix',
     weekday: 'long',
@@ -440,6 +462,153 @@ export default function CommandFeed({
               })}
             </div>
           </div>
+
+          <Card
+            style={{
+              borderColor: 'rgba(34,197,94,0.25)',
+              background: `
+                radial-gradient(circle at 8% 0%, rgba(34,197,94,0.16), transparent 34%),
+                radial-gradient(circle at 88% 8%, rgba(56,189,248,0.13), transparent 34%),
+                linear-gradient(180deg, rgba(8,18,25,0.9), rgba(5,8,14,0.82))
+              `,
+            }}
+          >
+            <SectionTitle
+              label="Today plan"
+              detail="Main win, next moves, parked work, body check."
+              right={<ActionButton tone="#22c55e" onClick={onAddTask}>Add task</ActionButton>}
+            />
+            <div className="dashboard-today-plan-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 0.9fr', gap: 0 }}>
+              <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Main win</p>
+                {commandTask ? (
+                  <>
+                    <button
+                      onClick={() => onSelectTask(commandTask)}
+                      style={{
+                        width: '100%',
+                        marginTop: 9,
+                        padding: 0,
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#f8fafc',
+                        textAlign: 'left',
+                        fontSize: 16,
+                        lineHeight: 1.25,
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {commandTask.title}
+                    </button>
+                    <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 12 }}>
+                      {commandTask.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => setTaskStatus(commandTask, 'in_progress')}>Start</ActionButton>}
+                      <ActionButton tone="#22c55e" onClick={() => setTaskStatus(commandTask, 'done')}>Done</ActionButton>
+                      <ActionButton tone="#a78bfa" onClick={chooseNextFocus}>Switch</ActionButton>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45, marginTop: 9 }}>No open task selected.</p>
+                )}
+              </div>
+
+              <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                <p style={{ color: '#38bdf8', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Next 3</p>
+                <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
+                  {nextThree.length ? nextThree.map(task => (
+                    <button
+                      key={task.id}
+                      onClick={() => { chooseFocus(task); onSelectTask(task) }}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
+                        gap: 8,
+                        alignItems: 'center',
+                        minHeight: 30,
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: 5,
+                        background: 'rgba(255,255,255,0.025)',
+                        color: '#cbd5e1',
+                        padding: '7px 8px',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>{task.title}</span>
+                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#f472b6', fontSize: 9, fontWeight: 850 }}>{statusLabel[task.status]}</span>
+                    </button>
+                  )) : (
+                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>No extra open moves.</p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                <p style={{ color: '#f59e0b', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Parked</p>
+                <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
+                  {parkedToday.length ? parkedToday.map(task => (
+                    <button
+                      key={task.id}
+                      onClick={() => { chooseFocus(task); setTaskStatus(task, 'in_progress') }}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
+                        gap: 8,
+                        alignItems: 'center',
+                        minHeight: 30,
+                        border: '1px solid rgba(245,158,11,0.14)',
+                        borderRadius: 5,
+                        background: 'rgba(245,158,11,0.045)',
+                        color: '#cbd5e1',
+                        padding: '7px 8px',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>{task.title}</span>
+                      <span style={{ color: '#f59e0b', fontSize: 9, fontWeight: 850 }}>Pull</span>
+                    </button>
+                  )) : (
+                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>Nothing parked in this scope.</p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: 14 }}>
+                <p style={{ color: '#a78bfa', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Body check</p>
+                <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
+                  <p style={{ color: '#cbd5e1', fontSize: 11, lineHeight: 1.4 }}>
+                    BP: {latestBloodPressure?.bp_systolic && latestBloodPressure.bp_diastolic
+                      ? `${latestBloodPressure.bp_systolic}/${latestBloodPressure.bp_diastolic} ${latestBloodPressure.pulse ? `P${latestBloodPressure.pulse}` : ''}`
+                      : 'not logged'}
+                  </p>
+                  <p style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+                    Food: {latestNutrition?.meal_name ?? (latestNutrition?.calories ? `${latestNutrition.calories} cal` : 'not logged')}
+                  </p>
+                  <p style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+                    Workout: {latestWorkout?.workout_type ?? (latestWorkout?.duration_mins ? `${latestWorkout.duration_mins} min` : 'not logged')}
+                  </p>
+                  <a
+                    href="/dashboard/health"
+                    style={{
+                      width: 'fit-content',
+                      color: '#a78bfa',
+                      fontSize: 10,
+                      fontWeight: 850,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Open health
+                  </a>
+                </div>
+              </div>
+            </div>
+            {(latestBloodPressure || latestNutrition || latestWorkout) && (
+              <div style={{ padding: '0 14px 12px', color: '#64748b', fontSize: 10 }}>
+                Latest health signal: {shortDateTime((latestBloodPressure ?? latestNutrition ?? latestWorkout)?.logged_at ?? new Date().toISOString())}
+              </div>
+            )}
+          </Card>
 
           <Card style={{ borderColor: `${commandTheme.color}33` }}>
             {commandTask ? (
