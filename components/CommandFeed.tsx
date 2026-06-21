@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { HealthLog, Task, Workspace } from '@/lib/types'
+import type { HealthLog, InboxItem, Task, Workspace } from '@/lib/types'
 
 type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
 type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
@@ -160,7 +160,7 @@ function ActionButton({
       style={{
         height: 32,
         padding: '0 12px',
-        borderRadius: 6,
+        borderRadius: 5,
         border: `1px solid ${tone}44`,
         background: `${tone}18`,
         color: tone,
@@ -288,6 +288,19 @@ export default function CommandFeed({
   const [view, setView] = useState<ViewMode>('active')
   const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<string | null>(null)
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([])
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
+  const [inboxText, setInboxText] = useState('')
+  const [closeoutNote, setCloseoutNote] = useState('')
+  const [tomorrowFocusId, setTomorrowFocusId] = useState<string | null>(null)
+  const [calendarText, setCalendarText] = useState('')
+  const [calendarItems, setCalendarItems] = useState<string[]>([])
+  const [recurringItems, setRecurringItems] = useState([
+    { id: 'bp', label: 'Blood pressure', done: false },
+    { id: 'food', label: 'Log food', done: false },
+    { id: 'workout', label: 'Workout or walk', done: false },
+    { id: 'calendar', label: 'Check calendar', done: false },
+    { id: 'money', label: 'Money/client follow-up', done: false },
+  ])
   const captureRef = useRef<HTMLInputElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
@@ -318,6 +331,21 @@ export default function CommandFeed({
       .catch(() => setHealthLogs([]))
   }, [])
 
+  useEffect(() => {
+    fetch('/api/inbox')
+      .then(res => res.ok ? res.json() : [])
+      .then((items: InboxItem[]) => setInboxItems(items))
+      .catch(() => setInboxItems([]))
+  }, [])
+
+  useEffect(() => {
+    setTomorrowFocusId(window.localStorage.getItem('bpe:tomorrow-focus-id'))
+    setCloseoutNote(window.localStorage.getItem('bpe:closeout-note') ?? '')
+    setCalendarItems(JSON.parse(window.localStorage.getItem('bpe:calendar-items') ?? '[]'))
+    const savedRecurring = window.localStorage.getItem('bpe:recurring-items')
+    if (savedRecurring) setRecurringItems(JSON.parse(savedRecurring))
+  }, [])
+
   const localTasks = useMemo(() => propTasks.map(task => (
     statusOverrides[task.id] ? { ...task, status: statusOverrides[task.id] } : task
   )), [propTasks, statusOverrides])
@@ -344,6 +372,9 @@ export default function CommandFeed({
   const latestBloodPressure = healthLogs.find(log => log.entry_type === 'blood_pressure')
   const latestNutrition = healthLogs.find(log => log.entry_type === 'nutrition')
   const latestWorkout = healthLogs.find(log => log.entry_type === 'workout')
+  const tomorrowFocus = localTasks.find(task => task.id === tomorrowFocusId)
+  const stillOpen = sortForExecution(scopedTasks.filter(task => task.status === 'in_progress' || task.status === 'blocked')).slice(0, 5)
+  const recurringDone = recurringItems.filter(item => item.done).length
   const todayLabel = new Date().toLocaleDateString('en-US', {
     timeZone: 'America/Phoenix',
     weekday: 'long',
@@ -397,6 +428,77 @@ export default function CommandFeed({
     } finally {
       setCapturing(false)
     }
+  }
+
+  async function captureInbox() {
+    const content = inboxText.trim()
+    if (!content) return
+    setInboxText('')
+    const res = await fetch('/api/inbox', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    if (res.ok) {
+      const item: InboxItem = await res.json()
+      setInboxItems(prev => [item, ...prev])
+    }
+  }
+
+  async function clearInboxItem(item: InboxItem) {
+    setInboxItems(prev => prev.filter(i => i.id !== item.id))
+    await fetch(`/api/inbox/${item.id}`, { method: 'DELETE' }).catch(() => {})
+  }
+
+  async function convertInboxToIdea(item: InboxItem) {
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: item.content,
+        status: 'idea',
+        priority: 'medium',
+        workspace_id: selectedWs?.id ?? null,
+        brand: selectedWs?.name ?? null,
+        notes: 'Converted from universal inbox.',
+      }),
+    })
+    if (res.ok) {
+      setView('ideas')
+      await clearInboxItem(item)
+      onRefresh()
+    }
+  }
+
+  function setTomorrowFocus(task: Task) {
+    setTomorrowFocusId(task.id)
+    window.localStorage.setItem('bpe:tomorrow-focus-id', task.id)
+  }
+
+  function saveCloseoutNote(value: string) {
+    setCloseoutNote(value)
+    window.localStorage.setItem('bpe:closeout-note', value)
+  }
+
+  function addCalendarItem() {
+    const item = calendarText.trim()
+    if (!item) return
+    const next = [item, ...calendarItems].slice(0, 6)
+    setCalendarText('')
+    setCalendarItems(next)
+    window.localStorage.setItem('bpe:calendar-items', JSON.stringify(next))
+  }
+
+  function removeCalendarItem(index: number) {
+    const next = calendarItems.filter((_, i) => i !== index)
+    setCalendarItems(next)
+    window.localStorage.setItem('bpe:calendar-items', JSON.stringify(next))
+  }
+
+  function toggleRecurring(id: string) {
+    const next = recurringItems.map(item => item.id === id ? { ...item, done: !item.done } : item)
+    setRecurringItems(next)
+    window.localStorage.setItem('bpe:recurring-items', JSON.stringify(next))
   }
 
   function workspaceFor(task: Task) {
@@ -609,6 +711,302 @@ export default function CommandFeed({
               </div>
             )}
           </Card>
+
+          <Card
+            style={{
+              borderColor: 'rgba(56,189,248,0.22)',
+              background: 'linear-gradient(180deg, rgba(6,16,27,0.92), rgba(5,8,14,0.82))',
+            }}
+          >
+            <SectionTitle
+              label="Daily closeout"
+              detail="Review what moved, choose tomorrow, clear the drag."
+              right={tomorrowFocus ? <ActionButton tone="#22c55e" onClick={() => onSelectTask(tomorrowFocus)}>Tomorrow set</ActionButton> : undefined}
+            />
+            <div className="dashboard-daily-systems-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+              <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Shipped today</p>
+                <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
+                  {doneToday.length ? doneToday.slice(0, 4).map(task => (
+                    <button
+                      key={task.id}
+                      onClick={() => onSelectTask(task)}
+                      style={{
+                        minHeight: 30,
+                        padding: '7px 8px',
+                        border: '1px solid rgba(34,197,94,0.14)',
+                        borderRadius: 5,
+                        background: 'rgba(34,197,94,0.045)',
+                        color: '#cbd5e1',
+                        textAlign: 'left',
+                        fontSize: 11,
+                        fontWeight: 750,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {task.title}
+                    </button>
+                  )) : (
+                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>Nothing marked done today yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
+                <p style={{ color: '#f59e0b', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Still open</p>
+                <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
+                  {stillOpen.length ? stillOpen.map(task => (
+                    <button
+                      key={task.id}
+                      onClick={() => setTomorrowFocus(task)}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
+                        gap: 8,
+                        alignItems: 'center',
+                        minHeight: 30,
+                        padding: '7px 8px',
+                        border: `1px solid ${tomorrowFocusId === task.id ? 'rgba(34,197,94,0.45)' : 'rgba(255,255,255,0.07)'}`,
+                        borderRadius: 5,
+                        background: tomorrowFocusId === task.id ? 'rgba(34,197,94,0.10)' : 'rgba(255,255,255,0.025)',
+                        color: '#cbd5e1',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>{task.title}</span>
+                      <span style={{ color: tomorrowFocusId === task.id ? '#22c55e' : '#64748b', fontSize: 9, fontWeight: 850 }}>
+                        {tomorrowFocusId === task.id ? 'First' : 'Set'}
+                      </span>
+                    </button>
+                  )) : (
+                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>No active or to-do items left in this scope.</p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: 14 }}>
+                <p style={{ color: '#a78bfa', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Closeout note</p>
+                <textarea
+                  value={closeoutNote}
+                  onChange={e => saveCloseoutNote(e.target.value)}
+                  placeholder="Energy, body note, tomorrow context..."
+                  rows={5}
+                  style={{
+                    width: '100%',
+                    minHeight: 92,
+                    marginTop: 9,
+                    padding: '9px 10px',
+                    border: '1px solid rgba(167,139,250,0.18)',
+                    borderRadius: 5,
+                    background: 'rgba(0,0,0,0.22)',
+                    color: '#cbd5e1',
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontSize: 12,
+                    lineHeight: 1.45,
+                  }}
+                />
+              </div>
+            </div>
+          </Card>
+
+          <div className="dashboard-daily-systems-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Card
+              style={{
+                borderColor: 'rgba(244,114,182,0.22)',
+                background: 'linear-gradient(180deg, rgba(24,10,21,0.9), rgba(5,8,14,0.82))',
+              }}
+            >
+              <SectionTitle label="Universal inbox" detail="Text, reminder, link, errand, rough thought." />
+              <div style={{ padding: 14 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={inboxText}
+                    onChange={e => setInboxText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') captureInbox() }}
+                    placeholder="Capture anything..."
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: 38,
+                      padding: '0 11px',
+                      border: '1px solid rgba(244,114,182,0.22)',
+                      borderRadius: 5,
+                      background: 'rgba(0,0,0,0.24)',
+                      color: '#f8fafc',
+                      outline: 'none',
+                      fontSize: 12,
+                    }}
+                  />
+                  <ActionButton tone="#f472b6" onClick={captureInbox} disabled={!inboxText.trim()}>Capture</ActionButton>
+                </div>
+                <div style={{ display: 'grid', gap: 7, marginTop: 12 }}>
+                  {inboxItems.slice(0, 5).map(item => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+                        gap: 8,
+                        alignItems: 'center',
+                        minHeight: 32,
+                        padding: '7px 8px',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: 5,
+                        background: 'rgba(255,255,255,0.025)',
+                      }}
+                    >
+                      <span style={{ color: '#cbd5e1', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.content}</span>
+                      <button
+                        onClick={() => convertInboxToIdea(item)}
+                        style={{ color: '#f472b6', background: 'none', border: 'none', fontSize: 10, fontWeight: 850, cursor: 'pointer' }}
+                      >
+                        Idea
+                      </button>
+                      <button
+                        onClick={() => clearInboxItem(item)}
+                        style={{ color: '#64748b', background: 'none', border: 'none', fontSize: 10, fontWeight: 850, cursor: 'pointer' }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ))}
+                  {!inboxItems.length && <p style={{ color: '#64748b', fontSize: 12 }}>Inbox is clear.</p>}
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              style={{
+                borderColor: 'rgba(56,189,248,0.20)',
+                background: 'linear-gradient(180deg, rgba(7,18,29,0.9), rgba(5,8,14,0.82))',
+              }}
+            >
+              <SectionTitle label="Calendar prep" detail="Manual now. Apple Calendar connection later." />
+              <div style={{ padding: 14 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={calendarText}
+                    onChange={e => setCalendarText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addCalendarItem() }}
+                    placeholder="Place, appointment, call, leave time..."
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: 38,
+                      padding: '0 11px',
+                      border: '1px solid rgba(56,189,248,0.22)',
+                      borderRadius: 5,
+                      background: 'rgba(0,0,0,0.24)',
+                      color: '#f8fafc',
+                      outline: 'none',
+                      fontSize: 12,
+                    }}
+                  />
+                  <ActionButton tone="#38bdf8" onClick={addCalendarItem} disabled={!calendarText.trim()}>Add</ActionButton>
+                </div>
+                <div style={{ display: 'grid', gap: 7, marginTop: 12 }}>
+                  {calendarItems.map((item, index) => (
+                    <button
+                      key={`${item}-${index}`}
+                      onClick={() => removeCalendarItem(index)}
+                      style={{
+                        minHeight: 32,
+                        padding: '7px 8px',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: 5,
+                        background: 'rgba(255,255,255,0.025)',
+                        color: '#cbd5e1',
+                        textAlign: 'left',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                  {!calendarItems.length && <p style={{ color: '#64748b', fontSize: 12 }}>No calendar holds captured.</p>}
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="dashboard-daily-systems-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Card
+              style={{
+                borderColor: 'rgba(245,158,11,0.22)',
+                background: 'linear-gradient(180deg, rgba(26,18,6,0.9), rgba(5,8,14,0.82))',
+              }}
+            >
+              <SectionTitle label="Recurring life checklist" detail={`${recurringDone}/${recurringItems.length} handled today.`} />
+              <div style={{ padding: 14, display: 'grid', gap: 8 }}>
+                {recurringItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => toggleRecurring(item.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      minHeight: 34,
+                      padding: '7px 9px',
+                      border: `1px solid ${item.done ? 'rgba(34,197,94,0.35)' : 'rgba(255,255,255,0.07)'}`,
+                      borderRadius: 5,
+                      background: item.done ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.025)',
+                      color: item.done ? '#22c55e' : '#cbd5e1',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ width: 12, height: 12, borderRadius: 5, border: `1px solid ${item.done ? '#22c55e' : '#64748b'}`, background: item.done ? '#22c55e' : 'transparent' }} />
+                    <span style={{ fontSize: 12, fontWeight: 750 }}>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <Card
+              style={{
+                borderColor: 'rgba(167,139,250,0.22)',
+                background: 'linear-gradient(180deg, rgba(17,12,31,0.9), rgba(5,8,14,0.82))',
+              }}
+            >
+              <SectionTitle label="Apple Health ready" detail="Manual tracking now. Watch sync is the next integration." />
+              <div style={{ padding: 14, display: 'grid', gap: 10 }}>
+                <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.5 }}>
+                  The dashboard is already reading manual BP, nutrition, and workout logs. When Apple Health is connected, this panel should replace manual body check data with sleep, heart rate, activity, and workout summaries.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <a
+                    href="/dashboard/health"
+                    style={{
+                      height: 32,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '0 12px',
+                      borderRadius: 5,
+                      border: '1px solid rgba(167,139,250,0.27)',
+                      background: 'rgba(167,139,250,0.09)',
+                      color: '#a78bfa',
+                      fontSize: 11,
+                      fontWeight: 850,
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Log health
+                  </a>
+                  <ActionButton tone="#64748b" onClick={() => saveCloseoutNote(`${closeoutNote}${closeoutNote ? '\n' : ''}Apple Health next: sleep, HR, workouts, BP sync.`)}>
+                    Add integration note
+                  </ActionButton>
+                </div>
+              </div>
+            </Card>
+          </div>
 
           <Card style={{ borderColor: `${commandTheme.color}33` }}>
             {commandTask ? (

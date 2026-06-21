@@ -337,9 +337,18 @@ body {
     display: block !important;
   }
 
+  .dashboard-daily-systems-grid {
+    display: block !important;
+  }
+
   .dashboard-today-plan-grid > div {
     border-right: 0 !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .dashboard-daily-systems-grid > div,
+  .dashboard-daily-systems-grid > section {
+    margin-bottom: 14px;
   }
 
   .dashboard-today-plan-grid > div:last-child {
