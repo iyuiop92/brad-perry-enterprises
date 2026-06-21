@@ -1,5 +1,6 @@
-import { convertToModelMessages, streamText, UIMessage } from 'ai'
+import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, generateText, UIMessage } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
 import { requireAuth } from '@/lib/require-auth'
 
 const anthropic = createAnthropic({
@@ -7,6 +8,23 @@ const anthropic = createAnthropic({
 })
 
 export const maxDuration = 60
+
+function wendyStream(text: string) {
+  const stream = createUIMessageStream({
+    execute: ({ writer }) => {
+      const id = 'wendy-response'
+      writer.write({ type: 'text-start', id })
+      writer.write({ type: 'text-delta', id, delta: text })
+      writer.write({ type: 'text-end', id })
+    },
+  })
+
+  return createUIMessageStreamResponse({ stream })
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
 
 export async function POST(request: Request) {
   const { messages }: { messages: UIMessage[] } = await request.json()
@@ -67,19 +85,36 @@ YOUR ROLE:
 
 Priority framework when advising: (1) revenue-blocking issues, (2) content/knowledge library, (3) traffic and referrals, (4) platform improvements. Push back clearly if Brad is about to spend time on tier 4 while tier 1 is unfinished.`
 
-  const result = streamText({
-    model: anthropic(process.env.WENDY_ANTHROPIC_MODEL ?? 'claude-sonnet-4-6'),
-    system,
-    messages: await convertToModelMessages(messages),
-  })
+  const modelMessages = await convertToModelMessages(messages)
 
-  return result.toUIMessageStreamResponse({
-    onError: error => {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.toLowerCase().includes('credit balance')) {
-        return 'Wendy is connected to Claude, but the Anthropic account is out of API credits. Add credits in Anthropic Plans & Billing, then try me again. — Wendy'
+  try {
+    const { text } = await generateText({
+      model: anthropic(process.env.WENDY_ANTHROPIC_MODEL ?? 'claude-sonnet-4-6'),
+      system,
+      messages: modelMessages,
+    })
+
+    return wendyStream(text)
+  } catch (anthropicError) {
+    console.error('Wendy Anthropic error, falling back to Gemini:', anthropicError)
+
+    try {
+      const { text } = await generateText({
+        model: google(process.env.WENDY_GEMINI_MODEL ?? 'gemini-2.5-flash'),
+        system: `${system}\n\nClaude is currently unavailable, so you are running through Wendy's Gemini fallback. Stay fully in Wendy's voice and do not mention the provider unless Brad asks.`,
+        messages: modelMessages,
+      })
+
+      return wendyStream(text)
+    } catch (geminiError) {
+      console.error('Wendy Gemini fallback error:', geminiError)
+
+      const anthropicMessage = errorMessage(anthropicError).toLowerCase()
+      if (anthropicMessage.includes('credit balance')) {
+        return wendyStream('Wendy is connected, but Claude is out of Anthropic API credits and the Gemini fallback also failed. Check GOOGLE_GENERATIVE_AI_API_KEY in Vercel. — Wendy')
       }
-      return 'Wendy is connected, but Claude rejected this request. Check the Anthropic API key, billing, and model access. — Wendy'
-    },
-  })
+
+      return wendyStream('Wendy is connected, but both Claude and the Gemini fallback rejected this request. Check the dashboard provider keys and model access. — Wendy')
+    }
+  }
 }
