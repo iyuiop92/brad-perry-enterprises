@@ -214,6 +214,7 @@ export default function DashboardPage() {
 
       {/* ── Assistant drawer (slides in from right) ── */}
       <div
+        className="dashboard-assistant-drawer"
         style={{
           position: 'fixed', top: 38, right: 0, bottom: 0, width: 320, zIndex: 50,
           transform: assistantPanel ? 'translateX(0)' : 'translateX(100%)',
