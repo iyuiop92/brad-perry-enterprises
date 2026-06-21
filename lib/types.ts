@@ -84,3 +84,20 @@ export interface HealthLog {
   source: string
   created_at: string
 }
+
+export interface RecurringDailyItem {
+  id: string
+  label: string
+  done: boolean
+}
+
+export interface DailyState {
+  id: string
+  state_date: string
+  tomorrow_focus_task_id: string | null
+  closeout_note: string
+  calendar_items: string[]
+  recurring_items: RecurringDailyItem[]
+  created_at: string
+  updated_at: string
+}

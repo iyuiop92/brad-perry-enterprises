@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { HealthLog, InboxItem, Task, Workspace } from '@/lib/types'
+import type { DailyState, HealthLog, InboxItem, RecurringDailyItem, Task, Workspace } from '@/lib/types'
 
 type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
 type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
@@ -31,6 +31,14 @@ const laneTheme: Record<WorkLane, { color: string; tint: string }> = {
   Maintenance: { color: '#f59e0b', tint: 'rgba(245,158,11,0.12)' },
   Explore: { color: '#f472b6', tint: 'rgba(244,114,182,0.12)' },
 }
+
+const defaultRecurringItems: RecurringDailyItem[] = [
+  { id: 'bp', label: 'Blood pressure', done: false },
+  { id: 'food', label: 'Log food', done: false },
+  { id: 'workout', label: 'Workout or walk', done: false },
+  { id: 'calendar', label: 'Check calendar', done: false },
+  { id: 'money', label: 'Money/client follow-up', done: false },
+]
 
 async function patchTask(id: string, body: Record<string, unknown>) {
   await fetch(`/api/tasks/${id}`, {
@@ -294,13 +302,8 @@ export default function CommandFeed({
   const [tomorrowFocusId, setTomorrowFocusId] = useState<string | null>(null)
   const [calendarText, setCalendarText] = useState('')
   const [calendarItems, setCalendarItems] = useState<string[]>([])
-  const [recurringItems, setRecurringItems] = useState([
-    { id: 'bp', label: 'Blood pressure', done: false },
-    { id: 'food', label: 'Log food', done: false },
-    { id: 'workout', label: 'Workout or walk', done: false },
-    { id: 'calendar', label: 'Check calendar', done: false },
-    { id: 'money', label: 'Money/client follow-up', done: false },
-  ])
+  const [recurringItems, setRecurringItems] = useState<RecurringDailyItem[]>(defaultRecurringItems)
+  const [dailyStateLoaded, setDailyStateLoaded] = useState(false)
   const captureRef = useRef<HTMLInputElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
@@ -339,11 +342,17 @@ export default function CommandFeed({
   }, [])
 
   useEffect(() => {
-    setTomorrowFocusId(window.localStorage.getItem('bpe:tomorrow-focus-id'))
-    setCloseoutNote(window.localStorage.getItem('bpe:closeout-note') ?? '')
-    setCalendarItems(JSON.parse(window.localStorage.getItem('bpe:calendar-items') ?? '[]'))
-    const savedRecurring = window.localStorage.getItem('bpe:recurring-items')
-    if (savedRecurring) setRecurringItems(JSON.parse(savedRecurring))
+    fetch('/api/daily-state')
+      .then(res => res.ok ? res.json() : null)
+      .then((state: DailyState | null) => {
+        if (!state) return
+        setTomorrowFocusId(state.tomorrow_focus_task_id)
+        setCloseoutNote(state.closeout_note ?? '')
+        setCalendarItems(Array.isArray(state.calendar_items) ? state.calendar_items : [])
+        setRecurringItems(Array.isArray(state.recurring_items) && state.recurring_items.length ? state.recurring_items : defaultRecurringItems)
+      })
+      .catch(() => {})
+      .finally(() => setDailyStateLoaded(true))
   }, [])
 
   const localTasks = useMemo(() => propTasks.map(task => (
@@ -450,6 +459,15 @@ export default function CommandFeed({
     await fetch(`/api/inbox/${item.id}`, { method: 'DELETE' }).catch(() => {})
   }
 
+  async function saveDailyState(patch: Partial<Pick<DailyState, 'tomorrow_focus_task_id' | 'closeout_note' | 'calendar_items' | 'recurring_items'>>) {
+    if (!dailyStateLoaded) return
+    await fetch('/api/daily-state', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).catch(() => {})
+  }
+
   async function convertInboxToIdea(item: InboxItem) {
     const res = await fetch('/api/tasks', {
       method: 'POST',
@@ -472,12 +490,12 @@ export default function CommandFeed({
 
   function setTomorrowFocus(task: Task) {
     setTomorrowFocusId(task.id)
-    window.localStorage.setItem('bpe:tomorrow-focus-id', task.id)
+    void saveDailyState({ tomorrow_focus_task_id: task.id })
   }
 
   function saveCloseoutNote(value: string) {
     setCloseoutNote(value)
-    window.localStorage.setItem('bpe:closeout-note', value)
+    void saveDailyState({ closeout_note: value })
   }
 
   function addCalendarItem() {
@@ -486,19 +504,19 @@ export default function CommandFeed({
     const next = [item, ...calendarItems].slice(0, 6)
     setCalendarText('')
     setCalendarItems(next)
-    window.localStorage.setItem('bpe:calendar-items', JSON.stringify(next))
+    void saveDailyState({ calendar_items: next })
   }
 
   function removeCalendarItem(index: number) {
     const next = calendarItems.filter((_, i) => i !== index)
     setCalendarItems(next)
-    window.localStorage.setItem('bpe:calendar-items', JSON.stringify(next))
+    void saveDailyState({ calendar_items: next })
   }
 
   function toggleRecurring(id: string) {
     const next = recurringItems.map(item => item.id === id ? { ...item, done: !item.done } : item)
     setRecurringItems(next)
-    window.localStorage.setItem('bpe:recurring-items', JSON.stringify(next))
+    void saveDailyState({ recurring_items: next })
   }
 
   function workspaceFor(task: Task) {
