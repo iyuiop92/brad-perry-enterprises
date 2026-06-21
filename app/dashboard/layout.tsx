@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { hasDashboardSession } from '@/lib/password-auth'
 
 export default async function DashboardLayout({
@@ -25,8 +24,8 @@ export default async function DashboardLayout({
         borderBottom: '1px solid rgba(255,255,255,0.05)',
         zIndex: 100,
       }}>
-        <Link
-          href="/dashboard"
+        <a
+          href="/dashboard#board"
           style={{
             height: 26, padding: '0 12px', borderRadius: 5,
             display: 'flex', alignItems: 'center',
@@ -35,8 +34,8 @@ export default async function DashboardLayout({
           }}
         >
           Board
-        </Link>
-        <Link
+        </a>
+        <a
           href="/dashboard#idea-capture"
           style={{
             height: 26, padding: '0 12px', borderRadius: 5,
@@ -46,7 +45,7 @@ export default async function DashboardLayout({
           }}
         >
           Idea
-        </Link>
+        </a>
       </nav>
       {children}
     </div>

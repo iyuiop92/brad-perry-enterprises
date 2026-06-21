@@ -279,15 +279,26 @@ export default function CommandFeed({
   const [view, setView] = useState<ViewMode>('active')
   const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<string | null>(null)
   const captureRef = useRef<HTMLInputElement>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    function focusIdeaCapture() {
-      if (window.location.hash !== '#idea-capture') return
-      requestAnimationFrame(() => captureRef.current?.focus())
+    function handleDashboardHash() {
+      if (window.location.hash === '#idea-capture') {
+        setView('ideas')
+        document.getElementById('idea-capture')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        requestAnimationFrame(() => captureRef.current?.focus())
+        return
+      }
+
+      if (window.location.hash === '#board') {
+        setView('active')
+        boardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
     }
-    focusIdeaCapture()
-    window.addEventListener('hashchange', focusIdeaCapture)
-    return () => window.removeEventListener('hashchange', focusIdeaCapture)
+
+    handleDashboardHash()
+    window.addEventListener('hashchange', handleDashboardHash)
+    return () => window.removeEventListener('hashchange', handleDashboardHash)
   }, [])
 
   const localTasks = useMemo(() => propTasks.map(task => (
@@ -372,6 +383,8 @@ export default function CommandFeed({
 
   return (
     <div
+      id="board"
+      ref={boardRef}
       className="dashboard-command-feed"
       style={{
         height: '100%',
