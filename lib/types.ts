@@ -47,3 +47,40 @@ export interface InboxItem {
   content: string
   created_at: string
 }
+
+export type BillingCycle = 'monthly' | 'annual'
+
+export interface Subscription {
+  id: string
+  service: string
+  cost_cents: number
+  billing_cycle: BillingCycle
+  next_billing_date: string
+  billing_url: string | null
+  notes: string | null
+  alert_sent_7d: boolean
+  alert_sent_1d: boolean
+  created_at: string
+}
+
+export type HealthEntryType = 'blood_pressure' | 'nutrition' | 'workout'
+
+export interface HealthLog {
+  id: string
+  entry_type: HealthEntryType
+  logged_at: string
+  bp_systolic: number | null
+  bp_diastolic: number | null
+  pulse: number | null
+  meal_name: string | null
+  calories: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  workout_type: string | null
+  duration_mins: number | null
+  intensity: string | null
+  notes: string | null
+  source: string
+  created_at: string
+}
