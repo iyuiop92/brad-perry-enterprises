@@ -543,6 +543,106 @@ export default function CommandFeed({
             )}
           </Card>
 
+          <Card
+            style={{
+              borderColor: 'rgba(244,114,182,0.24)',
+              background: `
+                radial-gradient(circle at 12% 0%, rgba(244,114,182,0.18), transparent 38%),
+                radial-gradient(circle at 88% 20%, rgba(167,139,250,0.16), transparent 36%),
+                rgba(8,8,17,0.84)
+              `,
+            }}
+          >
+            <div id="idea-capture" style={{ scrollMarginTop: 90 }} />
+            <SectionTitle label="Idea" detail="Catch it before it wanders off." />
+            <div style={{ padding: 12 }}>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <input
+                  ref={captureRef}
+                  value={capture}
+                  onChange={e => setCapture(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleCapture()
+                  }}
+                  placeholder="Quick idea, rough thought, thing to try..."
+                  disabled={capturing}
+                  style={{
+                    minWidth: 0,
+                    height: 38,
+                    borderRadius: 5,
+                    border: '1px solid rgba(244,114,182,0.22)',
+                    background: 'rgba(0,0,0,0.24)',
+                    color: '#f8fafc',
+                    padding: '0 12px',
+                    outline: 'none',
+                    fontSize: 12,
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset',
+                  }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ActionButton tone="#f472b6" onClick={handleCapture} disabled={!capture.trim() || capturing}>
+                    Save idea
+                  </ActionButton>
+                  <span style={{ color: '#64748b', fontSize: 10, lineHeight: 1.35 }}>
+                    {selectedWs ? `Drops into ${selectedWs.name}` : 'Drops into all-workspace ideas'}
+                  </span>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, display: 'grid', gap: 7 }}>
+                {ideas.slice(0, 4).map(item => (
+                  <p key={item.id} style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.35, borderTop: '1px solid rgba(244,114,182,0.10)', paddingTop: 7 }}>
+                    {item.title}
+                  </p>
+                ))}
+                {!ideas.length && <p style={{ color: '#64748b', fontSize: 11 }}>No parked ideas in this scope.</p>}
+              </div>
+            </div>
+          </Card>
+
+          <Card style={{ borderColor: 'rgba(56,189,248,0.22)', background: 'linear-gradient(180deg, rgba(8,18,29,0.9), rgba(5,8,14,0.8))' }}>
+            <SectionTitle
+              label="Choose focus"
+              detail="Click one to put it in the main banner."
+            />
+            <div style={{ padding: 10, display: 'grid', gap: 7 }}>
+              {focusCandidates.length ? focusCandidates.slice(0, 7).map(task => {
+                const selected = commandTask?.id === task.id
+                const workspace = workspaceFor(task)
+                const lane = classifyWork(task)
+                const color = selected ? (workspace?.color ?? laneTheme[lane].color) : 'rgba(255,255,255,0.08)'
+                return (
+                  <button
+                    key={task.id}
+                    onClick={() => chooseFocus(task)}
+                    style={{
+                      width: '100%',
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      gap: 8,
+                      alignItems: 'center',
+                      textAlign: 'left',
+                      padding: '9px 10px',
+                      borderRadius: 7,
+                      border: `1px solid ${color}`,
+                      background: selected ? `${workspace?.color ?? laneTheme[lane].color}14` : 'rgba(255,255,255,0.025)',
+                      color: '#f8fafc',
+                      fontSize: 12,
+                      lineHeight: 1.35,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+                    <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 9, fontWeight: 850 }}>
+                      {statusLabel[task.status]}
+                    </span>
+                  </button>
+                )}
+              ) : (
+                <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.45, padding: 4 }}>No open tasks in this scope.</p>
+              )}
+            </div>
+          </Card>
+
           <Card>
             <SectionTitle label="Portfolio pulse" detail="A soft scan, not a command center wall." right={<ActionButton onClick={onAddWorkspace}>Add</ActionButton>} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
@@ -576,107 +676,7 @@ export default function CommandFeed({
         </div>
       </div>
 
-      <aside className="dashboard-command-aside" style={{ minWidth: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 16, overflow: 'hidden' }}>
-        <Card
-          style={{
-            borderColor: 'rgba(244,114,182,0.24)',
-            background: `
-              radial-gradient(circle at 12% 0%, rgba(244,114,182,0.18), transparent 38%),
-              radial-gradient(circle at 88% 20%, rgba(167,139,250,0.16), transparent 36%),
-              rgba(8,8,17,0.84)
-            `,
-          }}
-        >
-          <div id="idea-capture" style={{ scrollMarginTop: 90 }} />
-          <SectionTitle label="Idea" detail="Catch it before it wanders off." />
-          <div style={{ padding: 12 }}>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <input
-                ref={captureRef}
-                value={capture}
-                onChange={e => setCapture(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleCapture()
-                }}
-                placeholder="Quick idea, rough thought, thing to try..."
-                disabled={capturing}
-                style={{
-                  minWidth: 0,
-                  height: 38,
-                  borderRadius: 5,
-                  border: '1px solid rgba(244,114,182,0.22)',
-                  background: 'rgba(0,0,0,0.24)',
-                  color: '#f8fafc',
-                  padding: '0 12px',
-                  outline: 'none',
-                  fontSize: 12,
-                  boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset',
-                }}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ActionButton tone="#f472b6" onClick={handleCapture} disabled={!capture.trim() || capturing}>
-                  Save idea
-                </ActionButton>
-                <span style={{ color: '#64748b', fontSize: 10, lineHeight: 1.35 }}>
-                  {selectedWs ? `Drops into ${selectedWs.name}` : 'Drops into all-workspace ideas'}
-                </span>
-              </div>
-            </div>
-            <div style={{ marginTop: 12, display: 'grid', gap: 7 }}>
-              {ideas.slice(0, 4).map(item => (
-                <p key={item.id} style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.35, borderTop: '1px solid rgba(244,114,182,0.10)', paddingTop: 7 }}>
-                  {item.title}
-                </p>
-              ))}
-              {!ideas.length && <p style={{ color: '#64748b', fontSize: 11 }}>No parked ideas in this scope.</p>}
-            </div>
-          </div>
-        </Card>
-
-        <Card style={{ borderColor: 'rgba(56,189,248,0.22)', background: 'linear-gradient(180deg, rgba(8,18,29,0.9), rgba(5,8,14,0.8))' }}>
-          <SectionTitle
-            label="Choose focus"
-            detail="Click one to put it in the main banner."
-          />
-          <div style={{ padding: 10, display: 'grid', gap: 7 }}>
-            {focusCandidates.length ? focusCandidates.slice(0, 7).map(task => {
-              const selected = commandTask?.id === task.id
-              const workspace = workspaceFor(task)
-              const lane = classifyWork(task)
-              const color = selected ? (workspace?.color ?? laneTheme[lane].color) : 'rgba(255,255,255,0.08)'
-              return (
-                <button
-                  key={task.id}
-                  onClick={() => chooseFocus(task)}
-                  style={{
-                    width: '100%',
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 1fr) auto',
-                    gap: 8,
-                    alignItems: 'center',
-                    textAlign: 'left',
-                    padding: '9px 10px',
-                    borderRadius: 7,
-                    border: `1px solid ${color}`,
-                    background: selected ? `${workspace?.color ?? laneTheme[lane].color}14` : 'rgba(255,255,255,0.025)',
-                    color: '#f8fafc',
-                    fontSize: 12,
-                    lineHeight: 1.35,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
-                  <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 9, fontWeight: 850 }}>
-                    {statusLabel[task.status]}
-                  </span>
-                </button>
-              )}
-            ) : (
-              <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.45, padding: 4 }}>No open tasks in this scope.</p>
-            )}
-          </div>
-        </Card>
-
+      <aside className="dashboard-command-aside" style={{ minWidth: 0, display: 'grid', gridTemplateRows: '1fr', gap: 16, overflow: 'hidden' }}>
         <Card style={{ overflow: 'hidden' }}>
           <SectionTitle label="Workspaces" detail={selectedWs ? `Filtered to ${selectedWs.name}` : 'Portfolio'} />
           <div style={{ overflow: 'auto', maxHeight: '100%', padding: 8 }}>
