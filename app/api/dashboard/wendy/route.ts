@@ -73,5 +73,13 @@ Priority framework when advising: (1) revenue-blocking issues, (2) content/knowl
     messages: await convertToModelMessages(messages),
   })
 
-  return result.toUIMessageStreamResponse()
+  return result.toUIMessageStreamResponse({
+    onError: error => {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.toLowerCase().includes('credit balance')) {
+        return 'Wendy is connected to Claude, but the Anthropic account is out of API credits. Add credits in Anthropic Plans & Billing, then try me again. — Wendy'
+      }
+      return 'Wendy is connected, but Claude rejected this request. Check the Anthropic API key, billing, and model access. — Wendy'
+    },
+  })
 }
