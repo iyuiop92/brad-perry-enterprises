@@ -1,7 +1,6 @@
 import { convertToModelMessages, streamText, UIMessage } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { requireAuth } from '@/lib/require-auth'
-import { NextResponse } from 'next/server'
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY_BPE ?? process.env.ANTHROPIC_API_KEY,
@@ -25,7 +24,7 @@ export async function POST(request: Request) {
     const active = wsTasks.filter(t => t.status === 'in_progress').length
     const blocked = wsTasks.filter(t => t.status === 'blocked').length
     const ideas = wsTasks.filter(t => t.status === 'idea').length
-    return `- ${w.name} (${w.type}): ${active} active, ${blocked} blocked, ${ideas} ideas`
+    return `- ${w.name} (${w.type}): ${active} active, ${blocked} to do, ${ideas} ideas`
   }).join('\n')
 
   const highPri = (tasks ?? []).filter(t => t.priority === 'high').slice(0, 8)
@@ -44,7 +43,7 @@ ${wsLines || '(none configured)'}
 HIGH-PRIORITY TASKS IN FLIGHT:
 ${highPriLines || '(none)'}
 
-BLOCKED TASKS NEEDING ATTENTION:
+TO-DO TASKS NEEDING ATTENTION:
 ${blockedLines || '(none)'}
 
 BRAD'S PORTFOLIO:
@@ -68,12 +67,8 @@ YOUR ROLE:
 
 Priority framework when advising: (1) revenue-blocking issues, (2) content/knowledge library, (3) traffic and referrals, (4) platform improvements. Push back clearly if Brad is about to spend time on tier 4 while tier 1 is unfinished.`
 
-  if (!workspaces) {
-    return NextResponse.json({ error: 'Failed to load workspace data' }, { status: 500 })
-  }
-
   const result = streamText({
-    model: anthropic('claude-sonnet-4-6'),
+    model: anthropic(process.env.WENDY_ANTHROPIC_MODEL ?? 'claude-sonnet-4-6'),
     system,
     messages: await convertToModelMessages(messages),
   })
