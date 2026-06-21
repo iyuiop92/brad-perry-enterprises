@@ -6,11 +6,12 @@ import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
 import WendyPanel from '@/components/WendyPanel'
 import ElliePanel from '@/components/ElliePanel'
+import CleaverPanel from '@/components/CleaverPanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
 import AddWorkspacePanel from '@/components/AddWorkspacePanel'
 
-type AssistantPanel = 'wendy' | 'ellie' | null
+type AssistantPanel = 'wendy' | 'ellie' | 'cleaver' | null
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -90,6 +91,22 @@ export default function DashboardPage() {
         >
           <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'ellie' ? '#a78bfa' : '#64748b', letterSpacing: '0.05em' }}>
             Ellie
+          </span>
+        </button>
+
+        <button
+          onClick={() => setAssistantPanel(panel => panel === 'cleaver' ? null : 'cleaver')}
+          style={{
+            display: 'flex', alignItems: 'center',
+            height: 28, padding: '0 4px', cursor: 'pointer',
+            background: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'cleaver' ? '#22c55e' : '#64748b', letterSpacing: '0.05em' }}>
+            Cleaver
           </span>
         </button>
 
@@ -202,9 +219,9 @@ export default function DashboardPage() {
           transform: assistantPanel ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           background: 'rgba(4,4,10,0.98)',
-          borderLeft: `1px solid ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.16)' : 'rgba(0,180,255,0.12)'}`,
+          borderLeft: `1px solid ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.16)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.16)' : 'rgba(0,180,255,0.12)'}`,
           boxShadow: assistantPanel
-            ? `-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.06)' : 'rgba(0,180,255,0.05)'}`
+            ? `-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.06)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.06)' : 'rgba(0,180,255,0.05)'}`
             : 'none',
         }}
       >
@@ -213,6 +230,9 @@ export default function DashboardPage() {
         )}
         {assistantPanel === 'ellie' && (
           <ElliePanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
+        )}
+        {assistantPanel === 'cleaver' && (
+          <CleaverPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
         )}
       </div>
 
