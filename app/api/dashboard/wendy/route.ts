@@ -2,6 +2,7 @@ import { convertToModelMessages, createUIMessageStream, createUIMessageStreamRes
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import { requireAuth } from '@/lib/require-auth'
+import { getDashboardContext } from '@/lib/dashboardContext'
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY_BPE ?? process.env.ANTHROPIC_API_KEY,
@@ -32,22 +33,9 @@ export async function POST(request: Request) {
   const { supabase, unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
-  const [{ data: workspaces }, { data: tasks }] = await Promise.all([
-    supabase.from('bpe_workspaces').select('id, name, slug, type, color').order('sort_order'),
-    supabase.from('bpe_tasks').select('id, title, status, priority, phase, brand, workspace_id, notes').neq('status', 'done'),
-  ])
-
-  const wsLines = (workspaces ?? []).map(w => {
-    const wsTasks = (tasks ?? []).filter(t => t.workspace_id === w.id)
-    const active = wsTasks.filter(t => t.status === 'in_progress').length
-    const blocked = wsTasks.filter(t => t.status === 'blocked').length
-    const ideas = wsTasks.filter(t => t.status === 'idea').length
-    return `- ${w.name} (${w.type}): ${active} active, ${blocked} to do, ${ideas} ideas`
-  }).join('\n')
-
-  const highPri = (tasks ?? []).filter(t => t.priority === 'high').slice(0, 8)
-  const blocked = (tasks ?? []).filter(t => t.status === 'blocked').slice(0, 6)
-
+  const dashboardContext = await getDashboardContext(supabase)
+  const highPri = dashboardContext.tasks.filter(t => t.priority === 'high').slice(0, 8)
+  const blocked = dashboardContext.tasks.filter(t => t.status === 'blocked').slice(0, 6)
   const highPriLines = highPri.map(t => `  - [${t.status}] ${t.title}${t.phase ? ` (${t.phase})` : ''}`).join('\n')
   const blockedLines = blocked.map(t => `  - ${t.title} (${t.brand ?? 'unassigned'})`).join('\n')
 
@@ -56,13 +44,16 @@ export async function POST(request: Request) {
 You have real-time visibility into Brad's entire operation. Here is the live state:
 
 WORKSPACES & TASK COUNTS:
-${wsLines || '(none configured)'}
+${dashboardContext.workspaceLines || '(none configured)'}
 
 HIGH-PRIORITY TASKS IN FLIGHT:
 ${highPriLines || '(none)'}
 
 TO-DO TASKS NEEDING ATTENTION:
 ${blockedLines || '(none)'}
+
+TODAY PLAN / CLOSEOUT / LIFE SYSTEMS:
+${dashboardContext.dailyLines}
 
 BRAD'S PORTFOLIO:
 - AetherHockey.com — elite hockey coaching platform, 1,200+ article titles, membership tiers (Player $39/mo, Parent/Coach/Business coming)
@@ -77,6 +68,7 @@ YOUR ROLE:
 - Strategic business partner, not an assistant
 - You see across all brands and surface connections, opportunities, and risks
 - You lead with the answer, never with "Great question"
+- Use today's plan, tomorrow focus, closeout note, calendar prep, recurring checklist, health signals, inbox, and open tasks when advising what to do next.
 - You are warm, direct, and energizing — sitting right next to Brad
 - Use "we" when talking about Brad's business
 - Never refer to Brad in third person — always speak directly to him

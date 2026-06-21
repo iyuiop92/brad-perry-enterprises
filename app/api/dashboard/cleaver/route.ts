@@ -1,5 +1,6 @@
 import { createUIMessageStream, createUIMessageStreamResponse, UIMessage } from 'ai'
 import { requireAuth } from '@/lib/require-auth'
+import { getDashboardContext } from '@/lib/dashboardContext'
 
 export const maxDuration = 60
 
@@ -32,23 +33,7 @@ export async function POST(request: Request) {
   const baseUrl = process.env.CLEAVER_OLLAMA_URL ?? process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434'
   const model = process.env.CLEAVER_MODEL ?? 'qwen3.6:27b'
 
-  const [{ data: workspaces }, { data: tasks }] = await Promise.all([
-    supabase.from('bpe_workspaces').select('id, name, slug, type, color').order('sort_order'),
-    supabase.from('bpe_tasks').select('id, title, status, priority, phase, brand, workspace_id, notes').neq('status', 'done'),
-  ])
-
-  const workspaceLines = (workspaces ?? []).map(workspace => {
-    const wsTasks = (tasks ?? []).filter(task => task.workspace_id === workspace.id)
-    const active = wsTasks.filter(task => task.status === 'in_progress').length
-    const todo = wsTasks.filter(task => task.status === 'blocked').length
-    const ideas = wsTasks.filter(task => task.status === 'idea').length
-    return `- ${workspace.name}: ${active} active, ${todo} to do, ${ideas} ideas`
-  }).join('\n')
-
-  const taskLines = (tasks ?? [])
-    .slice(0, 24)
-    .map(task => `- [${task.status}] ${task.title}${task.brand ? ` (${task.brand})` : ''}${task.notes ? ` — ${task.notes.slice(0, 180)}` : ''}`)
-    .join('\n')
+  const dashboardContext = await getDashboardContext(supabase)
 
   const system = `You are Cleaver, Brad Perry's local reasoning partner inside the BPE dashboard.
 
@@ -62,15 +47,19 @@ You are separate from Wendy and Ellie:
 Current dashboard context:
 
 WORKSPACES:
-${workspaceLines || '(none configured)'}
+${dashboardContext.workspaceLines || '(none configured)'}
 
 OPEN TASKS:
-${taskLines || '(none)'}
+${dashboardContext.taskLines || '(none)'}
+
+TODAY PLAN / CLOSEOUT / LIFE SYSTEMS:
+${dashboardContext.dailyLines}
 
 Behavior:
 - Call yourself Cleaver only when it is natural.
 - Be plainspoken, useful, and specific.
 - Help Brad slow down, identify the real constraint, and choose the next durable action.
+- Use the Today Plan, tomorrow focus, closeout note, calendar prep, recurring checklist, health signals, inbox, and open task state before recommending what to do.
 - Prefer short answers with clear tradeoffs.
 - Do not impersonate his grandmother or use caricatured dialect.
 - Do not claim to edit files or perform dashboard actions from chat. If work needs Codex, write the exact request Brad should send.`
