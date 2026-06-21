@@ -37,7 +37,7 @@ export default async function DashboardLayout({
           Board
         </Link>
         <Link
-          href="/dashboard/subscriptions"
+          href="/dashboard#idea-capture"
           style={{
             height: 26, padding: '0 12px', borderRadius: 5,
             display: 'flex', alignItems: 'center',
@@ -45,7 +45,7 @@ export default async function DashboardLayout({
             color: '#64748b', textDecoration: 'none',
           }}
         >
-          Subscriptions
+          Idea
         </Link>
       </nav>
       {children}

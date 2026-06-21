@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { InboxItem, Task, Workspace } from '@/lib/types'
+import type { Task, Workspace } from '@/lib/types'
 
 type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
 type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
@@ -274,7 +274,6 @@ export default function CommandFeed({
 }) {
   const [capture, setCapture] = useState('')
   const [capturing, setCapturing] = useState(false)
-  const [inbox, setInbox] = useState<InboxItem[]>([])
   const [statusOverrides, setStatusOverrides] = useState<Record<string, TaskAction>>({})
   const [mode, setMode] = useState<OperatingMode>('sprint')
   const [view, setView] = useState<ViewMode>('active')
@@ -282,7 +281,13 @@ export default function CommandFeed({
   const captureRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/inbox').then(r => r.ok ? r.json() : []).then(setInbox).catch(() => {})
+    function focusIdeaCapture() {
+      if (window.location.hash !== '#idea-capture') return
+      requestAnimationFrame(() => captureRef.current?.focus())
+    }
+    focusIdeaCapture()
+    window.addEventListener('hashchange', focusIdeaCapture)
+    return () => window.removeEventListener('hashchange', focusIdeaCapture)
   }, [])
 
   const localTasks = useMemo(() => propTasks.map(task => (
@@ -339,15 +344,22 @@ export default function CommandFeed({
     if (!text || capturing) return
     setCapturing(true)
     try {
-      const res = await fetch('/api/inbox', {
+      const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({
+          title: text,
+          status: 'idea',
+          priority: 'medium',
+          workspace_id: selectedWs?.id ?? null,
+          brand: selectedWs?.name ?? null,
+          notes: 'Captured from the dashboard idea box.',
+        }),
       })
       if (res.ok) {
-        const item = await res.json()
-        setInbox(prev => [item, ...prev])
         setCapture('')
+        setView('ideas')
+        onRefresh()
       }
     } finally {
       setCapturing(false)
@@ -552,10 +564,20 @@ export default function CommandFeed({
       </div>
 
       <aside className="dashboard-command-aside" style={{ minWidth: 0, display: 'grid', gridTemplateRows: 'auto auto 1fr', gap: 16, overflow: 'hidden' }}>
-        <Card>
-          <SectionTitle label="Quick capture" detail="Get it out of your head." />
+        <Card
+          style={{
+            borderColor: 'rgba(244,114,182,0.24)',
+            background: `
+              radial-gradient(circle at 12% 0%, rgba(244,114,182,0.18), transparent 38%),
+              radial-gradient(circle at 88% 20%, rgba(167,139,250,0.16), transparent 36%),
+              rgba(8,8,17,0.84)
+            `,
+          }}
+        >
+          <div id="idea-capture" style={{ scrollMarginTop: 90 }} />
+          <SectionTitle label="Idea" detail="Catch it before it wanders off." />
           <div style={{ padding: 12 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'grid', gap: 8 }}>
               <input
                 ref={captureRef}
                 value={capture}
@@ -563,30 +585,37 @@ export default function CommandFeed({
                 onKeyDown={e => {
                   if (e.key === 'Enter') handleCapture()
                 }}
-                placeholder="Task, thought, reminder..."
+                placeholder="Quick idea, rough thought, thing to try..."
                 disabled={capturing}
                 style={{
-                  flex: 1,
                   minWidth: 0,
-                  height: 36,
-                  borderRadius: 7,
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  background: 'rgba(255,255,255,0.045)',
+                  height: 38,
+                  borderRadius: 5,
+                  border: '1px solid rgba(244,114,182,0.22)',
+                  background: 'rgba(0,0,0,0.24)',
                   color: '#f8fafc',
-                  padding: '0 11px',
+                  padding: '0 12px',
                   outline: 'none',
                   fontSize: 12,
+                  boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset',
                 }}
               />
-              <ActionButton tone="#38bdf8" onClick={handleCapture} disabled={!capture.trim() || capturing}>Add</ActionButton>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ActionButton tone="#f472b6" onClick={handleCapture} disabled={!capture.trim() || capturing}>
+                  Save idea
+                </ActionButton>
+                <span style={{ color: '#64748b', fontSize: 10, lineHeight: 1.35 }}>
+                  {selectedWs ? `Drops into ${selectedWs.name}` : 'Drops into all-workspace ideas'}
+                </span>
+              </div>
             </div>
             <div style={{ marginTop: 12, display: 'grid', gap: 7 }}>
-              {inbox.slice(0, 4).map(item => (
-                <p key={item.id} style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.35, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 7 }}>
-                  {item.content}
+              {ideas.slice(0, 4).map(item => (
+                <p key={item.id} style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.35, borderTop: '1px solid rgba(244,114,182,0.10)', paddingTop: 7 }}>
+                  {item.title}
                 </p>
               ))}
-              {!inbox.length && <p style={{ color: '#64748b', fontSize: 11 }}>No inbox items.</p>}
+              {!ideas.length && <p style={{ color: '#64748b', fontSize: 11 }}>No parked ideas in this scope.</p>}
             </div>
           </div>
         </Card>
