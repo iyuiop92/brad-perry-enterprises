@@ -13,7 +13,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#04040a' }}>
       {/* Top nav */}
-      <nav style={{
+      <nav className="dashboard-top-nav" style={{
         height: 38,
         flexShrink: 0,
         display: 'flex',
@@ -25,6 +25,7 @@ export default async function DashboardLayout({
         zIndex: 100,
       }}>
         <a
+          className="dashboard-nav-link"
           href="/dashboard#board"
           style={{
             height: 26, padding: '0 12px', borderRadius: 5,
@@ -36,6 +37,7 @@ export default async function DashboardLayout({
           Board
         </a>
         <a
+          className="dashboard-nav-link"
           href="/dashboard#idea-capture"
           style={{
             height: 26, padding: '0 12px', borderRadius: 5,
@@ -47,6 +49,7 @@ export default async function DashboardLayout({
           Idea
         </a>
         <a
+          className="dashboard-nav-link"
           href="/dashboard/health"
           style={{
             height: 26, padding: '0 12px', borderRadius: 5,
@@ -57,6 +60,14 @@ export default async function DashboardLayout({
         >
           Health
         </a>
+        <details className="dashboard-mobile-menu">
+          <summary>Menu</summary>
+          <div className="dashboard-mobile-menu-panel">
+            <a href="/dashboard#board">Board</a>
+            <a href="/dashboard#idea-capture">Idea</a>
+            <a href="/dashboard/health">Health</a>
+          </div>
+        </details>
       </nav>
       {children}
     </div>

@@ -52,6 +52,7 @@ export default function DashboardPage() {
 
       {/* ── Nav actions ── */}
       <div
+        className="dashboard-top-actions"
         style={{
           position: 'fixed',
           top: 5,
@@ -62,66 +63,98 @@ export default function DashboardPage() {
           gap: 10,
         }}
       >
-        <button
-          onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
-          style={{
-            display: 'flex', alignItems: 'center',
-            height: 28, padding: '0 4px', cursor: 'pointer',
-            background: 'transparent',
-            border: 'none',
-            boxShadow: 'none',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'wendy' ? '#00b4ff' : '#64748b', letterSpacing: '0.05em' }}>
-            Wendy
-          </span>
-        </button>
+        <div className="dashboard-desktop-actions">
+          <button
+            onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
+            style={{
+              display: 'flex', alignItems: 'center',
+              height: 28, padding: '0 4px', cursor: 'pointer',
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'wendy' ? '#00b4ff' : '#64748b', letterSpacing: '0.05em' }}>
+              Wendy
+            </span>
+          </button>
 
-        <button
-          onClick={() => setAssistantPanel(panel => panel === 'ellie' ? null : 'ellie')}
-          style={{
-            display: 'flex', alignItems: 'center',
-            height: 28, padding: '0 4px', cursor: 'pointer',
-            background: 'transparent',
-            border: 'none',
-            boxShadow: 'none',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'ellie' ? '#a78bfa' : '#64748b', letterSpacing: '0.05em' }}>
-            Ellie
-          </span>
-        </button>
+          <button
+            onClick={() => setAssistantPanel(panel => panel === 'ellie' ? null : 'ellie')}
+            style={{
+              display: 'flex', alignItems: 'center',
+              height: 28, padding: '0 4px', cursor: 'pointer',
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'ellie' ? '#a78bfa' : '#64748b', letterSpacing: '0.05em' }}>
+              Ellie
+            </span>
+          </button>
 
-        <button
-          onClick={() => setAssistantPanel(panel => panel === 'cleaver' ? null : 'cleaver')}
-          style={{
-            display: 'flex', alignItems: 'center',
-            height: 28, padding: '0 4px', cursor: 'pointer',
-            background: 'transparent',
-            border: 'none',
-            boxShadow: 'none',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'cleaver' ? '#22c55e' : '#64748b', letterSpacing: '0.05em' }}>
-            Cleaver
-          </span>
-        </button>
+          <button
+            onClick={() => setAssistantPanel(panel => panel === 'cleaver' ? null : 'cleaver')}
+            style={{
+              display: 'flex', alignItems: 'center',
+              height: 28, padding: '0 4px', cursor: 'pointer',
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'cleaver' ? '#22c55e' : '#64748b', letterSpacing: '0.05em' }}>
+              Cleaver
+            </span>
+          </button>
 
-        <button
-          onClick={() => setShowAddPanel(true)}
-          style={{
-            height: 28, padding: '0 4px', cursor: 'pointer',
-            background: 'transparent', color: '#64748b',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            border: 'none',
-            boxShadow: 'none',
-          }}
-        >
-          New
-        </button>
+          <button
+            onClick={() => setShowAddPanel(true)}
+            style={{
+              height: 28, padding: '0 4px', cursor: 'pointer',
+              background: 'transparent', color: '#64748b',
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+              border: 'none',
+              boxShadow: 'none',
+            }}
+          >
+            New
+          </button>
+        </div>
+
+        <details className="dashboard-team-menu">
+          <summary>Team</summary>
+          <div className="dashboard-team-menu-panel">
+            <button
+              type="button"
+              onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
+              style={{ color: assistantPanel === 'wendy' ? '#00b4ff' : '#94a3b8' }}
+            >
+              Wendy
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssistantPanel(panel => panel === 'ellie' ? null : 'ellie')}
+              style={{ color: assistantPanel === 'ellie' ? '#a78bfa' : '#94a3b8' }}
+            >
+              Ellie
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssistantPanel(panel => panel === 'cleaver' ? null : 'cleaver')}
+              style={{ color: assistantPanel === 'cleaver' ? '#22c55e' : '#94a3b8' }}
+            >
+              Cleaver
+            </button>
+            <button type="button" onClick={() => setShowAddPanel(true)}>
+              New task
+            </button>
+          </div>
+        </details>
       </div>
 
       {/* ── Activity ticker ── */}
