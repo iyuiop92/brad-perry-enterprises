@@ -64,7 +64,7 @@ export default function TaskDetailModal({
       <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
 
       <div
-        className="fixed right-0 top-0 bottom-0 z-50 flex flex-col"
+        className="task-detail-drawer fixed right-0 top-0 bottom-0 z-50 flex flex-col"
         style={{ width: 'min(500px, 100vw)', background: '#08080f', borderLeft: '1px solid rgba(0,180,255,0.12)' }}
         onClick={e => e.stopPropagation()}
       >
