@@ -301,7 +301,7 @@ export default function DashboardPage() {
         <TaskDetailModal
           task={selectedTask}
           onClose={() => setSelectedTask(null)}
-          onSaved={() => fetchAll()}
+          onSaved={task => { if (task) setSelectedTask(task); fetchAll() }}
           onDeleted={() => { setSelectedTask(null); fetchAll() }}
         />
       )}
