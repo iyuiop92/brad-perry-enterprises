@@ -18,11 +18,11 @@ const statusLabel = {
   done: 'Done',
 } as const
 
-const modeOptions: { id: OperatingMode; label: string; time: string; color: string; intent: string }[] = [
-  { id: 'sprint', label: 'Sprint', time: '45m', color: '#38bdf8', intent: 'ship the next visible output' },
-  { id: 'deep', label: 'Deep', time: '90m', color: '#a78bfa', intent: 'protect one hard build session' },
-  { id: 'admin', label: 'Sweep', time: '20m', color: '#f59e0b', intent: 'clear drag and tiny loops' },
-  { id: 'closeout', label: 'Close', time: '10m', color: '#22c55e', intent: 'log the day and choose tomorrow' },
+const modeOptions: { id: OperatingMode; label: string; time: string; minutes: number; color: string; intent: string }[] = [
+  { id: 'sprint', label: 'Sprint', time: '45m', minutes: 45, color: '#38bdf8', intent: 'ship the next visible output' },
+  { id: 'deep', label: 'Deep', time: '90m', minutes: 90, color: '#a78bfa', intent: 'protect one hard build session' },
+  { id: 'admin', label: 'Sweep', time: '20m', minutes: 20, color: '#f59e0b', intent: 'clear drag and tiny loops' },
+  { id: 'closeout', label: 'Close', time: '10m', minutes: 10, color: '#22c55e', intent: 'log the day and choose tomorrow' },
 ]
 
 const laneTheme: Record<WorkLane, { color: string; tint: string }> = {
@@ -118,6 +118,13 @@ function shortDateTime(date: string) {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function formatTimer(seconds: number) {
+  const safeSeconds = Math.max(0, seconds)
+  const minutes = Math.floor(safeSeconds / 60)
+  const remainder = safeSeconds % 60
+  return `${minutes}:${remainder.toString().padStart(2, '0')}`
 }
 
 function Card({ children, style }: { children: React.ReactNode; style?: CSSProperties }) {
@@ -293,6 +300,9 @@ export default function CommandFeed({
   const [capturing, setCapturing] = useState(false)
   const [statusOverrides, setStatusOverrides] = useState<Record<string, TaskAction>>({})
   const [mode, setMode] = useState<OperatingMode>('sprint')
+  const [timerMode, setTimerMode] = useState<OperatingMode | null>(null)
+  const [timerRemaining, setTimerRemaining] = useState(0)
+  const [timerRunning, setTimerRunning] = useState(false)
   const [view, setView] = useState<ViewMode>('active')
   const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<string | null>(null)
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([])
@@ -306,6 +316,23 @@ export default function CommandFeed({
   const [dailyStateLoaded, setDailyStateLoaded] = useState(false)
   const captureRef = useRef<HTMLInputElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!timerRunning) return
+
+    const interval = window.setInterval(() => {
+      setTimerRemaining(current => {
+        if (current <= 1) {
+          setTimerRunning(false)
+          return 0
+        }
+
+        return current - 1
+      })
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [timerRunning])
 
   useEffect(() => {
     function handleDashboardHash() {
@@ -519,6 +546,25 @@ export default function CommandFeed({
     void saveDailyState({ recurring_items: next })
   }
 
+  function toggleTimer(option: typeof modeOptions[number]) {
+    setMode(option.id)
+
+    if (timerMode !== option.id || timerRemaining === 0) {
+      setTimerMode(option.id)
+      setTimerRemaining(option.minutes * 60)
+      setTimerRunning(true)
+      return
+    }
+
+    setTimerRunning(running => !running)
+  }
+
+  function resetTimer() {
+    setTimerMode(null)
+    setTimerRemaining(0)
+    setTimerRunning(false)
+  }
+
   function workspaceFor(task: Task) {
     return task.workspace_id ? workspaceById[task.workspace_id] : undefined
   }
@@ -531,8 +577,8 @@ export default function CommandFeed({
       style={{
         height: '100%',
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 330px',
-        gap: 16,
+        gridTemplateColumns: 'minmax(0, 1fr)',
+        gap: 0,
         padding: 16,
         overflow: 'hidden',
         background: `
@@ -559,27 +605,48 @@ export default function CommandFeed({
             <div className="dashboard-mode-bar" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {modeOptions.map(option => {
                 const selected = option.id === mode
+                const timerActive = timerMode === option.id && timerRemaining > 0
                 return (
                   <button
                     key={option.id}
-                    onClick={() => setMode(option.id)}
+                    onClick={() => toggleTimer(option)}
                     className={`dashboard-mode-button ${selected ? 'is-selected' : ''}`}
+                    title={timerActive ? `${timerRunning ? 'Pause' : 'Resume'} ${option.label}` : `Start ${option.label}`}
                     style={{
                       height: 30,
                       padding: '0 9px',
                       borderRadius: 5,
-                      border: `1px solid ${selected ? option.color : 'rgba(255,255,255,0.1)'}`,
-                      background: selected ? `${option.color}1f` : 'rgba(255,255,255,0.035)',
+                      border: `1px solid ${timerActive || selected ? option.color : 'rgba(255,255,255,0.1)'}`,
+                      background: timerActive ? `${option.color}28` : selected ? `${option.color}1f` : 'rgba(255,255,255,0.035)',
                       color: selected ? '#f8fafc' : '#94a3b8',
                       fontSize: 11,
                       fontWeight: 850,
                       cursor: 'pointer',
                     }}
                   >
-                    {option.label} {option.time}
+                    {option.label} {timerActive ? formatTimer(timerRemaining) : option.time}
                   </button>
                 )
               })}
+              {timerMode && (
+                <button
+                  onClick={resetTimer}
+                  className="dashboard-mode-button"
+                  style={{
+                    height: 30,
+                    padding: '0 9px',
+                    borderRadius: 5,
+                    border: '1px solid rgba(148,163,184,0.16)',
+                    background: 'rgba(148,163,184,0.06)',
+                    color: '#94a3b8',
+                    fontSize: 11,
+                    fontWeight: 850,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reset
+                </button>
+              )}
             </div>
           </div>
 
@@ -1261,36 +1328,6 @@ export default function CommandFeed({
         </div>
       </div>
 
-      <aside className="dashboard-command-aside" style={{ minWidth: 0, display: 'grid', gridTemplateRows: '1fr', gap: 16, overflow: 'hidden' }}>
-        <Card style={{ overflow: 'hidden' }}>
-          <SectionTitle label="Workspaces" detail={selectedWs ? `Filtered to ${selectedWs.name}` : 'Portfolio'} />
-          <div style={{ overflow: 'auto', maxHeight: '100%', padding: 8 }}>
-            {workspaces.map(ws => (
-              <button
-                key={ws.id}
-                onClick={() => onSelectWs(ws)}
-                style={{
-                  width: '100%',
-                  minHeight: 36,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 9,
-                  padding: '7px 8px',
-                  borderRadius: 7,
-                  border: 'none',
-                  background: selectedWs?.id === ws.id ? `${ws.color}18` : 'transparent',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: ws.color, boxShadow: selectedWs?.id === ws.id ? `0 0 12px ${ws.color}` : 'none', flexShrink: 0 }} />
-                <span style={{ flex: 1, color: '#e2e8f0', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
-                <span style={{ color: '#64748b', fontSize: 11 }}>{ws.idea_count}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
-      </aside>
     </div>
   )
 }

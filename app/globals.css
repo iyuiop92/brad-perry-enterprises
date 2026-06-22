@@ -297,7 +297,7 @@ body {
     width: 100%;
     max-width: none !important;
     display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
     gap: 6px !important;
     justify-content: stretch !important;
   }
@@ -362,23 +362,6 @@ body {
 
   .dashboard-lane-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-
-  .dashboard-command-aside {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 14px !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    overflow: visible !important;
-  }
-
-  .dashboard-command-aside input,
-  .dashboard-command-aside button,
-  .dashboard-command-aside p,
-  .dashboard-command-aside span {
-    max-width: 100%;
   }
 
   .health-page-shell {
