@@ -345,6 +345,11 @@ body {
     display: block !important;
   }
 
+  .dashboard-video-pipeline-grid,
+  .dashboard-video-tier-grid {
+    display: block !important;
+  }
+
   .dashboard-today-plan-grid > div {
     border-right: 0 !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -352,8 +357,17 @@ body {
 
   .dashboard-daily-systems-grid > div,
   .dashboard-daily-systems-grid > section,
-  .dashboard-focus-tools-grid > section {
+  .dashboard-focus-tools-grid > section,
+  .dashboard-video-pipeline-grid > div {
     margin-bottom: 14px;
+  }
+
+  .dashboard-video-pipeline-grid > div {
+    border-right: 0 !important;
+  }
+
+  .dashboard-video-tier-grid label {
+    margin-bottom: 10px;
   }
 
   .dashboard-today-plan-grid > div:last-child {

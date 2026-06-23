@@ -101,3 +101,19 @@ export interface DailyState {
   created_at: string
   updated_at: string
 }
+
+export type VideoIdeaStatus = 'idea' | 'research' | 'planned' | 'filmed' | 'edited' | 'published'
+
+export interface VideoIdea {
+  id: string
+  title: string
+  status: VideoIdeaStatus
+  social_media: string
+  free_tier: string
+  paid_tier: string
+  notes: string
+  research_notes: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { DailyState, HealthLog, InboxItem, RecurringDailyItem, Task, Workspace } from '@/lib/types'
+import VideoPipelinePanel from '@/components/VideoPipelinePanel'
 
 type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
 type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
@@ -1191,6 +1192,8 @@ export default function CommandFeed({
               />
             )}
           </Card>
+
+          <VideoPipelinePanel />
 
           <div className="dashboard-focus-tools-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.9fr) minmax(0, 1.1fr)', gap: 12 }}>
             <Card
