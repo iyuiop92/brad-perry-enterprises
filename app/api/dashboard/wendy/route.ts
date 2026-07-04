@@ -27,6 +27,46 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
+function messageText(message: UIMessage) {
+  return message.parts
+    ?.map(part => part.type === 'text' ? part.text : '')
+    .join(' ')
+    .trim() ?? ''
+}
+
+function selectWendyTier(messages: UIMessage[]) {
+  const tiers = {
+    claude5: {
+      name: 'Claude 5',
+      model: process.env.WENDY_CLAUDE_5_MODEL ?? 'claude-sonnet-5',
+    },
+    opus: {
+      name: 'Opus',
+      model: process.env.WENDY_OPUS_MODEL ?? 'claude-opus-4-8',
+    },
+    fable: {
+      name: 'Fable',
+      model: process.env.WENDY_FABLE_MODEL ?? 'claude-fable-5',
+    },
+  }
+
+  let selected = tiers.claude5
+  for (const message of messages) {
+    if (message.role !== 'user') continue
+    const text = messageText(message).toLowerCase()
+
+    if (/\b(fable|highest tier|top tier|max tier|maximum tier)\b/.test(text)) {
+      selected = tiers.fable
+    } else if (/\b(opus|deep mode|higher model|heavy model)\b/.test(text)) {
+      selected = tiers.opus
+    } else if (/\b(claude 5|sonnet 5|default tier|normal tier|standard tier)\b/.test(text)) {
+      selected = tiers.claude5
+    }
+  }
+
+  return selected
+}
+
 export async function POST(request: Request) {
   const { messages }: { messages: UIMessage[] } = await request.json()
 
@@ -78,11 +118,23 @@ YOUR ROLE:
 Priority framework when advising: (1) revenue-blocking issues, (2) content/knowledge library, (3) traffic and referrals, (4) platform improvements. Push back clearly if Brad is about to spend time on tier 4 while tier 1 is unfinished.`
 
   const modelMessages = await convertToModelMessages(messages)
+  const wendyTier = selectWendyTier(messages)
 
   try {
     const { text } = await generateText({
-      model: anthropic(process.env.WENDY_ANTHROPIC_MODEL ?? 'claude-sonnet-4-6'),
-      system,
+      model: anthropic(wendyTier.model),
+      system: `${system}
+
+ACTIVE WENDY TIER:
+- Tier name: ${wendyTier.name}
+- Anthropic model: ${wendyTier.model}
+
+Tier behavior:
+- Default tier is Claude 5.
+- If Brad asks what tier or model you are running, answer with the active tier name and model.
+- If Brad asks for Fable, highest tier, top tier, or maximum tier, use the Fable tier.
+- If Brad asks for Opus, deep mode, higher model, or heavy model, use the Opus tier.
+- If Brad asks for Claude 5, Sonnet 5, default tier, normal tier, or standard tier, use the Claude 5 tier.`,
       messages: modelMessages,
     })
 
@@ -93,7 +145,7 @@ Priority framework when advising: (1) revenue-blocking issues, (2) content/knowl
     try {
       const { text } = await generateText({
         model: google(process.env.WENDY_GEMINI_MODEL ?? 'gemini-2.5-flash'),
-        system: `${system}\n\nClaude is currently unavailable, so you are running through Wendy's Gemini fallback. Stay fully in Wendy's voice and do not mention the provider unless Brad asks.`,
+        system: `${system}\n\nClaude tier ${wendyTier.name} (${wendyTier.model}) is currently unavailable, so you are running through Wendy's Gemini fallback. Stay fully in Wendy's voice and do not mention the provider unless Brad asks.`,
         messages: modelMessages,
       })
 
