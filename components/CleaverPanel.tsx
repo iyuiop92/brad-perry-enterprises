@@ -72,10 +72,10 @@ export default function CleaverPanel({
             <p className="text-xs font-[850]" style={{ color: '#e2e8f0', fontFamily: 'var(--font-outfit)' }}>
               Cleaver
             </p>
-            <span className="text-[8px] font-[750]" style={{ color: '#22c55e' }}>LOCAL</span>
+            <span className="text-[8px] font-[750]" style={{ color: '#22c55e' }}>REASON</span>
           </div>
           <p className="text-[9px]" style={{ color: '#64748b' }}>
-            {selectedWs ? `Stepping back on ${selectedWs.name}` : 'Private local Qwen reasoning'}
+            {selectedWs ? `Stepping back on ${selectedWs.name}` : 'Steady repair logic and tradeoffs'}
           </p>
         </div>
       </div>
@@ -217,7 +217,7 @@ export default function CleaverPanel({
           </button>
         </div>
         <p className="text-[8px] text-center mt-1.5" style={{ color: '#334155' }}>
-          Cleaver uses your local Ollama model when the dashboard can reach this Mac.
+          Cleaver uses local Ollama when reachable, with Gemini as the production fallback.
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
-import { createUIMessageStream, createUIMessageStreamResponse, UIMessage } from 'ai'
+import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, generateText, UIMessage } from 'ai'
+import { google } from '@ai-sdk/google'
 import { requireAuth } from '@/lib/require-auth'
 import { getDashboardContext } from '@/lib/dashboardContext'
 
@@ -24,14 +25,27 @@ function cleaverStream(text: string) {
   return createUIMessageStreamResponse({ stream })
 }
 
+function extractOllamaText(data: unknown) {
+  if (!data || typeof data !== 'object') return ''
+  const record = data as Record<string, unknown>
+  const message = record.message
+  if (message && typeof message === 'object') {
+    const content = (message as Record<string, unknown>).content
+    if (typeof content === 'string') return content
+  }
+  return typeof record.response === 'string' ? record.response : ''
+}
+
 export async function POST(request: Request) {
   const { messages }: { messages: UIMessage[] } = await request.json()
 
   const { supabase, unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
-  const baseUrl = process.env.CLEAVER_OLLAMA_URL ?? process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434'
-  const model = process.env.CLEAVER_MODEL ?? 'qwen3.6:27b'
+  const configuredOllamaUrl = process.env.CLEAVER_OLLAMA_URL ?? process.env.OLLAMA_BASE_URL
+  const baseUrl = configuredOllamaUrl ?? 'http://127.0.0.1:11434'
+  const localModel = process.env.CLEAVER_MODEL ?? 'qwen3.6:27b'
+  const geminiModel = process.env.CLEAVER_GEMINI_MODEL ?? 'gemini-2.5-flash'
 
   const dashboardContext = await getDashboardContext(supabase)
 
@@ -64,6 +78,25 @@ Behavior:
 - Do not impersonate his grandmother or use caricatured dialect.
 - Do not claim to edit files or perform dashboard actions from chat. If work needs Codex, write the exact request Brad should send.`
 
+  async function fallbackToGemini(reason: string) {
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      return cleaverStream(`${reason} Gemini fallback is also missing GOOGLE_GENERATIVE_AI_API_KEY.`)
+    }
+
+    const modelMessages = await convertToModelMessages(messages)
+    const { text } = await generateText({
+      model: google(geminiModel),
+      system: `${system}\n\nYou are currently running through Cleaver's Gemini fallback because local Ollama is not reachable from this deployment. Stay in Cleaver's voice. Do not mention the provider unless Brad asks.`,
+      messages: modelMessages,
+    })
+
+    return cleaverStream(text)
+  }
+
+  if (!configuredOllamaUrl && process.env.VERCEL) {
+    return fallbackToGemini('Cleaver could not find a production Ollama bridge.')
+  }
+
   const ollamaMessages = [
     { role: 'system', content: system },
     ...messages
@@ -79,7 +112,7 @@ Behavior:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model,
+        model: localModel,
         stream: false,
         messages: ollamaMessages,
       }),
@@ -88,14 +121,14 @@ Behavior:
     if (!response.ok) {
       const detail = await response.text()
       console.error('Cleaver local model error', response.status, detail)
-      return cleaverStream(`Cleaver is wired to the local model, but Ollama rejected the request for "${model}". Check that the model is running locally and that CLEAVER_MODEL matches the Ollama model name.`)
+      return fallbackToGemini(`Cleaver is wired to local Ollama, but Ollama rejected "${localModel}".`)
     }
 
     const data = await response.json()
-    const text = data?.message?.content || data?.response || 'Cleaver did not return a text response.'
+    const text = extractOllamaText(data) || 'Cleaver did not return a text response.'
     return cleaverStream(text)
   } catch (error) {
     console.error('Cleaver route error', error)
-    return cleaverStream(`Cleaver is local-only right now. Run the dashboard on this Mac, or expose your local Ollama endpoint through a secure bridge, then set CLEAVER_OLLAMA_URL. Current target: ${baseUrl}`)
+    return fallbackToGemini(`Cleaver could not reach local Ollama at ${baseUrl}.`)
   }
 }
