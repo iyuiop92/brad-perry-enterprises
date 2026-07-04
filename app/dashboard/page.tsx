@@ -7,11 +7,12 @@ import CommandFeed from '@/components/CommandFeed'
 import WendyPanel from '@/components/WendyPanel'
 import ElliePanel from '@/components/ElliePanel'
 import CleaverPanel from '@/components/CleaverPanel'
+import SamPanel from '@/components/SamPanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
 import AddWorkspacePanel from '@/components/AddWorkspacePanel'
 
-type AssistantPanel = 'wendy' | 'ellie' | 'cleaver' | null
+type AssistantPanel = 'wendy' | 'ellie' | 'cleaver' | 'sam' | null
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -113,6 +114,22 @@ export default function DashboardPage() {
           </button>
 
           <button
+            onClick={() => setAssistantPanel(panel => panel === 'sam' ? null : 'sam')}
+            style={{
+              display: 'flex', alignItems: 'center',
+              height: 28, padding: '0 4px', cursor: 'pointer',
+              background: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'sam' ? '#2dd4bf' : '#64748b', letterSpacing: '0.05em' }}>
+              Sam
+            </span>
+          </button>
+
+          <button
             onClick={() => setShowAddPanel(true)}
             style={{
               height: 28, padding: '0 4px', cursor: 'pointer',
@@ -149,6 +166,13 @@ export default function DashboardPage() {
               style={{ color: assistantPanel === 'cleaver' ? '#22c55e' : '#94a3b8' }}
             >
               Cleaver
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssistantPanel(panel => panel === 'sam' ? null : 'sam')}
+              style={{ color: assistantPanel === 'sam' ? '#2dd4bf' : '#94a3b8' }}
+            >
+              Sam
             </button>
             <button type="button" onClick={() => setShowAddPanel(true)}>
               New task
@@ -253,9 +277,9 @@ export default function DashboardPage() {
           transform: assistantPanel ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           background: 'rgba(4,4,10,0.98)',
-          borderLeft: `1px solid ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.16)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.16)' : 'rgba(0,180,255,0.12)'}`,
+          borderLeft: `1px solid ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.16)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.16)' : assistantPanel === 'sam' ? 'rgba(45,212,191,0.16)' : 'rgba(0,180,255,0.12)'}`,
           boxShadow: assistantPanel
-            ? `-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.06)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.06)' : 'rgba(0,180,255,0.05)'}`
+            ? `-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.06)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.06)' : assistantPanel === 'sam' ? 'rgba(45,212,191,0.06)' : 'rgba(0,180,255,0.05)'}`
             : 'none',
         }}
       >
@@ -267,6 +291,9 @@ export default function DashboardPage() {
         )}
         {assistantPanel === 'cleaver' && (
           <CleaverPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
+        )}
+        {assistantPanel === 'sam' && (
+          <SamPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
         )}
       </div>
 
