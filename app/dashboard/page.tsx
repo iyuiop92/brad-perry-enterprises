@@ -146,6 +146,9 @@ export default function DashboardPage() {
         <details className="dashboard-team-menu">
           <summary>Team</summary>
           <div className="dashboard-team-menu-panel">
+            <a href="/dashboard/bridge" style={{ color: '#00b4ff', fontWeight: 700 }}>
+              Bridge ↗
+            </a>
             <button
               type="button"
               onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
