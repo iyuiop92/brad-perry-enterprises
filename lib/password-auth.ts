@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
 
 const COOKIE_NAME = 'bpe_dashboard_session'
-const MAX_AGE_SECONDS = 60 * 60 * 24 * 30
+const MAX_AGE_SECONDS = 60 * 60 * 24 * 365
 
 function getDashboardPassword() {
   return process.env.DASHBOARD_PASSWORD || process.env.BPE_PASSCODE || ''
