@@ -17,8 +17,8 @@ type Message = {
 
 const ROLE_META: Record<Role, { label: string; color: string }> = {
   user: { label: 'You', color: '#e2e8f0' },
-  claude: { label: 'Jack (Claude)', color: '#00b4ff' },
-  codex: { label: 'Codex', color: '#fb923c' },
+  claude: { label: 'Wendy', color: '#00b4ff' },
+  codex: { label: 'Ellie', color: '#fb923c' },
   system: { label: 'System', color: '#64748b' },
 }
 
@@ -90,7 +90,7 @@ export default function BridgePage() {
         <div className="flex-1 space-y-3">
           {messages.length === 0 && (
             <p className="mt-8 text-center text-sm" style={{ color: '#475569' }}>
-              No messages yet. Ask Jack or Codex something below.
+              No messages yet. Ask Wendy or Ellie something below.
             </p>
           )}
           {messages.map((m) => {
@@ -100,7 +100,7 @@ export default function BridgePage() {
               <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
                 <span className="mb-1 text-[10px] font-[700] uppercase tracking-wider" style={{ color: meta.color }}>
                   {meta.label}
-                  {mine && m.target === 'both' ? ' → both' : mine && m.target === 'codex' ? ' → codex' : ''}
+                  {mine && m.target === 'both' ? ' → both' : mine && m.target === 'codex' ? ' → Ellie' : ''}
                 </span>
                 <div
                   className="max-w-[85%] whitespace-pre-wrap rounded-[10px] px-3.5 py-2.5 text-sm leading-relaxed"
@@ -148,7 +148,7 @@ export default function BridgePage() {
                   color: target === t ? '#00b4ff' : '#64748b',
                 }}
               >
-                {t === 'claude' ? 'Jack' : t === 'codex' ? 'Codex' : 'Both'}
+                {t === 'claude' ? 'Wendy' : t === 'codex' ? 'Ellie' : 'Both'}
               </button>
             ))}
           </div>
@@ -163,7 +163,7 @@ export default function BridgePage() {
                 }
               }}
               rows={1}
-              placeholder={`Message ${target === 'both' ? 'both agents' : target === 'codex' ? 'Codex' : 'Jack'}…`}
+              placeholder={`Message ${target === 'both' ? 'both agents' : target === 'codex' ? 'Ellie' : 'Wendy'}…`}
               className="flex-1 resize-none rounded-[10px] px-3.5 py-2.5 text-sm outline-none"
               style={{ background: '#0d0d1a', border: '1px solid rgba(0,180,255,0.13)', color: '#e2e8f0', maxHeight: 160 }}
             />
