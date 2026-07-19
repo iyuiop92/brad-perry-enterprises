@@ -22,9 +22,9 @@
  *   BRIDGE_HISTORY                 how many prior messages to pass as context (default: 12)
  */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, unlinkSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 
@@ -59,14 +59,26 @@ const CWD = process.env.BRIDGE_CWD || join(homedir(), 'aether-hockey')
 const CLAUDE_CMD = process.env.BRIDGE_CLAUDE_CMD || 'claude'
 const CODEX_CMD = process.env.BRIDGE_CODEX_CMD || 'codex'
 const POLL_MS = Number(process.env.BRIDGE_POLL_MS || 2000)
-const TIMEOUT_MS = Number(process.env.BRIDGE_TIMEOUT_MS || 240000)
+const TIMEOUT_MS = Number(process.env.BRIDGE_TIMEOUT_MS || 600000)
 const HISTORY = Number(process.env.BRIDGE_HISTORY || 12)
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
+// Each agent's build(prompt) returns { cmd, args, outFile? }.
+// Codex prints a noisy session preamble to stdout, so we use --output-last-message
+// to capture ONLY the final reply into a temp file, then read that.
 const AGENTS = {
-  claude: { role: 'claude', cmd: CLAUDE_CMD, args: (prompt) => ['-p', prompt, '--output-format', 'text'] },
-  codex: { role: 'codex', cmd: CODEX_CMD, args: (prompt) => ['exec', prompt] },
+  claude: {
+    role: 'claude',
+    build: (prompt) => ({ cmd: CLAUDE_CMD, args: ['-p', prompt, '--output-format', 'text'] }),
+  },
+  codex: {
+    role: 'codex',
+    build: (prompt) => {
+      const outFile = join(tmpdir(), `codex-out-${Date.now()}-${Math.floor(Math.random() * 1e9)}.txt`)
+      return { cmd: CODEX_CMD, args: ['exec', '--skip-git-repo-check', '-o', outFile, prompt], outFile }
+    },
+  },
 }
 
 function log(...a) {
@@ -76,10 +88,26 @@ function log(...a) {
 // Run one agent CLI call, return { ok, text }
 function runAgent(agent, prompt) {
   return new Promise((resolve) => {
+    const spec = agent.build(prompt)
     let out = ''
     let err = ''
     let done = false
-    const child = spawn(agent.cmd, agent.args(prompt), { cwd: CWD, env: process.env })
+
+    // If the agent wrote its clean reply to a file, prefer that over noisy stdout.
+    const readReply = () => {
+      if (spec.outFile) {
+        try {
+          const fileText = readFileSync(spec.outFile, 'utf8').trim()
+          unlinkSync(spec.outFile)
+          if (fileText) return fileText
+        } catch {
+          try { unlinkSync(spec.outFile) } catch {}
+        }
+      }
+      return out.trim()
+    }
+
+    const child = spawn(spec.cmd, spec.args, { cwd: CWD, env: process.env })
 
     const timer = setTimeout(() => {
       if (done) return
@@ -94,13 +122,13 @@ function runAgent(agent, prompt) {
       if (done) return
       done = true
       clearTimeout(timer)
-      resolve({ ok: false, text: `Could not launch "${agent.cmd}": ${e.message}. Check BRIDGE_${agent.role === 'claude' ? 'CLAUDE' : 'CODEX'}_CMD.` })
+      resolve({ ok: false, text: `Could not launch "${spec.cmd}": ${e.message}. Check BRIDGE_${agent.role === 'claude' ? 'CLAUDE' : 'CODEX'}_CMD.` })
     })
     child.on('close', (code) => {
       if (done) return
       done = true
       clearTimeout(timer)
-      const text = out.trim()
+      const text = readReply()
       if (code === 0 && text) resolve({ ok: true, text })
       else resolve({ ok: false, text: text || err.trim() || `Agent exited with code ${code}.` })
     })
