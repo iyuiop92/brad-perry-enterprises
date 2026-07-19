@@ -34,6 +34,9 @@ body {
   /* dot-grid background */
   background-image: radial-gradient(rgba(0, 180, 255, 0.07) 1px, transparent 1px);
   background-size: 28px 28px;
+  /* Scale the whole UI up for readability without touching every component.
+     Tune this one number: 1 = original, 1.2 = 20% bigger. */
+  zoom: 1.2;
 }
 
 /* breathing glow animation for workspace tiles */
