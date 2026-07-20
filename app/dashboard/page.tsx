@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import type { Task, Workspace } from '@/lib/types'
 import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
+import QuickChatComposer from '@/components/QuickChatComposer'
 import WendyPanel from '@/components/WendyPanel'
 import ElliePanel from '@/components/ElliePanel'
 import CleaverPanel from '@/components/CleaverPanel'
@@ -234,6 +235,9 @@ export default function DashboardPage() {
           </div>
         )
       })()}
+
+      {/* ── Quick chat: drop-in composer, routes to full Bridge thread ── */}
+      <QuickChatComposer />
 
       {/* ── Body ── */}
       <main className="dashboard-page-main" style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
