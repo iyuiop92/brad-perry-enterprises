@@ -12,6 +12,7 @@
     "@ai-sdk/anthropic": "^3.0.76",
     "@ai-sdk/google": "^3.0.80",
     "@ai-sdk/react": "^3.0.179",
+    "@google-analytics/data": "^6.1.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "@vercel/analytics": "^2.0.1",

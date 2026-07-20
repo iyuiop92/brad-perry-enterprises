@@ -22,7 +22,7 @@ const SCHEDULE_MAP: Record<string, string> = {
   Sunday: 'Family hike in the morning. Pizza cheat day. Recovery.',
 }
 
-export async function generateMorningBrief(tasks: BriefTask[]): Promise<string> {
+export async function generateMorningBrief(tasks: BriefTask[], traffic?: string | null): Promise<string> {
   const now = new Date()
   const tz = 'America/Phoenix'
   const dayName = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long' })
@@ -66,6 +66,9 @@ ${taskLines || 'No urgent tasks in queue — good time to push new initiatives.'
 
 Priority order: (1) revenue-blocking, (2) content library, (3) traffic/referrals, (4) platform improvements.
 
+AETHER HOCKEY TRAFFIC (Google Analytics, last 7 days vs prior 7):
+${traffic || 'No analytics available today.'}
+
 Write the brief in exactly this format — no preamble, no extra commentary:
 
 WORKOUT
@@ -76,6 +79,9 @@ FOOD
 
 FOCUS
 [3–5 lines: top business priorities for today. Reference actual tasks above. Direct, no fluff.]
+
+TRAFFIC
+[2–3 lines on Aether Hockey site traffic using the analytics numbers above: what moved and what it means, plus one concrete action (e.g. a page catching fire to clip, a source worth doubling down on). Cite a real number. If no analytics available today, write "No analytics today." and nothing else.]
 
 SCHEDULE
 [1–2 lines: key time blocks for today only. Highlight any hard stops or unusual constraints.]
