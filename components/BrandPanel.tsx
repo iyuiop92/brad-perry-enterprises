@@ -11,14 +11,14 @@ function healthPulse(ws: Workspace): number {
 function wendyInsight(ws: Workspace | null, blocked: Task[], active: Task[]): string {
   if (!ws) return 'Select a workspace to activate the constellation.'
   if (blocked.length > 1)
-    return `${blocked.length} blockers detected. Clear these before adding new work to ${ws.name} — velocity drops fast when blocked tasks pile up.`
+    return `${blocked.length} to-do items in ${ws.name}. Choose one before adding new work.`
   if (blocked.length === 1)
-    return `One blocker in ${ws.name}. Address it now before it creates downstream drag.`
+    return `One to-do item in ${ws.name}. Decide whether to start it or park it.`
   if (active.length > 4)
     return `High activity across ${active.length} tasks in ${ws.name}. Consider narrowing to 2–3 to maintain real momentum.`
   if (active.length === 0)
     return `No active tasks in ${ws.name}. Time to push something in progress.`
-  return `${ws.name} is running clean — ${active.length} task${active.length !== 1 ? 's' : ''} in motion, no blockers.`
+  return `${ws.name} is running clean — ${active.length} task${active.length !== 1 ? 's' : ''} in motion.`
 }
 
 export default function BrandPanel({
@@ -42,7 +42,7 @@ export default function BrandPanel({
 
   const nextActions = workspace
     ? [
-        blockedTasks.length > 0 ? 'Resolve blockers first' : 'Add a high-priority task',
+        blockedTasks.length > 0 ? 'Choose a to-do item' : 'Add a high-priority task',
         activeTasks.length === 0 ? 'Start an initiative' : 'Update task progress',
         'Review ideas backlog',
       ]
@@ -123,7 +123,7 @@ export default function BrandPanel({
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: 'Active', val: workspace.active_count, color: '#00b4ff' },
-                { label: 'Blocked', val: workspace.blocked_count, color: '#f59e0b' },
+                { label: 'To do', val: workspace.blocked_count, color: '#f59e0b' },
                 { label: 'Ideas', val: workspace.idea_count, color: '#475569' },
               ].map(({ label, val, color }) => (
                 <div
@@ -139,11 +139,11 @@ export default function BrandPanel({
               ))}
             </div>
 
-            {/* Blockers */}
+            {/* To do */}
             {blockedTasks.length > 0 && (
               <div>
                 <p className="text-[9px] font-[700] uppercase tracking-wider mb-2" style={{ color: '#f59e0b' }}>
-                  Blockers
+                  To do
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {blockedTasks.slice(0, 4).map(t => (

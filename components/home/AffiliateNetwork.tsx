@@ -61,12 +61,12 @@ export default function AffiliateNetwork() {
         <h2 className="font-[800] text-4xl md:text-5xl text-white text-center mb-4">
           The Affiliate Network
         </h2>
-        <p className="text-[#475569] text-center mb-8 max-w-md mx-auto text-sm leading-relaxed">
+        <p className="text-white text-center mb-8 max-w-md mx-auto text-sm leading-relaxed">
           Explore how my profitable sites connect and cross-promote each other in
           this interactive network visualization.
         </p>
 
-        <div className="flex items-center justify-center gap-6 mb-6 text-xs text-[#475569] flex-wrap">
+        <div className="flex items-center justify-center gap-6 mb-6 text-xs text-white flex-wrap">
           <span className="italic">Hover over nodes to see connections</span>
           <div className="flex items-center gap-4">
             {(['all', 'personal', 'client'] as const).map(f => (
@@ -74,7 +74,7 @@ export default function AffiliateNetwork() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`flex items-center gap-1.5 font-[600] capitalize transition-colors ${
-                  filter === f ? 'text-white' : 'text-[#475569] hover:text-[#64748b]'
+                  filter === f ? 'text-white' : 'text-white hover:text-white'
                 }`}
               >
                 <span

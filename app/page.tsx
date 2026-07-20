@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
 import Nav from '@/components/home/Nav'
 import Hero from '@/components/home/Hero'
-import BrandGrid from '@/components/home/BrandGrid'
-import AffiliateNetwork from '@/components/home/AffiliateNetwork'
 import ProjectDeepDive from '@/components/home/ProjectDeepDive'
 import SkillsMastery from '@/components/home/SkillsMastery'
 import StatsBar from '@/components/home/StatsBar'
@@ -20,8 +18,6 @@ export default function HomePage() {
     <>
       <Nav />
       <Hero />
-      <BrandGrid />
-      <AffiliateNetwork />
       <ProjectDeepDive />
       <SkillsMastery />
       <StatsBar />

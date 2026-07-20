@@ -1,6 +1,6 @@
 export type TaskStatus = 'idea' | 'in_progress' | 'blocked' | 'done'
 export type TaskType = 'internal' | 'client'
-export type TaskOwner = 'brad' | 'wendy' | 'ellie'
+export type TaskOwner = 'brad' | 'wendy' | 'ellie' | 'cleaver' | 'sam'
 export type TaskPhase = 'discovery' | 'design' | 'build' | 'launch' | 'live'
 export type TaskPriority = 'high' | 'medium' | 'low'
 

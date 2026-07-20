@@ -348,6 +348,135 @@ body {
     display: block !important;
   }
 
+  .dashboard-team-room-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+  }
+
+  .dashboard-team-room-grid > div {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  }
+
+  .dashboard-team-room-table {
+    order: -2;
+    padding: 10px !important;
+    background: rgba(255, 255, 255, 0.018) !important;
+  }
+
+  .dashboard-team-room-table-inner {
+    min-height: 0 !important;
+    padding: 10px !important;
+  }
+
+  .dashboard-team-room-table-inner > div:last-child {
+    gap: 7px !important;
+    margin-top: 10px !important;
+  }
+
+  .dashboard-team-room-table-inner > div:last-child .dashboard-team-room-task:nth-of-type(n+4) {
+    display: none !important;
+  }
+
+  .dashboard-team-room-task {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+    padding: 7px 7px 21px !important;
+  }
+
+  .dashboard-team-room-task-body {
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  .dashboard-team-room-task-title-row {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .dashboard-team-room-task-title {
+    max-width: calc(100% - 16px) !important;
+    font-size: 12px !important;
+    line-height: 1.08 !important;
+  }
+
+  .dashboard-team-room-task-meta,
+  .dashboard-team-room-task-suggestion {
+    white-space: normal !important;
+    font-size: 10px !important;
+    line-height: 1.12 !important;
+  }
+
+  .dashboard-team-room-actions {
+    justify-content: center !important;
+    gap: 0 !important;
+    flex-wrap: nowrap !important;
+    overflow: visible !important;
+    padding-bottom: 2px !important;
+  }
+
+  .dashboard-assignment-sliver {
+    flex-shrink: 0 !important;
+    width: 31px !important;
+  }
+
+  .dashboard-assignment-sliver:first-child {
+    width: 38px !important;
+  }
+
+  .dashboard-team-room-station {
+    min-height: 0 !important;
+    padding: 10px 12px !important;
+  }
+
+  .dashboard-team-room-station > div:last-child {
+    max-height: 84px !important;
+    overflow: hidden !important;
+  }
+
+  .dashboard-team-room-handoff {
+    order: -1;
+    padding: 10px 12px !important;
+  }
+
+  .dashboard-team-room-handoff > div {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .dashboard-team-room-handoff > div > div:last-child {
+    justify-content: flex-start !important;
+  }
+
+  .dashboard-assignment-tray-chips {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    margin-top: 7px !important;
+    padding-bottom: 2px !important;
+  }
+
+  .dashboard-assignment-chip {
+    flex: 0 0 auto !important;
+    max-width: 190px !important;
+  }
+
+  .dashboard-assignment-chip:nth-of-type(n+4) {
+    display: none !important;
+  }
+
+  .dashboard-handoff-actions {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    justify-content: flex-start !important;
+    padding-bottom: 2px !important;
+  }
+
+  .dashboard-team-room-grid > div:last-child {
+    border-bottom: 0 !important;
+  }
+
   .dashboard-video-pipeline-grid,
   .dashboard-video-tier-grid {
     display: block !important;

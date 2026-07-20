@@ -79,7 +79,7 @@ export default function ContactForm() {
         <h2 className="font-[800] text-4xl md:text-5xl text-white text-center mb-3">
           Let's Build Something Profitable
         </h2>
-        <p className="text-[#475569] text-center mb-12 text-sm">
+        <p className="text-white text-center mb-12 text-sm">
           Get a custom project estimate in real-time
         </p>
 
@@ -99,7 +99,7 @@ export default function ContactForm() {
                 >
                   <div className="mb-2">{pt.icon}</div>
                   <div className="text-white font-[600] text-xs mb-0.5">{pt.label}</div>
-                  <div className="text-[#334155] text-[10px] leading-tight">{pt.desc}</div>
+                  <div className="text-white text-[10px] leading-tight">{pt.desc}</div>
                 </button>
               ))}
             </div>
@@ -111,13 +111,13 @@ export default function ContactForm() {
                 </svg>
                 <span className="text-white font-[700] text-sm">Get Instant Estimate</span>
               </div>
-              <p className="text-[#475569] text-xs leading-relaxed">
+              <p className="text-white text-xs leading-relaxed">
                 {selected
                   ? estimates[selected]
                   : "Select a project type to see timeline, investment, and what's included."}
               </p>
               {selected && (
-                <p className="text-[#334155] text-[10px] mt-2">
+                <p className="text-white text-[10px] mt-2">
                   All estimates include strategy, design, development, and optimization
                 </p>
               )}
@@ -133,7 +133,7 @@ export default function ContactForm() {
                   </svg>
                 </div>
                 <div className="text-white font-[700] text-xl mb-2">Brief received!</div>
-                <p className="text-[#475569] text-sm">I'll review and get back to you within 24 hours.</p>
+                <p className="text-white text-sm">I'll review and get back to you within 24 hours.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -151,33 +151,33 @@ export default function ContactForm() {
                 <div className="text-white font-[700] text-sm mb-1">Project Details</div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[#475569] text-xs block mb-1.5">Name</label>
+                    <label className="text-white text-xs block mb-1.5">Name</label>
                     <input
                       type="text"
                       placeholder="Your name"
                       value={form.name}
                       onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-[#1e293b] focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
+                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-[#64748b] focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
                     />
                   </div>
                   <div>
-                    <label className="text-[#475569] text-xs block mb-1.5">Email</label>
+                    <label className="text-white text-xs block mb-1.5">Email</label>
                     <input
                       type="email"
                       placeholder="your@email.com"
                       value={form.email}
                       onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-[#1e293b] focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
+                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-[#64748b] focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[#475569] text-xs block mb-1.5">Budget Range</label>
+                    <label className="text-white text-xs block mb-1.5">Budget Range</label>
                     <select
                       value={form.budget}
                       onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
-                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-[#64748b] text-sm focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
+                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
                     >
                       <option value="">Select budget</option>
                       <option>Under $2,500</option>
@@ -187,11 +187,11 @@ export default function ContactForm() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[#475569] text-xs block mb-1.5">Timeline</label>
+                    <label className="text-white text-xs block mb-1.5">Timeline</label>
                     <select
                       value={form.timeline}
                       onChange={e => setForm(f => ({ ...f, timeline: e.target.value }))}
-                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-[#64748b] text-sm focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
+                      className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[rgba(0,180,255,0.35)]"
                     >
                       <option value="">Select timeline</option>
                       <option>ASAP (1–2 weeks)</option>
@@ -202,13 +202,13 @@ export default function ContactForm() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-[#475569] text-xs block mb-1.5">Project Description</label>
+                  <label className="text-white text-xs block mb-1.5">Project Description</label>
                   <textarea
                     rows={4}
                     placeholder="Tell me about your vision, goals, and any specific requirements..."
                     value={form.description}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                    className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-[#1e293b] focus:outline-none focus:border-[rgba(0,180,255,0.35)] resize-none"
+                    className="w-full bg-[#0d0d1a] border border-[rgba(0,180,255,0.1)] rounded-lg px-3 py-2.5 text-white text-sm placeholder:text-[#64748b] focus:outline-none focus:border-[rgba(0,180,255,0.35)] resize-none"
                   />
                 </div>
                 <button

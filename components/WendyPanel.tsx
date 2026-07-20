@@ -13,7 +13,7 @@ function generateInsights(workspaces: Workspace[], tasks: Task[], selectedWs: Wo
   const highPri = tasks.filter(t => t.priority === 'high' && t.status !== 'done')
 
   if (allBlocked.length > 0) {
-    insights.push(`${allBlocked.length} blocked task${allBlocked.length > 1 ? 's' : ''} need attention across your portfolio`)
+    insights.push(`${allBlocked.length} to-do task${allBlocked.length > 1 ? 's' : ''} need attention across your portfolio`)
   }
   if (highPri.length > 0) {
     insights.push(`${highPri.length} high-priority item${highPri.length > 1 ? 's' : ''} still in motion`)
@@ -27,7 +27,7 @@ function generateInsights(workspaces: Workspace[], tasks: Task[], selectedWs: Wo
   if (ws) {
     const wsBlocked = tasks.filter(t => t.workspace_id === ws.id && t.status === 'blocked')
     if (wsBlocked.length > 0) {
-      insights.push(`${ws.name} has ${wsBlocked.length} blocker${wsBlocked.length > 1 ? 's' : ''} — clear these before adding new work`)
+      insights.push(`${ws.name} has ${wsBlocked.length} to-do item${wsBlocked.length > 1 ? 's' : ''} — choose one before adding new work`)
     }
     const wsActive = tasks.filter(t => t.workspace_id === ws.id && t.status === 'in_progress')
     if (wsActive.length > 4) {
@@ -90,6 +90,24 @@ export default function WendyPanel({
       className="flex flex-col h-full"
       style={{ borderLeft: '1px solid rgba(0,180,255,0.08)' }}
     >
+      {/* Activity ticker */}
+      {tasks.length > 0 && (() => {
+        const tickerText = [...tasks]
+          .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+          .slice(0, 10)
+          .map(t => `${t.title} — ${t.status.replace('_', ' ')}`)
+          .join('   ·   ')
+        return (
+          <div style={{ flexShrink: 0, height: 28, display: 'flex', alignItems: 'center', overflow: 'hidden', background: 'rgba(0,0,0,0.5)', borderBottom: '1px solid rgba(0,180,255,0.06)' }}>
+            <style>{`@keyframes wendy-ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+            <div style={{ display: 'inline-flex', whiteSpace: 'nowrap', animation: 'wendy-ticker 50s linear infinite' }}>
+              <span style={{ fontSize: 9, lineHeight: '1', color: '#8899aa', paddingRight: 60 }}>{tickerText}</span>
+              <span style={{ fontSize: 9, lineHeight: '1', color: '#8899aa', paddingRight: 60 }}>{tickerText}</span>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Panel header */}
       <div
         className="shrink-0 px-4 py-3 flex items-center gap-3"
@@ -155,7 +173,7 @@ export default function WendyPanel({
             </p>
             {[
               'What should I focus on today?',
-              'What\'s blocking my momentum?',
+              'What should I do next?',
               'What\'s the highest-leverage task right now?',
             ].map(suggestion => (
               <button

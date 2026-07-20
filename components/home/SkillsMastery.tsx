@@ -168,7 +168,7 @@ export default function SkillsMastery() {
         <h2 className="font-[800] text-4xl md:text-5xl text-white text-center mb-4">
           Skills Mastery
         </h2>
-        <p className="text-[#475569] text-center mb-10 max-w-lg mx-auto text-sm leading-relaxed">
+        <p className="text-white text-center mb-10 max-w-lg mx-auto text-sm leading-relaxed">
           Explore my expertise across development, design, strategy, and AI automation through interactive visualizations.
         </p>
 
@@ -180,7 +180,7 @@ export default function SkillsMastery() {
               className={`px-4 py-2 rounded-lg text-sm font-[600] transition-all duration-200 ${
                 activeTab === tab.id
                   ? 'bg-[rgba(0,180,255,0.12)] text-[#00b4ff] border border-[rgba(0,180,255,0.3)]'
-                  : 'text-[#475569] border border-transparent hover:text-[#64748b]'
+                  : 'text-white border border-transparent hover:text-white'
               }`}
             >
               {tab.label}
@@ -192,7 +192,7 @@ export default function SkillsMastery() {
           <div className="flex flex-col md:flex-row gap-8 items-start">
             <div className="flex flex-col items-center flex-shrink-0">
               <div className="text-white font-[700] text-sm mb-1">{data.title}</div>
-              <div className="text-[#334155] text-xs mb-4">Expertise levels across key skills</div>
+              <div className="text-white text-xs mb-4">Expertise levels across key skills</div>
               <RadarChart skills={data.skills} />
             </div>
 
@@ -206,14 +206,14 @@ export default function SkillsMastery() {
                     <span className="text-white font-[700] text-sm">{skill.name}</span>
                     <span className="text-[#00b4ff] font-[800] text-sm">{skill.level}%</span>
                   </div>
-                  <p className="text-[#334155] text-xs mb-2 leading-relaxed">{skill.description}</p>
+                  <p className="text-white text-xs mb-2 leading-relaxed">{skill.description}</p>
                   <div className="h-1 bg-[rgba(0,180,255,0.07)] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-[#00b4ff] rounded-full"
                       style={{ width: `${skill.level}%` }}
                     />
                   </div>
-                  <div className="flex items-center gap-4 mt-2 text-[#334155] text-[10px]">
+                  <div className="flex items-center gap-4 mt-2 text-white text-[10px]">
                     <span>{skill.years}+ years</span>
                     {skill.projects !== null && <span>{skill.projects} projects</span>}
                     <span className="ml-auto">{skill.type}</span>

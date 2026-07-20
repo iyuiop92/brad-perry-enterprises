@@ -17,7 +17,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'done',        label: 'Done'        },
 ]
 
-const OWNER_OPTIONS: TaskOwner[] = ['brad', 'wendy', 'ellie']
+const OWNER_OPTIONS: TaskOwner[] = ['brad', 'wendy', 'ellie', 'cleaver', 'sam']
 const PHASE_OPTIONS: (TaskPhase | '')[] = ['', 'discovery', 'design', 'build', 'launch', 'live']
 
 async function patchTask(id: string, body: Partial<Task>) {
@@ -94,13 +94,16 @@ export default function TaskDetailModal({
   }
 
   useEffect(() => {
-    setTitle(task.title)
-    setNotes(task.notes ?? '')
-    setStatus(task.status)
-    setPriority(task.priority ?? 'medium')
-    setOwner(task.owner)
-    setBrand(task.brand ?? '')
-    setPhase(task.phase ?? '')
+    const timer = window.setTimeout(() => {
+      setTitle(task.title)
+      setNotes(task.notes ?? '')
+      setStatus(task.status)
+      setPriority(task.priority ?? 'medium')
+      setOwner(task.owner)
+      setBrand(task.brand ?? '')
+      setPhase(task.phase ?? '')
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [task])
 
   const hasChanges =
@@ -591,7 +594,7 @@ function NotesEditor({
           onClick={e => e.stopPropagation()}
         >
           <p style={{ fontSize: 10, color: '#475569', marginBottom: 7 }}>
-            Note for: <span style={{ color: '#7dd3fc' }}>"{selInfo.text.slice(0, 35)}{selInfo.text.length > 35 ? '…' : ''}"</span>
+            Note for: <span style={{ color: '#7dd3fc' }}>&quot;{selInfo.text.slice(0, 35)}{selInfo.text.length > 35 ? '…' : ''}&quot;</span>
           </p>
           <input
             ref={annotInputRef}

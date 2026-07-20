@@ -161,7 +161,7 @@ export default function InitiativeGrid({
               <div className="grid grid-cols-3 gap-1 mb-3 text-center">
                 {[
                   { label: 'ACTIVE', val: ws.active_count, color: '#00b4ff' },
-                  { label: 'BLOCKED', val: ws.blocked_count, color: '#f59e0b' },
+                  { label: 'TO DO', val: ws.blocked_count, color: '#f59e0b' },
                   { label: 'IDEAS', val: ws.idea_count, color: '#475569' },
                 ].map(({ label, val, color }) => (
                   <div key={label}>

@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 const stats = [
-  { value: 400, suffix: '+', label: 'Projects Completed' },
-  { value: 12, suffix: '+', label: 'Years Experience' },
+  { value: 250, suffix: '', label: 'Projects Completed' },
+  { value: 23, suffix: '', label: 'Years Experience' },
   { value: 95, suffix: '%', label: 'Client Satisfaction' },
   { value: 24, suffix: '/7', label: 'System Uptime' },
 ]
@@ -54,7 +54,7 @@ export default function StatsBar() {
         {stats.map(stat => (
           <div key={stat.label}>
             <Counter value={stat.value} suffix={stat.suffix} />
-            <div className="text-[#475569] text-sm mt-1">{stat.label}</div>
+            <div className="text-white text-sm mt-1">{stat.label}</div>
           </div>
         ))}
       </div>

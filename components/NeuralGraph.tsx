@@ -441,7 +441,7 @@ export default function NeuralGraph({
             <div className="grid grid-cols-3 gap-2 text-center pt-1">
               {[
                 { label: 'ACTIVE', val: hoveredNode.ws.active_count, color: '#00b4ff' },
-                { label: 'BLOCKED', val: hoveredNode.ws.blocked_count, color: '#f59e0b' },
+                { label: 'TO DO', val: hoveredNode.ws.blocked_count, color: '#f59e0b' },
                 { label: 'IDEAS', val: hoveredNode.ws.idea_count, color: '#475569' },
               ].map(({ label, val, color }) => (
                 <div key={label}>

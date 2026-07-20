@@ -90,7 +90,7 @@ export default function BrandFooterBar({
                 <span style={{ color: '#00b4ff' }}>{ws.active_count}</span>{' '}
                 active
                 {ws.blocked_count > 0 && (
-                  <span style={{ color: '#f59e0b' }}> · {ws.blocked_count} blocked</span>
+                  <span style={{ color: '#f59e0b' }}> · {ws.blocked_count} to do</span>
                 )}
               </p>
               <p className="text-[8px] mt-0.5 font-[600]" style={{ color: '#283044' }}>

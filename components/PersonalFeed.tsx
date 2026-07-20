@@ -23,13 +23,15 @@ export default function PersonalFeed() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<FeedMessage[]>([])
   const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [hoveredMsg, setHoveredMsg] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    setLoading(true)
     fetch('/api/personal/feed')
       .then((r) => r.json())
       .then((data) => {
@@ -40,9 +42,27 @@ export default function PersonalFeed() {
 
   useEffect(() => {
     if (open) {
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      isAtBottomRef.current = true
+      setTimeout(() => {
+        const el = scrollContainerRef.current
+        if (el) el.scrollTop = el.scrollHeight
+      }, 50)
     }
-  }, [open, messages])
+  }, [open])
+
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    if (isAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [messages])
+
+  function handleScroll() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+  }
 
   async function handleSend() {
     const text = input.trim()
@@ -75,13 +95,49 @@ export default function PersonalFeed() {
           created_at: new Date().toISOString(),
         }
         setMessages((prev) => [...prev, reply])
+      } else {
+        const errMsg: FeedMessage = {
+          id: `err-${Date.now()}`,
+          role: 'wendy',
+          content: data.error ?? 'Something went wrong. Try again.',
+          metadata: { isError: true },
+          created_at: new Date().toISOString(),
+        }
+        setMessages((prev) => [...prev, errMsg])
       }
     } catch {
-      // leave optimistic message, let user retry
+      const errMsg: FeedMessage = {
+        id: `err-${Date.now()}`,
+        role: 'wendy',
+        content: 'Network error. Check your connection and try again.',
+        metadata: { isError: true },
+        created_at: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, errMsg])
     } finally {
       setSending(false)
       inputRef.current?.focus()
     }
+  }
+
+  async function handleDeleteMessage(id: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== id))
+    if (!id.startsWith('opt-') && !id.startsWith('rep-') && !id.startsWith('err-')) {
+      await fetch('/api/personal/feed', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).catch(() => {})
+    }
+  }
+
+  async function handleClearAll() {
+    setMessages([])
+    await fetch('/api/personal/feed', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {})
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -113,7 +169,7 @@ export default function PersonalFeed() {
               className="text-xs font-[700] uppercase tracking-widest shrink-0"
               style={{ color: '#00b4ff' }}
             >
-              Wendy
+              Personal feed
             </span>
             {loading ? (
               <span className="text-xs truncate" style={{ color: '#334155' }}>Loading...</span>
@@ -144,19 +200,32 @@ export default function PersonalFeed() {
               className="text-xs font-[700] uppercase tracking-widest"
               style={{ color: '#00b4ff' }}
             >
-              Wendy — Personal Feed
+              Personal Feed
             </span>
-            <button
-              onClick={() => setOpen(false)}
-              className="text-xs"
-              style={{ color: '#334155', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              ▴ collapse
-            </button>
+            <div className="flex items-center gap-3">
+              {messages.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  className="text-[10px] font-[600]"
+                  style={{ color: '#475569', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Clear all
+                </button>
+              )}
+              <button
+                onClick={() => setOpen(false)}
+                className="text-xs"
+                style={{ color: '#334155', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                ▴ collapse
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
           <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
             className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3"
             style={{ scrollbarWidth: 'thin', scrollbarColor: '#1e293b transparent' }}
           >
@@ -168,26 +237,49 @@ export default function PersonalFeed() {
                 Morning brief arrives at 4am. Say hi anytime.
               </p>
             )}
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col gap-0.5 ${msg.role === 'brad' ? 'items-end' : 'items-start'}`}
-              >
+            {messages.map((msg) => {
+              const isError = msg.metadata?.isError === true
+              return (
                 <div
-                  className="text-xs px-3 py-2 rounded-[10px] max-w-[85%]"
-                  style={
-                    msg.role === 'brad'
-                      ? { background: 'rgba(0, 180, 255, 0.12)', color: '#e2e8f0' }
-                      : { background: '#161626', color: '#cbd5e1' }
-                  }
+                  key={msg.id}
+                  className={`flex flex-col gap-0.5 ${msg.role === 'brad' ? 'items-end' : 'items-start'}`}
+                  onMouseEnter={() => setHoveredMsg(msg.id)}
+                  onMouseLeave={() => setHoveredMsg(null)}
                 >
-                  <span style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{msg.content}</span>
+                  <div className="flex items-start gap-1.5" style={{ maxWidth: '90%', flexDirection: msg.role === 'brad' ? 'row-reverse' : 'row' }}>
+                    <div
+                      className="text-xs px-3 py-2 rounded-[10px]"
+                      style={
+                        msg.role === 'brad'
+                          ? { background: 'rgba(0, 180, 255, 0.12)', color: '#e2e8f0' }
+                          : isError
+                          ? { background: 'rgba(245, 80, 80, 0.08)', color: '#f87171', border: '1px solid rgba(245,80,80,0.15)' }
+                          : { background: '#161626', color: '#cbd5e1' }
+                      }
+                    >
+                      <span style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{msg.content}</span>
+                    </div>
+                    {hoveredMsg === msg.id && (
+                      <button
+                        onClick={() => handleDeleteMessage(msg.id)}
+                        style={{
+                          flexShrink: 0, width: 16, height: 16, marginTop: 6,
+                          background: 'rgba(255,255,255,0.06)', border: 'none',
+                          borderRadius: 3, cursor: 'pointer', color: '#475569',
+                          fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        title="Delete message"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-[10px] px-1" style={{ color: '#1e293b' }}>
+                    {msg.role === 'wendy' ? 'Wendy · ' : ''}{formatTime(msg.created_at)}
+                  </span>
                 </div>
-                <span className="text-[10px] px-1" style={{ color: '#1e293b' }}>
-                  {msg.role === 'wendy' ? 'Wendy · ' : ''}{formatTime(msg.created_at)}
-                </span>
-              </div>
-            ))}
+              )
+            })}
             {sending && (
               <div className="flex items-start">
                 <div

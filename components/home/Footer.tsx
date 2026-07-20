@@ -13,19 +13,19 @@ export default function Footer() {
           priority={false}
         />
         <div className="w-full flex items-center justify-between flex-wrap gap-4 pt-2">
-          <span className="text-[#334155] text-sm">
+          <span className="text-white text-sm">
             &copy; 2025 Brad Perry Enterprises. All rights reserved.
           </span>
           <div className="flex items-center gap-5">
             <a
               href="mailto:hello@bradperryenterprises.com"
-              className="text-[#334155] text-sm hover:text-[#475569] transition-colors"
+              className="text-white text-sm hover:text-white transition-colors"
             >
               hello@bradperryenterprises.com
             </a>
             <a
               href="/login"
-              className="text-[10px] font-[600] text-[#1e293b] border border-[rgba(0,180,255,0.08)] px-3 py-1.5 rounded-lg hover:border-[rgba(0,180,255,0.25)] hover:text-[#334155] transition-all"
+              className="text-[10px] font-[600] text-white border border-[rgba(0,180,255,0.08)] px-3 py-1.5 rounded-lg hover:border-[rgba(0,180,255,0.25)] hover:text-white transition-all"
             >
               Admin
             </a>

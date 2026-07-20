@@ -1,9 +1,19 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { requireAuth } from '@/lib/require-auth'
 
-export async function GET() {
-  const { supabase, unauthorized } = await requireAuth()
-  if (unauthorized) return unauthorized
+export async function GET(request: NextRequest) {
+  const wendySecret = request.headers.get('x-wendy-secret')
+  const isWendy = wendySecret && wendySecret === process.env.WENDY_SECRET
+
+  let supabase
+  if (isWendy) {
+    const { createAdminClient } = await import('@/lib/supabase-admin')
+    supabase = createAdminClient()
+  } else {
+    const auth = await requireAuth()
+    if (auth.unauthorized) return auth.unauthorized
+    supabase = auth.supabase
+  }
 
   const [{ data: workspaces }, { data: tasks }] = await Promise.all([
     supabase.from('bpe_workspaces').select('*').order('sort_order'),
@@ -48,4 +58,46 @@ export async function POST(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
+}
+
+export async function DELETE(request: NextRequest) {
+  const wendySecret = request.headers.get('x-wendy-secret')
+  const isWendy = wendySecret && wendySecret === process.env.WENDY_SECRET
+
+  let supabase
+  if (isWendy) {
+    const { createAdminClient } = await import('@/lib/supabase-admin')
+    supabase = createAdminClient()
+  } else {
+    const auth = await requireAuth()
+    if (auth.unauthorized) return auth.unauthorized
+    supabase = auth.supabase
+  }
+
+  const { slug } = await request.json()
+  if (!slug) return NextResponse.json({ error: 'slug is required' }, { status: 400 })
+
+  // Find workspace first
+  const { data: ws } = await supabase
+    .from('bpe_workspaces')
+    .select('id')
+    .eq('slug', slug)
+    .single()
+
+  if (!ws) return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+
+  // Null out workspace_id on any attached tasks
+  await supabase
+    .from('bpe_tasks')
+    .update({ workspace_id: null })
+    .eq('workspace_id', ws.id)
+
+  // Now delete the workspace
+  const { error } = await supabase
+    .from('bpe_workspaces')
+    .delete()
+    .eq('id', ws.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }

@@ -17,6 +17,18 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient()
 
+  // Auto-resolve workspace_id from brand name if not explicitly provided
+  let workspaceId: string | null = body.workspace_id ?? null
+  if (!workspaceId && body.brand) {
+    const { data: ws } = await supabase
+      .from('bpe_workspaces')
+      .select('id')
+      .ilike('name', `%${body.brand}%`)
+      .limit(1)
+      .single()
+    if (ws) workspaceId = ws.id
+  }
+
   const { data, error } = await supabase
     .from('bpe_tasks')
     .insert({
@@ -31,7 +43,7 @@ export async function POST(req: NextRequest) {
       deliverables: body.deliverables ?? [],
       handoff_checklist: body.handoff_checklist ?? [],
       sort_order: 0,
-      workspace_id: body.workspace_id ?? null,
+      workspace_id: workspaceId,
     })
     .select()
     .single()

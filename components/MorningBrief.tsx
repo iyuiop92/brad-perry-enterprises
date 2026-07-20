@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 
-const SECTION_KEYS = ['WORKOUT', 'FOOD', 'FOCUS', 'SCHEDULE', 'HEALTH CHECK'] as const
+const SECTION_KEYS = ['WORKOUT', 'FOOD', 'FOCUS', 'SCHEDULE', 'HEALTH CHECK', 'AFFIRMATION'] as const
 type SectionKey = typeof SECTION_KEYS[number]
 
 const todayKey = () => `bpe_brief_${new Date().toISOString().slice(0, 10)}`
@@ -189,50 +189,87 @@ export default function MorningBrief() {
           )}
 
           {hasContent && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
-                gap: 8,
-              }}
-            >
-              {SECTION_KEYS.map(key => {
-                const content = sections[key]
-                if (!content) return null
-                return (
-                  <div
-                    key={key}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Data sections grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                  gap: 8,
+                }}
+              >
+                {SECTION_KEYS.filter(k => k !== 'AFFIRMATION').map(key => {
+                  const content = sections[key]
+                  if (!content) return null
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        background: 'rgba(255,255,255,0.018)',
+                        border: '1px solid rgba(255,255,255,0.042)',
+                        borderRadius: 7,
+                        padding: '9px 11px',
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 7,
+                          fontWeight: 800,
+                          color: '#00b4ff',
+                          letterSpacing: '0.2em',
+                          marginBottom: 5,
+                        }}
+                      >
+                        {key}
+                      </p>
+                      <p
+                        style={{
+                          fontSize: 10,
+                          color: '#64748b',
+                          lineHeight: 1.65,
+                          whiteSpace: 'pre-line',
+                        }}
+                      >
+                        {content}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Affirmation — full width, styled for reading aloud */}
+              {sections['AFFIRMATION'] && (
+                <div
+                  style={{
+                    background: 'rgba(0,180,255,0.03)',
+                    border: '1px solid rgba(0,180,255,0.08)',
+                    borderRadius: 7,
+                    padding: '14px 16px',
+                  }}
+                >
+                  <p
                     style={{
-                      background: 'rgba(255,255,255,0.018)',
-                      border: '1px solid rgba(255,255,255,0.042)',
-                      borderRadius: 7,
-                      padding: '9px 11px',
+                      fontSize: 7,
+                      fontWeight: 800,
+                      color: '#00b4ff',
+                      letterSpacing: '0.2em',
+                      marginBottom: 10,
                     }}
                   >
-                    <p
-                      style={{
-                        fontSize: 7,
-                        fontWeight: 800,
-                        color: '#00b4ff',
-                        letterSpacing: '0.2em',
-                        marginBottom: 5,
-                      }}
-                    >
-                      {key}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: 10,
-                        color: '#64748b',
-                        lineHeight: 1.65,
-                        whiteSpace: 'pre-line',
-                      }}
-                    >
-                      {content}
-                    </p>
-                  </div>
-                )
-              })}
+                    I AM BRAD PERRY
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      color: '#94a3b8',
+                      lineHeight: 2,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {sections['AFFIRMATION']}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

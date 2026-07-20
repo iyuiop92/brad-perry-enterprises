@@ -1,7 +1,7 @@
-import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
 
-export async function createClient() {
+export async function createServerSupabaseClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -14,14 +14,16 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options)
-            )
+            })
           } catch {
-            // setAll called from a Server Component — safe to ignore
+            // Server Components cannot write cookies. The proxy refreshes them.
           }
         },
       },
     }
   )
 }
+
+export const createClient = createServerSupabaseClient

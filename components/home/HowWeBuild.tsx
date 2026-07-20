@@ -62,11 +62,11 @@ export default function HowWeBuild() {
         <h2 className="font-[800] text-4xl md:text-5xl text-white text-center mb-4">
           How We Build Success
         </h2>
-        <p className="text-[#475569] text-center mb-4 max-w-lg mx-auto text-sm leading-relaxed">
+        <p className="text-white text-center mb-4 max-w-lg mx-auto text-sm leading-relaxed">
           Experience my proven methodology through an interactive process walkthrough.
         </p>
         <div className="flex justify-center mb-12">
-          <button className="flex items-center gap-2 text-[#64748b] text-sm border border-[rgba(0,180,255,0.15)] px-5 py-2.5 rounded-lg hover:border-[rgba(0,180,255,0.35)] hover:text-[#94a3b8] transition-all">
+          <button className="flex items-center gap-2 text-white text-sm border border-[rgba(0,180,255,0.15)] px-5 py-2.5 rounded-lg hover:border-[rgba(0,180,255,0.35)] hover:text-white transition-all">
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" />
               <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
@@ -84,7 +84,7 @@ export default function HowWeBuild() {
                 className={`text-left p-4 rounded-xl border transition-all duration-200 ${
                   open === phase.id
                     ? 'bg-[rgba(0,180,255,0.07)] border-[rgba(0,180,255,0.25)] text-white'
-                    : 'border-[rgba(0,180,255,0.06)] text-[#475569] hover:text-[#64748b] hover:border-[rgba(0,180,255,0.12)]'
+                    : 'border-[rgba(0,180,255,0.06)] text-white hover:text-white hover:border-[rgba(0,180,255,0.12)]'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -105,7 +105,7 @@ export default function HowWeBuild() {
                     />
                   </svg>
                 </div>
-                <span className="text-[10px] text-[#334155] mt-0.5 block">{phase.duration}</span>
+                <span className="text-[10px] text-white mt-0.5 block">{phase.duration}</span>
               </button>
             ))}
           </div>
@@ -121,18 +121,18 @@ export default function HowWeBuild() {
                 </div>
                 <div>
                   <div className="text-white font-[700] text-base">{activePhase.name}</div>
-                  <div className="text-[#334155] text-xs">{activePhase.duration}</div>
+                  <div className="text-white text-xs">{activePhase.duration}</div>
                 </div>
               </div>
-              <p className="text-[#475569] text-sm mb-6 leading-relaxed">{activePhase.description}</p>
+              <p className="text-white text-sm mb-6 leading-relaxed">{activePhase.description}</p>
 
               <div className="mb-5">
-                <div className="text-[#64748b] font-[700] text-[10px] uppercase tracking-widest mb-3">
+                <div className="text-white font-[700] text-[10px] uppercase tracking-widest mb-3">
                   Key Deliverables
                 </div>
                 <div className="flex flex-col gap-2">
                   {activePhase.deliverables.map(d => (
-                    <div key={d} className="flex items-center gap-2 text-sm text-[#64748b]">
+                    <div key={d} className="flex items-center gap-2 text-sm text-white">
                       <svg width="12" height="12" fill="none" stroke="#00b4ff" strokeWidth="2" viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="10" />
                         <path strokeLinecap="round" strokeLinejoin="round" d="m9 12 2 2 4-4" />
@@ -144,14 +144,14 @@ export default function HowWeBuild() {
               </div>
 
               <div>
-                <div className="text-[#64748b] font-[700] text-[10px] uppercase tracking-widest mb-3">
+                <div className="text-white font-[700] text-[10px] uppercase tracking-widest mb-3">
                   Tools & Technologies
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {activePhase.tools.map(tool => (
                     <span
                       key={tool}
-                      className="text-xs text-[#475569] border border-[rgba(0,180,255,0.1)] px-3 py-1 rounded-full"
+                      className="text-xs text-white border border-[rgba(0,180,255,0.1)] px-3 py-1 rounded-full"
                     >
                       {tool}
                     </span>
@@ -164,7 +164,7 @@ export default function HowWeBuild() {
 
         <div className="mt-16 text-center">
           <div className="text-white font-[800] text-2xl mb-2">Ready to leverage this expertise?</div>
-          <p className="text-[#475569] text-sm mb-6">
+          <p className="text-white text-sm mb-6">
             Let's discuss how these skills can drive your next project to success.
           </p>
           <a

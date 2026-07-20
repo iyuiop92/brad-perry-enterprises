@@ -46,6 +46,10 @@ export async function POST(request: Request) {
   const baseUrl = configuredOllamaUrl ?? 'http://127.0.0.1:11434'
   const localModel = process.env.CLEAVER_MODEL ?? 'qwen3.6:27b'
   const geminiModel = process.env.CLEAVER_GEMINI_MODEL ?? 'gemini-2.5-flash'
+  const ollamaAuthToken = process.env.CLEAVER_OLLAMA_AUTH_TOKEN ?? process.env.OLLAMA_AUTH_TOKEN
+  const deepSeekApiKey = process.env.CLEAVER_DEEPSEEK_API_KEY ?? process.env.DEEPSEEK_API_KEY
+  const deepSeekModel = process.env.CLEAVER_DEEPSEEK_MODEL ?? 'deepseek-v4-flash'
+  const cleaverProvider = process.env.CLEAVER_PROVIDER ?? (deepSeekApiKey ? 'deepseek' : 'ollama')
 
   const dashboardContext = await getDashboardContext(supabase)
 
@@ -93,10 +97,6 @@ Behavior:
     return cleaverStream(text)
   }
 
-  if (!configuredOllamaUrl && process.env.VERCEL) {
-    return fallbackToGemini('Cleaver could not find a production Ollama bridge.')
-  }
-
   const ollamaMessages = [
     { role: 'system', content: system },
     ...messages
@@ -107,10 +107,17 @@ Behavior:
       .filter(message => message.content),
   ]
 
-  try {
+  async function tryOllama(reason?: string) {
+    if (!configuredOllamaUrl && process.env.VERCEL) {
+      return fallbackToGemini(reason ?? 'Cleaver could not find a production Ollama bridge.')
+    }
+
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(ollamaAuthToken ? { Authorization: `Bearer ${ollamaAuthToken}` } : {}),
+      },
       body: JSON.stringify({
         model: localModel,
         stream: false,
@@ -127,8 +134,45 @@ Behavior:
     const data = await response.json()
     const text = extractOllamaText(data) || 'Cleaver did not return a text response.'
     return cleaverStream(text)
+  }
+
+  async function tryDeepSeek() {
+    if (!deepSeekApiKey) {
+      return tryOllama('Cleaver is set to DeepSeek, but DEEPSEEK_API_KEY is not configured.')
+    }
+
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${deepSeekApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: deepSeekModel,
+        messages: ollamaMessages,
+        stream: false,
+      }),
+    })
+
+    if (!response.ok) {
+      const detail = await response.text()
+      console.error('Cleaver DeepSeek error', response.status, detail)
+      return tryOllama(`Cleaver could not reach DeepSeek model "${deepSeekModel}".`)
+    }
+
+    const data = await response.json()
+    const text = data?.choices?.[0]?.message?.content
+    return cleaverStream(typeof text === 'string' && text.trim() ? text : 'Cleaver did not get a text response from DeepSeek.')
+  }
+
+  try {
+    if (cleaverProvider === 'deepseek') {
+      return await tryDeepSeek()
+    }
+
+    return await tryOllama()
   } catch (error) {
     console.error('Cleaver route error', error)
-    return fallbackToGemini(`Cleaver could not reach local Ollama at ${baseUrl}.`)
+    return fallbackToGemini(`Cleaver could not reach the configured ${cleaverProvider} provider.`)
   }
 }

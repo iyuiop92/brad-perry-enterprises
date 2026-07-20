@@ -199,7 +199,7 @@ export default function ActionHub({
           </div>
         </div>
 
-        {/* Actionized (blocked) */}
+        {/* Actionized (to do) */}
         {actionized.length > 0 && (
           <div>
             <p
@@ -226,7 +226,7 @@ export default function ActionHub({
                     <span className="text-xs truncate" style={{ color: '#94a3b8' }}>{task.title}</span>
                   </div>
                   <p className="text-[9px] mt-0.5 pl-3.5" style={{ color: '#475569' }}>
-                    Prioritiz: <span style={{ color: '#f59e0b' }}>Blocked</span>
+                    Prioritiz: <span style={{ color: '#f59e0b' }}>To do</span>
                   </p>
                 </button>
               ))}

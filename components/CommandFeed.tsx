@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { DailyState, HealthLog, InboxItem, RecurringDailyItem, Task, Workspace } from '@/lib/types'
 import VideoPipelinePanel from '@/components/VideoPipelinePanel'
@@ -9,6 +9,31 @@ type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
 type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
 type WorkLane = 'Revenue' | 'Momentum' | 'Maintenance' | 'Explore'
 type ViewMode = 'active' | 'blocked' | 'ideas' | 'shipped'
+type AssistantPanel = 'wendy' | 'ellie' | 'cleaver' | 'sam'
+
+type AgentStatus = {
+  environment: string
+  agents: Record<AssistantPanel, {
+    route: string
+    provider: string
+    fallback?: string
+    configured: boolean
+    fallbackReady?: boolean
+    defaultModel: string
+  }>
+  ollama: {
+    configured: boolean
+    endpoint: string
+    isTailnet: boolean
+    authConfigured: boolean
+    productionWithoutBridge: boolean
+    reachable: boolean
+    latencyMs: number | null
+    activeModel: string
+    models: string[]
+    error: string | null
+  }
+}
 
 const priorityRank = { high: 0, medium: 1, low: 2 } as const
 const priorityLabel = { high: 'P1', medium: 'P2', low: 'P3' } as const
@@ -201,6 +226,361 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   )
 }
 
+function statusTone(ready: boolean, fallbackReady?: boolean) {
+  if (ready) return { label: 'Ready', color: '#22c55e' }
+  if (fallbackReady) return { label: 'Fallback', color: '#f59e0b' }
+  return { label: 'Needs key', color: '#ef4444' }
+}
+
+function StatusPill({ label, color }: { label: string; color: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: 20,
+        padding: '0 7px',
+        borderRadius: 999,
+        border: `1px solid ${color}3d`,
+        background: `${color}14`,
+        color,
+        fontSize: 9,
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function ownerLabel(owner: Task['owner']) {
+  if (owner === 'wendy') return 'Wendy'
+  if (owner === 'ellie') return 'Ellie'
+  if (owner === 'cleaver') return 'Cleaver'
+  if (owner === 'sam') return 'Sam'
+  return 'Brad'
+}
+
+const ownerTheme: Record<Task['owner'], string> = {
+  brad: '#94a3b8',
+  wendy: '#00b4ff',
+  ellie: '#a78bfa',
+  cleaver: '#22c55e',
+  sam: '#2dd4bf',
+}
+
+const tableAssignmentOwners: { owner: Task['owner']; initial: string }[] = [
+  { owner: 'wendy', initial: 'W' },
+  { owner: 'ellie', initial: 'E' },
+  { owner: 'cleaver', initial: 'C' },
+  { owner: 'sam', initial: 'S' },
+]
+
+function suggestedAssignment(task: Task): { owner: Task['owner']; reason: string } {
+  const text = taskText(task)
+  const lane = classifyWork(task)
+  const smallLoop = task.priority !== 'high' && (task.status === 'idea' || task.status === 'blocked' || text.length < 140)
+
+  if (text.includes('research') || text.includes('compare') || text.includes('question') || text.includes('market') || text.includes('youtube gap')) {
+    return { owner: 'sam', reason: 'small research or synthesis loop' }
+  }
+
+  if (task.status === 'blocked' || text.includes('fix') || text.includes('repair') || text.includes('constraint') || text.includes('cleanup')) {
+    return { owner: 'cleaver', reason: 'unstick or repair loop' }
+  }
+
+  if (smallLoop && (lane === 'Explore' || text.includes('idea') || text.includes('look into'))) {
+    return { owner: 'sam', reason: 'small exploratory task' }
+  }
+
+  if (text.includes('dashboard') || text.includes('code') || text.includes('app') || text.includes('site') || text.includes('integration') || lane === 'Maintenance') {
+    return { owner: 'ellie', reason: 'build or systems work' }
+  }
+
+  if (lane === 'Revenue' || text.includes('client') || text.includes('launch') || text.includes('offer') || text.includes('tier') || task.priority === 'high') {
+    return { owner: 'wendy', reason: 'business path or priority call' }
+  }
+
+  return { owner: 'wendy', reason: 'default operator judgment' }
+}
+
+function stationMatch(station: AssistantPanel, task: Task) {
+  const text = taskText(task)
+  if (station === 'wendy') return classifyWork(task) === 'Revenue' || task.priority === 'high' || text.includes('launch') || text.includes('tier')
+  if (station === 'ellie') return classifyWork(task) === 'Maintenance' || text.includes('code') || text.includes('dashboard') || text.includes('site') || text.includes('app')
+  if (station === 'cleaver') return task.owner === 'cleaver' || task.status === 'blocked' || text.includes('fix') || text.includes('constraint') || text.includes('repair')
+  if (task.owner === 'sam') return true
+  return classifyWork(task) === 'Explore' || task.status === 'idea' || text.includes('research') || text.includes('compare')
+}
+
+function TeamRoomDeck({
+  status,
+  loading,
+  onRefreshLinks,
+  onRefreshRoom,
+  onOpenAssistant,
+  onAssignTask,
+  onSelectTask,
+  tasks,
+  workspaces,
+}: {
+  status: AgentStatus | null
+  loading: boolean
+  onRefreshLinks: () => void
+  onRefreshRoom: () => void
+  onOpenAssistant: (panel: AssistantPanel) => void
+  onAssignTask: (task: Task, owner: Task['owner']) => void
+  onSelectTask: (task: Task) => void
+  tasks: Task[]
+  workspaces: Workspace[]
+}) {
+  const openTasks = sortForExecution(tasks.filter(task => task.status !== 'done'))
+  const workspaceById = Object.fromEntries(workspaces.map(workspace => [workspace.id, workspace]))
+  const activeTable = openTasks.slice(0, 6)
+  const stations: {
+    id: AssistantPanel
+    label: string
+    color: string
+    role: string
+    owner?: Task['owner']
+  }[] = [
+    { id: 'wendy', label: 'Wendy', color: '#00b4ff', role: 'Operator desk', owner: 'wendy' },
+    { id: 'ellie', label: 'Ellie', color: '#a78bfa', role: 'Build bench', owner: 'ellie' },
+    { id: 'cleaver', label: 'Cleaver', color: '#22c55e', role: 'Reasoning corner' },
+    { id: 'sam', label: 'Sam', color: '#2dd4bf', role: 'Research table' },
+  ]
+
+  const ollamaColor = status?.ollama.reachable ? '#22c55e' : status?.ollama.productionWithoutBridge ? '#f59e0b' : '#ef4444'
+  const ollamaLabel = status?.ollama.reachable ? 'Reachable' : status?.ollama.productionWithoutBridge ? 'Fallback' : loading ? 'Checking' : 'Offline'
+  const unassigned = openTasks.filter(task => task.owner === 'brad').slice(0, 5)
+
+  return (
+    <Card
+      style={{
+        borderColor: 'rgba(56,189,248,0.22)',
+        background: `
+          radial-gradient(circle at 8% 0%, rgba(56,189,248,0.14), transparent 30%),
+          radial-gradient(circle at 92% 16%, rgba(34,197,94,0.11), transparent 30%),
+          linear-gradient(180deg, rgba(7,13,22,0.94), rgba(5,8,14,0.84))
+        `,
+      }}
+    >
+      <SectionTitle
+        label="Team room"
+        detail="Overhead view of who has the ball, what is on the table, and where to hand work next."
+        right={<ActionButton tone="#2dd4bf" onClick={onRefreshLinks} disabled={loading}>{loading ? 'Checking' : 'Check links'}</ActionButton>}
+      />
+      <div className="dashboard-team-room-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 1.4fr minmax(0, 1fr)', gridTemplateRows: 'auto auto', gap: 0 }}>
+        {stations.map(station => {
+          const agentStatus = status?.agents[station.id]
+          const tone = station.id === 'cleaver'
+            ? { label: ollamaLabel, color: ollamaColor }
+            : statusTone(Boolean(agentStatus?.configured), agentStatus?.fallbackReady)
+          const assigned = station.owner
+            ? openTasks.filter(task => task.owner === station.owner).slice(0, 3)
+            : openTasks.filter(task => task.owner === station.id || stationMatch(station.id, task)).slice(0, 3)
+          return (
+            <div
+              key={station.id}
+              className={`dashboard-team-room-station dashboard-team-room-${station.id}`}
+              style={{
+                minHeight: 174,
+                padding: 14,
+                borderRight: '1px solid rgba(255,255,255,0.06)',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                background: `linear-gradient(180deg, ${station.color}0f, rgba(255,255,255,0.018))`,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <button
+                  onClick={() => onOpenAssistant(station.id)}
+                  style={{ border: 0, background: 'transparent', color: station.color, fontSize: 13, fontWeight: 950, padding: 0, cursor: 'pointer' }}
+                >
+                  {station.label}
+                </button>
+                <StatusPill label={tone.label} color={tone.color} />
+              </div>
+              <p style={{ color: '#94a3b8', fontSize: 10, fontWeight: 850, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>{station.role}</p>
+              <div style={{ display: 'grid', gap: 7, marginTop: 11 }}>
+                {assigned.length ? assigned.map(task => (
+                  <button
+                    key={task.id}
+                    onClick={() => onSelectTask(task)}
+                    style={{
+                      minHeight: 31,
+                      padding: '7px 8px',
+                      border: `1px solid ${station.color}26`,
+                      borderRadius: 5,
+                      background: `${station.color}0d`,
+                      color: '#dbeafe',
+                      textAlign: 'left',
+                      fontSize: 11,
+                      lineHeight: 1.25,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {task.title}
+                  </button>
+                )) : (
+                  <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.4 }}>No work sitting here.</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+
+        <div
+          className="dashboard-team-room-table"
+          style={{
+            gridColumn: '2 / 3',
+            gridRow: '1 / 3',
+            padding: 16,
+            borderRight: '1px solid rgba(255,255,255,0.06)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            background: 'radial-gradient(circle at 50% 36%, rgba(248,250,252,0.08), rgba(255,255,255,0.018) 56%, transparent 72%)',
+          }}
+        >
+          <div className="dashboard-team-room-table-inner" style={{ minHeight: 330, border: '1px solid rgba(148,163,184,0.16)', borderRadius: 8, background: 'rgba(0,0,0,0.18)', padding: 13 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div>
+                <p style={{ color: '#f8fafc', fontSize: 13, fontWeight: 950 }}>Center table</p>
+                <p style={{ color: '#64748b', fontSize: 10, marginTop: 3 }}>{openTasks.length} open items in the room</p>
+              </div>
+              <StatusPill label={status?.environment === 'production' ? 'Prod' : 'Local'} color="#38bdf8" />
+            </div>
+
+            <div style={{ display: 'grid', gap: 8, marginTop: 13 }}>
+              {activeTable.length ? activeTable.map(task => {
+                const workspace = task.workspace_id ? workspaceById[task.workspace_id] : undefined
+                const lane = classifyWork(task)
+                const color = workspace?.color ?? laneTheme[lane].color
+                const suggested = suggestedAssignment(task)
+                return (
+                  <div
+                    key={task.id}
+                    className="dashboard-team-room-task"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr)',
+                      gap: 7,
+                      padding: '8px 9px 19px',
+                      position: 'relative',
+                      border: '1px solid rgba(255,255,255,0.07)',
+                      borderRadius: 7,
+                      background: 'rgba(255,255,255,0.025)',
+                    }}
+                  >
+                    <button
+                      className="dashboard-team-room-task-body"
+                      onClick={() => onSelectTask(task)}
+                      style={{ width: '100%', minWidth: 0, border: 0, background: 'transparent', padding: 0, textAlign: 'center', cursor: 'pointer' }}
+                    >
+                      <div className="dashboard-team-room-task-title-row" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minWidth: 0 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 12px ${color}88`, flexShrink: 0 }} />
+                        <span className="dashboard-team-room-task-title" style={{ minWidth: 0, maxWidth: 'calc(100% - 16px)', color: '#e2e8f0', fontSize: 12, lineHeight: 1.1, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+                      </div>
+                      <p className="dashboard-team-room-task-meta" style={{ color: '#64748b', fontSize: 10, lineHeight: 1.12, marginTop: 4 }}>{ownerLabel(task.owner)} · {statusLabel[task.status]} · {lane}</p>
+                      <p className="dashboard-team-room-task-suggestion" style={{ color: ownerTheme[suggested.owner], fontSize: 10, lineHeight: 1.12, marginTop: 3, fontWeight: 850 }}>
+                        Wendy suggests {ownerLabel(suggested.owner)} · {suggested.reason}
+                      </p>
+                    </button>
+                    <div className="dashboard-team-room-actions" style={{ position: 'absolute', left: '50%', bottom: 4, transform: 'translateX(-50%)', display: 'inline-flex', alignItems: 'center', gap: 0 }}>
+                      {[
+                        { owner: suggested.owner, initial: 'A', label: `Assign suggested: ${ownerLabel(suggested.owner)}` },
+                        ...tableAssignmentOwners.map(option => ({ ...option, label: `Assign to ${ownerLabel(option.owner)}` })),
+                      ].map((option, index, options) => {
+                        const tone = ownerTheme[option.owner]
+                        const isOwner = task.owner === option.owner
+                        const isSuggested = suggested.owner === option.owner
+                        const isFirst = index === 0
+                        const isLast = index === options.length - 1
+                        return (
+                          <button
+                            key={`${option.initial}-${option.owner}`}
+                            type="button"
+                            className="dashboard-assignment-sliver"
+                            title={option.label}
+                            aria-label={option.label}
+                            onClick={() => onAssignTask(task, option.owner)}
+                            style={{
+                              width: option.initial === 'A' ? 42 : 34,
+                              height: 12,
+                              borderRadius: isFirst ? '999px 0 0 999px' : isLast ? '0 999px 999px 0' : 0,
+                              border: `1px solid ${tone}${isOwner ? 'dd' : '66'}`,
+                              marginLeft: isFirst ? 0 : -1,
+                              background: isOwner ? tone : `${tone}24`,
+                              color: isOwner ? '#020617' : tone,
+                              boxShadow: isSuggested || option.initial === 'A' ? `0 0 12px ${tone}35` : 'none',
+                              fontSize: 8,
+                              lineHeight: 1,
+                              fontWeight: 950,
+                              padding: 0,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {option.initial}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              }) : (
+                <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>The table is clear.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="dashboard-team-room-handoff" style={{ gridColumn: '1 / 4', padding: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, alignItems: 'start' }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ color: '#f8fafc', fontSize: 12, fontWeight: 900 }}>Assignment tray</p>
+              <div className="dashboard-assignment-tray-chips" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 9 }}>
+                {unassigned.length ? unassigned.map(task => (
+                  <button
+                    key={task.id}
+                    className="dashboard-assignment-chip"
+                    onClick={() => onSelectTask(task)}
+                    style={{
+                      maxWidth: 260,
+                      minHeight: 30,
+                      padding: '6px 9px',
+                      border: '1px solid rgba(148,163,184,0.14)',
+                      borderRadius: 999,
+                      background: 'rgba(148,163,184,0.06)',
+                      color: '#cbd5e1',
+                      fontSize: 10,
+                      fontWeight: 750,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {task.title}
+                  </button>
+                )) : (
+                  <span style={{ color: '#64748b', fontSize: 11 }}>No Brad-owned open tasks in this scope.</span>
+                )}
+              </div>
+            </div>
+            <div className="dashboard-handoff-actions" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <ActionButton tone="#22c55e" onClick={() => onOpenAssistant('cleaver')}>Ask Cleaver</ActionButton>
+              <ActionButton tone="#2dd4bf" onClick={() => onOpenAssistant('sam')}>Ask Sam</ActionButton>
+              <ActionButton tone="#38bdf8" onClick={onRefreshRoom}>Refresh room</ActionButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 function TaskRow({
   task,
   workspace,
@@ -287,6 +667,7 @@ export default function CommandFeed({
   onAddTask,
   onRefresh,
   onAddWorkspace,
+  onOpenAssistant,
 }: {
   tasks: Task[]
   workspaces: Workspace[]
@@ -296,6 +677,7 @@ export default function CommandFeed({
   onAddTask: () => void
   onRefresh: () => void
   onAddWorkspace: () => void
+  onOpenAssistant: (panel: AssistantPanel) => void
 }) {
   const [capture, setCapture] = useState('')
   const [capturing, setCapturing] = useState(false)
@@ -315,6 +697,8 @@ export default function CommandFeed({
   const [calendarItems, setCalendarItems] = useState<string[]>([])
   const [recurringItems, setRecurringItems] = useState<RecurringDailyItem[]>(defaultRecurringItems)
   const [dailyStateLoaded, setDailyStateLoaded] = useState(false)
+  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
+  const [agentStatusLoading, setAgentStatusLoading] = useState(false)
   const captureRef = useRef<HTMLInputElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
@@ -383,6 +767,21 @@ export default function CommandFeed({
       .finally(() => setDailyStateLoaded(true))
   }, [])
 
+  const fetchAgentStatus = useCallback(async () => {
+    setAgentStatusLoading(true)
+    try {
+      const res = await fetch('/api/dashboard/agent-status', { cache: 'no-store' })
+      if (res.ok) setAgentStatus(await res.json())
+    } finally {
+      setAgentStatusLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void fetchAgentStatus() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchAgentStatus])
+
   const localTasks = useMemo(() => propTasks.map(task => (
     statusOverrides[task.id] ? { ...task, status: statusOverrides[task.id] } : task
   )), [propTasks, statusOverrides])
@@ -426,6 +825,11 @@ export default function CommandFeed({
   async function setTaskStatus(task: Task, status: TaskAction) {
     setStatusOverrides(prev => ({ ...prev, [task.id]: status }))
     await patchTask(task.id, { status })
+    onRefresh()
+  }
+
+  async function assignTaskOwner(task: Task, owner: Task['owner']) {
+    await patchTask(task.id, { owner })
     onRefresh()
   }
 
@@ -650,6 +1054,18 @@ export default function CommandFeed({
               )}
             </div>
           </div>
+
+          <TeamRoomDeck
+            status={agentStatus}
+            loading={agentStatusLoading}
+            onRefreshLinks={fetchAgentStatus}
+            onRefreshRoom={onRefresh}
+            onOpenAssistant={onOpenAssistant}
+            onAssignTask={assignTaskOwner}
+            onSelectTask={onSelectTask}
+            tasks={scopedTasks}
+            workspaces={workspaces}
+          />
 
           <Card
             style={{

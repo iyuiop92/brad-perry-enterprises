@@ -12,6 +12,15 @@ function CallbackHandler() {
     const supabase = createClient()
 
     async function handle() {
+      const code = searchParams.get('code')
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error) {
+          router.replace(searchParams.get('next') ?? '/dashboard')
+          return
+        }
+      }
+
       // Implicit flow: Supabase puts tokens in the hash fragment
       const hash = window.location.hash.slice(1)
       if (hash) {

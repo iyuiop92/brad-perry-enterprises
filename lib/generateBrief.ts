@@ -38,7 +38,7 @@ export async function generateMorningBrief(tasks: BriefTask[]): Promise<string> 
       ? `HIGH PRIORITY:\n${highPri.map(t => `  - [${t.status}] ${t.title}`).join('\n')}`
       : '',
     blocked.length
-      ? `BLOCKED:\n${blocked.map(t => `  - ${t.title}${t.brand ? ` (${t.brand})` : ''}`).join('\n')}`
+      ? `TO DO:\n${blocked.map(t => `  - ${t.title}${t.brand ? ` (${t.brand})` : ''}`).join('\n')}`
       : '',
   ].filter(Boolean).join('\n\n')
 
@@ -86,7 +86,7 @@ HEALTH CHECK
 — Wendy`
 
   const { text } = await generateText({
-    model: anthropic('claude-haiku-4-5-20251001'),
+    model: anthropic('claude-sonnet-4-6'),
     system,
     messages: [{ role: 'user', content: 'generate' }],
   })

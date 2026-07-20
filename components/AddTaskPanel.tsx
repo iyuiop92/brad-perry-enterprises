@@ -6,7 +6,7 @@ import type { TaskStatus, TaskType, TaskOwner, TaskPhase, ChecklistItem } from '
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'idea', label: 'Idea' },
   { value: 'in_progress', label: 'In Progress' },
-  { value: 'blocked', label: 'Blocked' },
+  { value: 'blocked', label: 'To do' },
   { value: 'done', label: 'Done' },
 ]
 
@@ -14,6 +14,8 @@ const OWNER_OPTIONS: { value: TaskOwner; label: string }[] = [
   { value: 'brad', label: 'Brad' },
   { value: 'wendy', label: 'Wendy' },
   { value: 'ellie', label: 'Ellie' },
+  { value: 'cleaver', label: 'Cleaver' },
+  { value: 'sam', label: 'Sam' },
 ]
 
 const PHASE_OPTIONS: { value: TaskPhase; label: string }[] = [

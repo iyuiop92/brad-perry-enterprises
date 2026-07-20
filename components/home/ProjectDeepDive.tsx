@@ -1,117 +1,118 @@
 'use client'
 import { useState } from 'react'
+import Image from 'next/image'
 
 interface Project {
   id: string
   name: string
   category: string
   description: string
-  traffic: string
-  conversion: string
   stack: string[]
   color: string
+  image: string
   type: 'personal' | 'client'
+  url?: string | null
 }
 
 const projects: Project[] = [
-  {
-    id: 'mipura',
-    name: 'Mipura.com',
-    category: 'Coffee Affiliate',
-    description: 'Coffee enthusiasts affiliate hub connecting passionate lovers with premium products and expert reviews.',
-    traffic: '22.5K',
-    conversion: '3.2%',
-    stack: ['WordPress', 'WooCommerce', 'Analytics'],
-    color: '#c17f3c',
-    type: 'personal',
-  },
-  {
-    id: 'startpaddle',
-    name: 'StartPaddle.com',
-    category: 'Sports Affiliate',
-    description: 'Water paddle sports hub featuring gear reviews, training resources, and performance insights.',
-    traffic: '18.2K',
-    conversion: '4.1%',
-    stack: ['Shopify', 'Liquid', 'SEO Tools'],
-    color: '#0ea5e9',
-    type: 'personal',
-  },
-  {
-    id: 'studiothree60',
-    name: 'StudioThree60.com',
-    category: 'Digital Agency',
-    description: 'Design agency leveraging AI builders, Adobe Creative Suite, and design automation tools.',
-    traffic: '15.8K',
-    conversion: '5.7%',
-    stack: ['React', 'Stripe', 'Automation'],
-    color: '#8b5cf6',
-    type: 'personal',
-  },
-  {
-    id: 'petprosusa',
-    name: 'PetProsUSA.com',
-    category: 'Pet Affiliate',
-    description: 'Comprehensive pet products platform offering expert reviews and personalized pet care guidance.',
-    traffic: '28.4K',
-    conversion: '2.9%',
-    stack: ['WordPress', 'Affiliate Mgmt', 'CRM'],
-    color: '#22c55e',
-    type: 'personal',
-  },
-  {
-    id: 'superwatches',
-    name: 'SuperWatchesStore.com',
-    category: 'Watch Retail',
-    description: 'Accessories retailer with curated collections and premium watch inventory management.',
-    traffic: '12.3K',
-    conversion: '3.8%',
-    stack: ['Shopify Plus', 'Inventory Mgmt', 'Analytics'],
-    color: '#f59e0b',
-    type: 'personal',
-  },
   {
     id: 'aetherhockey',
     name: 'AetherHockey.com',
     category: 'Sports Platform',
     description: 'Elite hockey skills training platform with resources for players, coaches, and parents.',
-    traffic: '45.2K',
-    conversion: '4.2%',
     stack: ['Custom App', 'Video Platform', 'LMS'],
     color: '#00b4ff',
+    image: '/s360/4.png',
     type: 'personal',
+    url: 'https://aetherhockey.com',
   },
   {
     id: 'a2ice',
     name: 'AZIce.com',
     category: 'Facility Management',
     description: 'Seven-site network for a $8M ice management company in Phoenix — fully custom multi-site CMS.',
-    traffic: '3.5K',
-    conversion: '5.0%',
     stack: ['Custom CMS', 'Booking System', 'Multi-site'],
     color: '#94a3b8',
+    image: '/s360/7.png',
     type: 'client',
+    url: 'https://azice.com',
   },
   {
-    id: 'drivenbaseball',
-    name: 'DrivenBaseballAthletics.com',
-    category: 'Sports Training',
-    description: 'Baseball training academy with a dedicated player app for skill development and progress tracking.',
-    traffic: '14.1K',
-    conversion: '3.9%',
-    stack: ['React Native', 'Firebase', 'Video Analytics'],
-    color: '#ef4444',
-    type: 'client',
+    id: 'studiothree60',
+    name: 'StudioThree60.com',
+    category: 'Digital Agency',
+    description: 'Design agency leveraging AI builders, Adobe Creative Suite, and design automation tools.',
+    stack: ['React', 'Stripe', 'Automation'],
+    color: '#8b5cf6',
+    image: '/s360/3.png',
+    type: 'personal',
+    url: 'https://studiothree60.com',
+  },
+  {
+    id: 'mipura',
+    name: 'Mipura.com',
+    category: 'Coffee Affiliate',
+    description: 'Coffee enthusiasts affiliate hub connecting passionate lovers with premium products and expert reviews.',
+    stack: ['WordPress', 'WooCommerce', 'Analytics'],
+    color: '#c17f3c',
+    image: '/s360/1.png',
+    type: 'personal',
+    url: 'https://mipura.com',
   },
   {
     id: 'icehouse',
     name: 'Ice House Tavern',
     category: 'Hospitality',
     description: "Arizona's premier hockey bar featuring live game viewing, team events, and community spaces.",
-    traffic: '8.7K',
-    conversion: '2.1%',
     stack: ['WordPress', 'Event Mgmt', 'Social Integration'],
     color: '#14b8a6',
+    image: '/s360/9.png',
     type: 'client',
+    url: 'https://icehousetavernphx.com',
+  },
+  {
+    id: 'drivenbaseball',
+    name: 'DrivenBaseballAthletics.com',
+    category: 'Sports Training',
+    description: 'Baseball training academy with a dedicated player app for skill development and progress tracking.',
+    stack: ['React Native', 'Firebase', 'Video Analytics'],
+    color: '#ef4444',
+    image: '/s360/8.png',
+    type: 'client',
+    url: 'https://drivenbaseballathletics.com',
+  },
+  {
+    id: 'startpaddle',
+    name: 'StartPaddle.com',
+    category: 'Sports Affiliate',
+    description: 'Water paddle sports hub featuring gear reviews, training resources, and performance insights.',
+    stack: ['Shopify', 'Liquid', 'SEO Tools'],
+    color: '#0ea5e9',
+    image: '/s360/2.png',
+    type: 'personal',
+    url: null,
+  },
+  {
+    id: 'petprosusa',
+    name: 'PetProsUSA.com',
+    category: 'Pet Affiliate',
+    description: 'Comprehensive pet products platform offering expert reviews and personalized pet care guidance.',
+    stack: ['WordPress', 'Affiliate Mgmt', 'CRM'],
+    color: '#22c55e',
+    image: '/s360/5.png',
+    type: 'personal',
+    url: null,
+  },
+  {
+    id: 'superwatches',
+    name: 'SuperWatchesStore.com',
+    category: 'Watch Retail',
+    description: 'Accessories retailer with curated collections and premium watch inventory management.',
+    stack: ['Shopify Plus', 'Inventory Mgmt', 'Analytics'],
+    color: '#f59e0b',
+    image: '/s360/6.png',
+    type: 'personal',
+    url: null,
   },
 ]
 
@@ -126,16 +127,18 @@ function ProjectCard({
 }) {
   return (
     <div className="rounded-xl border border-[rgba(0,180,255,0.1)] bg-[#0d0d1a] overflow-hidden hover:border-[rgba(0,180,255,0.25)] transition-colors duration-200">
-      <div
-        className="relative h-36 flex items-end justify-between p-3"
-        style={{ background: `linear-gradient(135deg, ${project.color}18 0%, ${project.color}06 100%)` }}
-      >
-        <span className="text-[10px] font-[700] text-white/70 bg-black/50 px-2 py-1 rounded-md backdrop-blur-sm uppercase tracking-wide">
-          {project.category}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-[600] text-white/60 bg-black/50 px-2 py-1 rounded-md backdrop-blur-sm">
-            High Performance
+      <div className="relative h-36 overflow-hidden">
+        <Image
+          src={project.image}
+          alt={project.name}
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.05) 100%)' }} />
+        <div className="absolute inset-0 flex items-end justify-between p-3">
+          <span className="text-[10px] font-[700] text-white/70 bg-black/50 px-2 py-1 rounded-md backdrop-blur-sm uppercase tracking-wide">
+            {project.category}
           </span>
           <button
             onClick={onToggle}
@@ -161,25 +164,13 @@ function ProjectCard({
           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
           <h3 className="font-[700] text-white text-sm leading-tight">{project.name}</h3>
         </div>
-        <p className="text-[#475569] text-xs leading-relaxed mb-3">{project.description}</p>
-
-        <div className="flex items-center gap-4 mb-3">
-          <div>
-            <div className="text-white font-[800] text-sm">{project.traffic}</div>
-            <div className="text-[#334155] text-[10px] uppercase tracking-wide">Traffic</div>
-          </div>
-          <div className="w-px h-7 bg-[rgba(0,180,255,0.08)]" />
-          <div>
-            <div className="text-white font-[800] text-sm">{project.conversion}</div>
-            <div className="text-[#334155] text-[10px] uppercase tracking-wide">Conversion</div>
-          </div>
-        </div>
+        <p className="text-white text-xs leading-relaxed mb-3">{project.description}</p>
 
         <div className="flex flex-wrap gap-1.5 mb-2">
           {project.stack.map(tech => (
             <span
               key={tech}
-              className="text-[9px] text-[#334155] border border-[rgba(0,180,255,0.07)] px-2 py-0.5 rounded-full"
+              className="text-[9px] text-white border border-[rgba(0,180,255,0.07)] px-2 py-0.5 rounded-full"
             >
               {tech}
             </span>
@@ -194,12 +185,19 @@ function ProjectCard({
           </div>
         )}
 
-        <button
-          onClick={onToggle}
-          className="text-[#334155] text-[10px] hover:text-[#475569] mt-2 block transition-colors"
-        >
-          Click to explore case study
-        </button>
+        {project.url ? (
+          <a
+            href={project.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#00b4ff] text-[10px] font-[600] hover:underline mt-2 block"
+            onClick={e => e.stopPropagation()}
+          >
+            Visit website &#8594;
+          </a>
+        ) : (
+          <span className="text-[#334155] text-[10px] mt-2 block">Coming Soon</span>
+        )}
       </div>
     </div>
   )
@@ -214,8 +212,8 @@ export default function ProjectDeepDive() {
         <h2 className="font-[800] text-4xl md:text-5xl text-white text-center mb-4">
           Project Deep Dive
         </h2>
-        <p className="text-[#475569] text-center mb-12 max-w-lg mx-auto text-sm leading-relaxed">
-          Click any project to explore revenue metrics, traffic insights, and detailed case studies.
+        <p className="text-white text-center mb-12 max-w-lg mx-auto text-sm leading-relaxed">
+          Click any project to explore detailed case studies.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map(project => (

@@ -87,7 +87,7 @@ export default function WorkspaceTile({
         style={{ background: 'rgba(0,0,0,0.25)', marginBottom: 12 }}
       >
         <KPI value={active_count} label="ACTIVE" color={active_count > 0 ? '#00b4ff' : '#1e293b'} />
-        <KPI value={blocked_count} label="BLOCKED" color={blocked_count > 0 ? '#f59e0b' : '#1e293b'} divider />
+        <KPI value={blocked_count} label="TO DO" color={blocked_count > 0 ? '#f59e0b' : '#1e293b'} divider />
         <KPI value={idea_count} label="IDEAS" color={idea_count > 0 ? '#475569' : '#1e293b'} divider />
       </div>
 

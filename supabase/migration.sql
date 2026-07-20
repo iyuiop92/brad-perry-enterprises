@@ -6,7 +6,7 @@ create table if not exists bpe_tasks (
   status text not null default 'idea' check (status in ('idea','in_progress','blocked','done')),
   type text not null default 'internal' check (type in ('internal','client')),
   brand text,
-  owner text not null default 'brad' check (owner in ('brad','wendy','ellie')),
+  owner text not null default 'brad' check (owner in ('brad','wendy','ellie','cleaver','sam')),
   phase text check (phase in ('discovery','design','build','launch','live')),
   deliverables jsonb not null default '[]'::jsonb,
   handoff_checklist jsonb not null default '[]'::jsonb,

@@ -94,10 +94,10 @@ export default function Hero() {
 
       {/* Top identity bar */}
       <div className="relative z-10 pt-8 px-8 md:px-14 flex items-center justify-between">
-        <span className="text-[#1e293b] text-[10px] font-[600] tracking-[0.3em] uppercase">
+        <span className="text-white text-[10px] font-[600] tracking-[0.3em] uppercase">
           Brad Perry
         </span>
-        <span className="text-[#1e293b] text-[10px] font-[600] tracking-[0.2em] uppercase">
+        <span className="text-white text-[10px] font-[600] tracking-[0.2em] uppercase">
           Est. 2012
         </span>
       </div>
@@ -128,7 +128,7 @@ export default function Hero() {
         <div className="flex flex-col md:flex-row items-start md:items-end justify-between gap-10 border-t border-[rgba(255,255,255,0.04)] pt-8">
 
           <div className="max-w-sm">
-            <p className="text-[#475569] text-sm leading-relaxed mb-6">
+            <p className="text-white text-sm leading-relaxed mb-6">
               Affiliate networks, SaaS platforms, and client sites
               engineered for consistent revenue — not just good-looking.
             </p>
@@ -141,7 +141,7 @@ export default function Hero() {
               </a>
               <a
                 href="#network"
-                className="text-sm font-[600] text-[#334155] hover:text-white transition-colors"
+                className="text-sm font-[600] text-white hover:text-white transition-colors"
               >
                 See the network &#8594;
               </a>
@@ -154,19 +154,19 @@ export default function Hero() {
               <div className="font-[800] text-white tabular-nums" style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.75rem)' }}>
                 400+
               </div>
-              <div className="text-[#334155] text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Projects</div>
+              <div className="text-white text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Projects</div>
             </div>
             <div>
               <div className="font-[800] text-white tabular-nums" style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.75rem)' }}>
                 12+
               </div>
-              <div className="text-[#334155] text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Years</div>
+              <div className="text-white text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Years</div>
             </div>
             <div>
               <div className="font-[800] text-white tabular-nums" style={{ fontSize: 'clamp(1.75rem, 3.5vw, 2.75rem)' }}>
                 145K
               </div>
-              <div className="text-[#334155] text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Monthly visits</div>
+              <div className="text-white text-[9px] font-[600] tracking-[0.2em] uppercase mt-1">Monthly visits</div>
             </div>
           </div>
 

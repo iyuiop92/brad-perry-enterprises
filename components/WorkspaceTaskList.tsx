@@ -3,7 +3,7 @@ import type { Task, TaskStatus, Workspace } from '@/lib/types'
 
 const STATUS_GROUPS: { status: TaskStatus; label: string; color: string }[] = [
   { status: 'in_progress', label: 'In Progress', color: '#00b4ff' },
-  { status: 'blocked',     label: 'Blocked',     color: '#f59e0b' },
+  { status: 'blocked',     label: 'To do',       color: '#f59e0b' },
   { status: 'idea',        label: 'Ideas',       color: '#475569' },
   { status: 'done',        label: 'Done',        color: '#22c55e' },
 ]
