@@ -209,6 +209,11 @@ async function handle(userRow) {
   if (bundle) log(`  downloaded ${bundle.files.length} attachment(s)`)
 
   let anyError = false
+  // Relay: on 'both', each agent runs in turn and sees the teammate's reply from
+  // this same message, so they build on / challenge each other instead of
+  // answering in parallel isolation. Order is targets[] (claude -> codex).
+  const priorReplies = []
+  const label = (key) => (key === 'claude' ? 'Wendy' : key === 'codex' ? 'Ellie' : key)
   try {
     for (const key of targets) {
       const agent = AGENTS[key]
@@ -220,8 +225,15 @@ async function handle(userRow) {
         const list = bundle.files.map((f) => `- ${f.path}`).join('\n')
         // Claude Code's Read tool ingests these local image paths as image blocks;
         // --add-dir grants tool access to the temp dir. Codex just gets the note.
-        prompt = `${basePrompt}\n\nBrad attached ${bundle.files.length} image(s). Read each one before replying:\n${list}`
+        prompt = `${prompt}\n\nBrad attached ${bundle.files.length} image(s). Read each one before replying:\n${list}`
         addDirs = [bundle.dir]
+      }
+
+      if (priorReplies.length) {
+        const teammate = priorReplies
+          .map((r) => `${r.who} already replied to this message:\n${r.text}`)
+          .join('\n\n')
+        prompt = `${prompt}\n\nYou are collaborating with your teammate in a shared room. ${teammate}\n\nBuild on or respectfully challenge their answer with your own distinct perspective. Do not just repeat what they said. Address them by name if you disagree.`
       }
 
       const result = await runAgent(agent, prompt, addDirs)
@@ -230,6 +242,7 @@ async function handle(userRow) {
         anyError = true
         log(`  ${key} error:`, result.text.slice(0, 160))
       } else {
+        priorReplies.push({ who: label(key), text: result.text })
         log(`  ${key} replied (${result.text.length} chars)`)
       }
     }
