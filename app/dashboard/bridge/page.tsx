@@ -45,23 +45,24 @@ export default function BridgePage() {
   const [target, setTarget] = useState<Target>('claude')
   const [sending, setSending] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
-  const sinceRef = useRef<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const poll = useCallback(async () => {
-    const qs = sinceRef.current ? `?since=${encodeURIComponent(sinceRef.current)}` : ''
-    const res = await fetch(`/api/bridge${qs}`, { cache: 'no-store' })
+    // Fetch the full recent thread every poll (no `since` cursor): a `since`
+    // filter on created_at only returns NEW rows, so status flips on existing
+    // messages (pending -> processing -> done) were never re-fetched and the
+    // UI stayed stuck on "working…"/"Waiting on a reply…" forever. The thread
+    // is small, so a full refresh each tick is cheap and always correct.
+    const res = await fetch('/api/bridge', { cache: 'no-store' })
     if (!res.ok) return
     const rows: Message[] = await res.json()
-    if (!rows.length) return
     setMessages((prev) => {
       const byId = new Map(prev.map((m) => [m.id, m]))
       for (const r of rows) byId.set(r.id, r)
       return [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at))
     })
-    sinceRef.current = rows[rows.length - 1].created_at
   }, [])
 
   useEffect(() => {
