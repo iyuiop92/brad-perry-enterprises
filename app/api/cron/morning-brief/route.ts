@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { generateMorningBrief } from '@/lib/generateBrief'
+import { getTrafficDigest } from '@/lib/ga'
 
 export const maxDuration = 60
 
@@ -18,7 +19,15 @@ export async function GET(request: Request) {
     .neq('status', 'done')
     .order('sort_order')
 
-  const text = await generateMorningBrief(tasks ?? [])
+  // Traffic is best-effort: a GA hiccup must never block the brief.
+  let traffic: string | null = null
+  try {
+    traffic = await getTrafficDigest()
+  } catch {
+    traffic = null
+  }
+
+  const text = await generateMorningBrief(tasks ?? [], traffic)
 
   // Save brief into the persistent feed thread
   await supabase.from('bpe_feed_messages').insert({
