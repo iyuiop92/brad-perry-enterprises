@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   if (unauthorized) return unauthorized
 
   const apiKey = process.env.OPENAI_API_KEY_BPE ?? process.env.OPENAI_API_KEY
-  const model = process.env.ELLIE_OPENAI_MODEL ?? 'gpt-5.4-mini'
+  const model = process.env.ELLIE_OPENAI_MODEL ?? 'gpt-5.6-terra'
 
   if (!apiKey) {
     return ellieStream('Ellie is here, but she needs an OpenAI API key connected first. Add OPENAI_API_KEY_BPE or OPENAI_API_KEY in Vercel, then redeploy.')
