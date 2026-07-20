@@ -66,6 +66,22 @@ export default function DashboardPage() {
         }}
       >
         <div className="dashboard-desktop-actions">
+          {/* Joint Wendy + Ellie room (the Both/relay chat). Desktop had no link
+              to it — the buttons below only open each agent's solo drawer. */}
+          <a
+            href="/dashboard/bridge"
+            style={{
+              display: 'flex', alignItems: 'center',
+              height: 28, padding: '0 10px', cursor: 'pointer',
+              borderRadius: 8, textDecoration: 'none',
+              background: 'rgba(0,180,255,0.12)',
+              border: '1px solid rgba(0,180,255,0.35)',
+              fontSize: 11, fontWeight: 700, color: '#00b4ff', letterSpacing: '0.05em',
+            }}
+            title="Team chat — talk to Wendy and Ellie together"
+          >
+            Bridge ↗
+          </a>
           <button
             onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
             style={{
