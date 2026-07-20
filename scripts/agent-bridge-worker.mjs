@@ -22,11 +22,13 @@
  *   BRIDGE_HISTORY                 how many prior messages to pass as context (default: 12)
  */
 
-import { readFileSync, unlinkSync } from 'node:fs'
+import { readFileSync, unlinkSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
+
+const BUCKET = 'bridge-uploads'
 
 // ---- load .env.local (simple parser, no dependency) ----
 function loadEnvLocal() {
@@ -67,10 +69,16 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSessio
 // Each agent's build(prompt) returns { cmd, args, outFile? }.
 // Codex prints a noisy session preamble to stdout, so we use --output-last-message
 // to capture ONLY the final reply into a temp file, then read that.
+// `addDirs` = extra directories the agent's file tools may read (used so Claude
+// can Read downloaded image attachments as image content blocks).
 const AGENTS = {
   claude: {
     role: 'claude',
-    build: (prompt) => ({ cmd: CLAUDE_CMD, args: ['-p', prompt, '--output-format', 'text'] }),
+    build: (prompt, addDirs = []) => {
+      const args = ['-p', prompt, '--output-format', 'text']
+      for (const d of addDirs) args.push('--add-dir', d)
+      return { cmd: CLAUDE_CMD, args }
+    },
   },
   codex: {
     role: 'codex',
@@ -86,9 +94,9 @@ function log(...a) {
 }
 
 // Run one agent CLI call, return { ok, text }
-function runAgent(agent, prompt) {
+function runAgent(agent, prompt, addDirs = []) {
   return new Promise((resolve) => {
-    const spec = agent.build(prompt)
+    const spec = agent.build(prompt, addDirs)
     let out = ''
     let err = ''
     let done = false
@@ -159,24 +167,72 @@ async function insertReply(thread, role, content, status = 'done') {
   await supabase.from('agent_bridge_messages').insert({ thread, role, content, status })
 }
 
+// Download a user row's image attachments from the private Storage bucket into a
+// fresh temp dir. Returns { dir, files:[{path, filename}] } or null if none.
+// Caller must clean up `dir`.
+async function downloadAttachments(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return null
+  const dir = mkdtempSync(join(tmpdir(), 'bridge-att-'))
+  const files = []
+  for (const att of attachments) {
+    if (!att?.storage_path) continue
+    const { data, error } = await supabase.storage.from(BUCKET).download(att.storage_path)
+    if (error || !data) {
+      log('  attachment download failed:', att.storage_path, error?.message || 'no data')
+      continue
+    }
+    const bytes = Buffer.from(await data.arrayBuffer())
+    const filename = (att.filename || 'image').replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = join(dir, `${files.length}-${filename}`)
+    writeFileSync(path, bytes)
+    files.push({ path, filename })
+  }
+  if (!files.length) {
+    try { rmSync(dir, { recursive: true, force: true }) } catch {}
+    return null
+  }
+  return { dir, files }
+}
+
 async function handle(userRow) {
   const targets = userRow.target === 'both' ? ['claude', 'codex'] : [userRow.target]
   log(`handling ${userRow.id} -> ${targets.join(', ')}`)
 
   await supabase.from('agent_bridge_messages').update({ status: 'processing' }).eq('id', userRow.id)
-  const prompt = await buildPrompt(userRow)
+  const basePrompt = await buildPrompt(userRow)
+
+  // Pull down any image attachments so the agent can actually see them.
+  const bundle = await downloadAttachments(userRow.attachments)
+  if (bundle) log(`  downloaded ${bundle.files.length} attachment(s)`)
 
   let anyError = false
-  for (const key of targets) {
-    const agent = AGENTS[key]
-    if (!agent) continue
-    const result = await runAgent(agent, prompt)
-    await insertReply(userRow.thread, agent.role, result.text, result.ok ? 'done' : 'error')
-    if (!result.ok) {
-      anyError = true
-      log(`  ${key} error:`, result.text.slice(0, 160))
-    } else {
-      log(`  ${key} replied (${result.text.length} chars)`)
+  try {
+    for (const key of targets) {
+      const agent = AGENTS[key]
+      if (!agent) continue
+
+      let prompt = basePrompt
+      let addDirs = []
+      if (bundle) {
+        const list = bundle.files.map((f) => `- ${f.path}`).join('\n')
+        // Claude Code's Read tool ingests these local image paths as image blocks;
+        // --add-dir grants tool access to the temp dir. Codex just gets the note.
+        prompt = `${basePrompt}\n\nBrad attached ${bundle.files.length} image(s). Read each one before replying:\n${list}`
+        addDirs = [bundle.dir]
+      }
+
+      const result = await runAgent(agent, prompt, addDirs)
+      await insertReply(userRow.thread, agent.role, result.text, result.ok ? 'done' : 'error')
+      if (!result.ok) {
+        anyError = true
+        log(`  ${key} error:`, result.text.slice(0, 160))
+      } else {
+        log(`  ${key} replied (${result.text.length} chars)`)
+      }
+    }
+  } finally {
+    if (bundle) {
+      try { rmSync(bundle.dir, { recursive: true, force: true }) } catch {}
     }
   }
 
@@ -193,7 +249,7 @@ async function tick() {
   try {
     const { data, error } = await supabase
       .from('agent_bridge_messages')
-      .select('id, thread, target, content, created_at')
+      .select('id, thread, target, content, attachments, created_at')
       .eq('role', 'user')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
