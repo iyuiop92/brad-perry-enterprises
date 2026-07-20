@@ -603,7 +603,7 @@ export default function CommandFeed({
                 {selectedMode.label} {selectedMode.time}: {selectedMode.intent}
               </span>
             </div>
-            <div className="dashboard-mode-bar" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <div className="dashboard-mode-bar" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
               {modeOptions.map(option => {
                 const selected = option.id === mode
                 const timerActive = timerMode === option.id && timerRemaining > 0
@@ -614,14 +614,14 @@ export default function CommandFeed({
                     className={`dashboard-mode-button ${selected ? 'is-selected' : ''}`}
                     title={timerActive ? `${timerRunning ? 'Pause' : 'Resume'} ${option.label}` : `Start ${option.label}`}
                     style={{
-                      height: 30,
-                      padding: '0 9px',
-                      borderRadius: 5,
-                      border: `1px solid ${timerActive || selected ? option.color : 'rgba(255,255,255,0.1)'}`,
-                      background: timerActive ? `${option.color}28` : selected ? `${option.color}1f` : 'rgba(255,255,255,0.035)',
-                      color: selected ? '#f8fafc' : '#94a3b8',
-                      fontSize: 13,
-                      fontWeight: 850,
+                      padding: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      whiteSpace: 'nowrap',
+                      color: selected ? option.color : 'rgba(255,255,255,0.4)',
+                      textShadow: selected ? `0 0 10px ${option.color}66` : 'none',
+                      fontSize: 12,
+                      fontWeight: selected ? 800 : 600,
                       cursor: 'pointer',
                     }}
                   >
@@ -634,14 +634,13 @@ export default function CommandFeed({
                   onClick={resetTimer}
                   className="dashboard-mode-button"
                   style={{
-                    height: 30,
-                    padding: '0 9px',
-                    borderRadius: 5,
-                    border: '1px solid rgba(148,163,184,0.16)',
-                    background: 'rgba(148,163,184,0.06)',
-                    color: '#94a3b8',
-                    fontSize: 13,
-                    fontWeight: 850,
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    whiteSpace: 'nowrap',
+                    color: 'rgba(255,255,255,0.4)',
+                    fontSize: 12,
+                    fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
