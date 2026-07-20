@@ -77,9 +77,9 @@ export default function ElliePanel({
             <p className="text-xs font-[850]" style={{ color: '#e2e8f0', fontFamily: 'var(--font-outfit)' }}>
               Ellie
             </p>
-            <span className="text-[8px] font-[750]" style={{ color: '#a78bfa' }}>BUILD LENS</span>
+            <span className="text-[10px] font-[750]" style={{ color: '#a78bfa' }}>BUILD LENS</span>
           </div>
-          <p className="text-[9px]" style={{ color: '#64748b' }}>
+          <p className="text-[11px]" style={{ color: '#64748b' }}>
             {selectedWs ? `Working inside ${selectedWs.name}` : 'Dashboard, code, and execution help'}
           </p>
         </div>
@@ -102,7 +102,7 @@ export default function ElliePanel({
               }}
             >
               <p style={{ color: item.color, fontSize: 15, fontWeight: 900, lineHeight: 1 }}>{item.value}</p>
-              <p style={{ color: '#64748b', fontSize: 9, fontWeight: 750, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{item.label}</p>
+              <p style={{ color: '#64748b', fontSize: 11, fontWeight: 750, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{item.label}</p>
             </div>
           ))}
         </div>
@@ -111,7 +111,7 @@ export default function ElliePanel({
       <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
         {messages.length === 0 && (
           <div className="flex flex-col gap-2 mt-2">
-            <p className="text-[10px] px-1" style={{ color: '#64748b', lineHeight: 1.5 }}>
+            <p className="text-[13px] px-1" style={{ color: '#64748b', lineHeight: 1.5 }}>
               Use Ellie for build direction, dashboard changes, code review notes, and turning a messy request into concrete next steps.
             </p>
             {[
@@ -125,7 +125,7 @@ export default function ElliePanel({
                   setInput(suggestion)
                   inputRef.current?.focus()
                 }}
-                className="text-left text-[10px] px-3 py-2 transition-all"
+                className="text-left text-[13px] px-3 py-2 transition-all"
                 style={{
                   background: 'rgba(255,255,255,0.02)',
                   border: '1px solid rgba(255,255,255,0.05)',
@@ -152,10 +152,10 @@ export default function ElliePanel({
           return (
             <div key={msg.id} className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
               {!isUser && (
-                <span className="text-[8px] font-[750] px-1" style={{ color: '#a78bfa' }}>ELLIE</span>
+                <span className="text-[10px] font-[750] px-1" style={{ color: '#a78bfa' }}>ELLIE</span>
               )}
               <div
-                className="px-3 py-2 text-xs leading-relaxed"
+                className="px-3 py-2 text-sm leading-relaxed"
                 style={{
                   maxWidth: '88%',
                   background: isUser ? 'rgba(167,139,250,0.12)' : 'rgba(255,255,255,0.03)',
@@ -201,13 +201,13 @@ export default function ElliePanel({
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             placeholder="Ask Ellie to shape the work..."
             disabled={isStreaming}
-            className="flex-1 bg-transparent outline-none text-xs"
+            className="flex-1 bg-transparent outline-none text-sm"
             style={{ color: '#cbd5e1', caretColor: '#a78bfa' }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
-            className="shrink-0 text-[9px] font-[750] px-2 py-1 transition-all"
+            className="shrink-0 text-[11px] font-[750] px-2 py-1 transition-all"
             style={{
               background: 'rgba(167,139,250,0.14)',
               color: '#c4b5fd',
@@ -220,7 +220,7 @@ export default function ElliePanel({
             SEND
           </button>
         </div>
-        <p className="text-[8px] text-center mt-1.5" style={{ color: '#334155' }}>
+        <p className="text-[10px] text-center mt-1.5" style={{ color: '#334155' }}>
           Ellie is separate from Wendy and focused on making the work concrete.
         </p>
       </div>

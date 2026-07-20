@@ -116,9 +116,9 @@ export default function WendyPanel({
                 '--glow-max': '7px',
               } as React.CSSProperties}
             />
-            <span className="text-[8px] font-[700]" style={{ color: '#00b4ff' }}>LIVE</span>
+            <span className="text-[10px] font-[700]" style={{ color: '#00b4ff' }}>LIVE</span>
           </div>
-          <p className="text-[9px]" style={{ color: '#334155' }}>
+          <p className="text-[11px]" style={{ color: '#334155' }}>
             {selectedWs ? `Focused on ${selectedWs.name}` : 'Full portfolio view'}
           </p>
         </div>
@@ -126,7 +126,7 @@ export default function WendyPanel({
 
       {/* AI Insight cards */}
       <div className="shrink-0 px-3 py-3 flex flex-col gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <p className="text-[8px] font-[700] uppercase tracking-[0.2em] px-1" style={{ color: '#334155' }}>
+        <p className="text-[10px] font-[700] uppercase tracking-[0.2em] px-1" style={{ color: '#334155' }}>
           Live Insights
         </p>
         {insights.map((insight, i) => (
@@ -138,7 +138,7 @@ export default function WendyPanel({
               border: '1px solid rgba(0,180,255,0.1)',
             }}
           >
-            <p className="text-[10px] leading-relaxed" style={{ color: '#64748b' }}>
+            <p className="text-[13px] leading-relaxed" style={{ color: '#64748b' }}>
               <span style={{ color: '#00b4ff', marginRight: 4 }}>✦</span>
               {insight}
             </p>
@@ -150,7 +150,7 @@ export default function WendyPanel({
       <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
         {messages.length === 0 && (
           <div className="flex flex-col gap-2 mt-2">
-            <p className="text-[10px] px-1" style={{ color: '#1e293b' }}>
+            <p className="text-[13px] px-1" style={{ color: '#1e293b' }}>
               Ask me anything about your portfolio, tasks, or next moves.
             </p>
             {[
@@ -164,7 +164,7 @@ export default function WendyPanel({
                   setInput(suggestion)
                   inputRef.current?.focus()
                 }}
-                className="text-left text-[10px] px-3 py-2 rounded-lg transition-all"
+                className="text-left text-[13px] px-3 py-2 rounded-lg transition-all"
                 style={{
                   background: 'rgba(255,255,255,0.02)',
                   border: '1px solid rgba(255,255,255,0.05)',
@@ -190,10 +190,10 @@ export default function WendyPanel({
           return (
             <div key={msg.id} className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
               {!isUser && (
-                <span className="text-[8px] font-[700] px-1" style={{ color: '#00b4ff' }}>WENDY</span>
+                <span className="text-[10px] font-[700] px-1" style={{ color: '#00b4ff' }}>WENDY</span>
               )}
               <div
-                className="rounded-xl px-3 py-2 text-xs leading-relaxed"
+                className="rounded-xl px-3 py-2 text-sm leading-relaxed"
                 style={{
                   maxWidth: '88%',
                   background: isUser
@@ -242,13 +242,13 @@ export default function WendyPanel({
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             placeholder="Ask Wendy anything..."
             disabled={isStreaming}
-            className="flex-1 bg-transparent outline-none text-xs"
+            className="flex-1 bg-transparent outline-none text-sm"
             style={{ color: '#cbd5e1', caretColor: '#00b4ff' }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
-            className="shrink-0 text-[9px] font-[700] px-2 py-1 rounded-md transition-all"
+            className="shrink-0 text-[11px] font-[700] px-2 py-1 rounded-md transition-all"
             style={{
               background: 'rgba(0,180,255,0.12)',
               color: '#00b4ff',
@@ -260,7 +260,7 @@ export default function WendyPanel({
             SEND
           </button>
         </div>
-        <p className="text-[8px] text-center mt-1.5" style={{ color: '#1e293b' }}>
+        <p className="text-[10px] text-center mt-1.5" style={{ color: '#1e293b' }}>
           Wendy knows your full portfolio — Wendy AI
         </p>
       </div>

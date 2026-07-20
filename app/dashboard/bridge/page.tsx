@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Target = 'claude' | 'codex' | 'both'
 type Role = 'user' | 'claude' | 'codex' | 'system'
@@ -38,6 +39,7 @@ const ROLE_META: Record<Role, { label: string; color: string }> = {
 }
 
 export default function BridgePage() {
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [target, setTarget] = useState<Target>('claude')
@@ -126,8 +128,28 @@ export default function BridgePage() {
       style={{ background: '#04040a', minHeight: '100vh', paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
       className="flex flex-col"
     >
+      {/* Always-visible close — returns to the dashboard without reloading the app. */}
+      <button
+        onClick={() => router.push('/dashboard')}
+        aria-label="Close chat"
+        className="fixed z-[200] flex items-center justify-center rounded-[10px]"
+        style={{
+          top: 'calc(env(safe-area-inset-top) + 8px)',
+          right: 12,
+          width: 44,
+          height: 44,
+          background: 'rgba(13,13,26,0.92)',
+          border: '1px solid rgba(0,180,255,0.28)',
+          color: '#e2e8f0',
+          cursor: 'pointer',
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+        </svg>
+      </button>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-40">
-        <header className="py-4">
+        <header className="py-4 pr-14">
           <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Command Bridge</p>
           <h1 className="mt-1 text-2xl font-[800] text-white" style={{ fontFamily: 'var(--font-outfit)' }}>Talk to your builders</h1>
           <p className="mt-1 text-xs" style={{ color: '#475569' }}>
