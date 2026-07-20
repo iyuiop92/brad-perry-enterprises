@@ -294,14 +294,14 @@ export default function DashboardPage() {
             aria-label="Close panel"
             style={{
               position: 'absolute', top: 8, right: 8, zIndex: 60,
-              width: 34, height: 34, borderRadius: 8,
+              width: 44, height: 44, borderRadius: 10,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.12)',
               color: '#e2e8f0', cursor: 'pointer',
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 6 6 18" /><path d="m6 6 12 12" />
             </svg>
           </button>

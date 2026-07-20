@@ -150,8 +150,8 @@ function SectionTitle({ label, detail, right }: { label: string; detail?: string
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 11, fontWeight: 850, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#f8fafc' }}>{label}</p>
-        {detail && <p style={{ marginTop: 3, fontSize: 11, color: '#8fa0b7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</p>}
+        <p style={{ fontSize: 13, fontWeight: 850, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#f8fafc' }}>{label}</p>
+        {detail && <p style={{ marginTop: 3, fontSize: 13, color: '#8fa0b7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</p>}
       </div>
       {right}
     </div>
@@ -180,7 +180,7 @@ function ActionButton({
         border: `1px solid ${tone}44`,
         background: `${tone}18`,
         color: tone,
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: 850,
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled ? 0.45 : 1,
@@ -195,8 +195,8 @@ function ActionButton({
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div style={{ padding: 18 }}>
-      <p style={{ color: '#f8fafc', fontSize: 13, fontWeight: 850 }}>{title}</p>
-      <p style={{ marginTop: 6, color: '#8fa0b7', fontSize: 11, lineHeight: 1.5 }}>{detail}</p>
+      <p style={{ color: '#f8fafc', fontSize: 15, fontWeight: 850 }}>{title}</p>
+      <p style={{ marginTop: 6, color: '#8fa0b7', fontSize: 13, lineHeight: 1.5 }}>{detail}</p>
     </div>
   )
 }
@@ -221,15 +221,15 @@ function TaskRow({
       <button onClick={onOpen} style={{ minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: theme.color, boxShadow: `0 0 14px ${theme.color}99`, flexShrink: 0 }} />
-          <span style={{ flexShrink: 0, color: workspace?.color ?? '#38bdf8', fontSize: 9, fontWeight: 900, border: `1px solid ${(workspace?.color ?? '#38bdf8')}44`, borderRadius: 4, padding: '2px 5px', background: `${workspace?.color ?? '#38bdf8'}14` }}>
+          <span style={{ flexShrink: 0, color: workspace?.color ?? '#38bdf8', fontSize: 11, fontWeight: 900, border: `1px solid ${(workspace?.color ?? '#38bdf8')}44`, borderRadius: 4, padding: '2px 5px', background: `${workspace?.color ?? '#38bdf8'}14` }}>
             {workspaceAbbr(workspace?.name ?? task.brand)}
           </span>
-          <span style={{ minWidth: 0, color: '#f8fafc', fontSize: 13, fontWeight: 780, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+          <span style={{ minWidth: 0, color: '#f8fafc', fontSize: 15, fontWeight: 780, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          <span style={{ color: '#cbd5e1', fontSize: 9, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '2px 7px' }}>{priorityLabel[task.priority]}</span>
-          <span style={{ color: statusColor, fontSize: 9, border: `1px solid ${statusColor}33`, borderRadius: 999, padding: '2px 7px' }}>{statusLabel[task.status]}</span>
-          <span style={{ color: theme.color, fontSize: 9, border: `1px solid ${theme.color}33`, borderRadius: 999, padding: '2px 7px' }}>{lane}</span>
+          <span style={{ color: '#cbd5e1', fontSize: 11, border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999, padding: '2px 7px' }}>{priorityLabel[task.priority]}</span>
+          <span style={{ color: statusColor, fontSize: 11, border: `1px solid ${statusColor}33`, borderRadius: 999, padding: '2px 7px' }}>{statusLabel[task.status]}</span>
+          <span style={{ color: theme.color, fontSize: 11, border: `1px solid ${theme.color}33`, borderRadius: 999, padding: '2px 7px' }}>{lane}</span>
         </div>
       </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -272,7 +272,7 @@ function LaneButton({
         cursor: 'pointer',
       }}
     >
-      <p style={{ color: selected ? '#f8fafc' : '#94a3b8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</p>
+      <p style={{ color: selected ? '#f8fafc' : '#94a3b8', fontSize: 11, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</p>
       <p style={{ color, fontSize: 15, fontWeight: 950, lineHeight: 1 }}>{count}</p>
     </button>
   )
@@ -595,11 +595,11 @@ export default function CommandFeed({
           <div className="dashboard-command-topbar" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, alignItems: 'center' }}>
             <div className="dashboard-command-datebar" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: commandTheme.color, boxShadow: `0 0 16px ${commandTheme.color}`, flexShrink: 0 }} />
-              <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 900 }}>{todayLabel}</span>
-              <span style={{ color: commandTheme.color, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              <span style={{ color: '#f8fafc', fontSize: 15, fontWeight: 900 }}>{todayLabel}</span>
+              <span style={{ color: commandTheme.color, fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
                 {selectedWs ? selectedWs.name : 'All workspaces'}
               </span>
-              <span style={{ color: '#7f8da3', fontSize: 11 }}>
+              <span style={{ color: '#7f8da3', fontSize: 13 }}>
                 {selectedMode.label} {selectedMode.time}: {selectedMode.intent}
               </span>
             </div>
@@ -620,7 +620,7 @@ export default function CommandFeed({
                       border: `1px solid ${timerActive || selected ? option.color : 'rgba(255,255,255,0.1)'}`,
                       background: timerActive ? `${option.color}28` : selected ? `${option.color}1f` : 'rgba(255,255,255,0.035)',
                       color: selected ? '#f8fafc' : '#94a3b8',
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: 850,
                       cursor: 'pointer',
                     }}
@@ -640,7 +640,7 @@ export default function CommandFeed({
                     border: '1px solid rgba(148,163,184,0.16)',
                     background: 'rgba(148,163,184,0.06)',
                     color: '#94a3b8',
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: 850,
                     cursor: 'pointer',
                   }}
@@ -668,7 +668,7 @@ export default function CommandFeed({
             />
             <div className="dashboard-today-plan-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 0.9fr', gap: 0 }}>
               <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Main win</p>
+                <p style={{ color: '#22c55e', fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Main win</p>
                 {commandTask ? (
                   <>
                     <button
@@ -681,7 +681,7 @@ export default function CommandFeed({
                         background: 'transparent',
                         color: '#f8fafc',
                         textAlign: 'left',
-                        fontSize: 16,
+                        fontSize: 17,
                         lineHeight: 1.25,
                         fontWeight: 900,
                         cursor: 'pointer',
@@ -696,12 +696,12 @@ export default function CommandFeed({
                     </div>
                   </>
                 ) : (
-                  <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45, marginTop: 9 }}>No open task selected.</p>
+                  <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.45, marginTop: 9 }}>No open task selected.</p>
                 )}
               </div>
 
               <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                <p style={{ color: '#38bdf8', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Next 3</p>
+                <p style={{ color: '#38bdf8', fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Next 3</p>
                 <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
                   {nextThree.length ? nextThree.map(task => (
                     <button
@@ -722,17 +722,17 @@ export default function CommandFeed({
                         cursor: 'pointer',
                       }}
                     >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>{task.title}</span>
-                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#f472b6', fontSize: 9, fontWeight: 850 }}>{statusLabel[task.status]}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 750 }}>{task.title}</span>
+                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#f472b6', fontSize: 11, fontWeight: 850 }}>{statusLabel[task.status]}</span>
                     </button>
                   )) : (
-                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>No extra open moves.</p>
+                    <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.45 }}>No extra open moves.</p>
                   )}
                 </div>
               </div>
 
               <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                <p style={{ color: '#f59e0b', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Parked</p>
+                <p style={{ color: '#f59e0b', fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Parked</p>
                 <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
                   {parkedToday.length ? parkedToday.map(task => (
                     <button
@@ -753,27 +753,27 @@ export default function CommandFeed({
                         cursor: 'pointer',
                       }}
                     >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>{task.title}</span>
-                      <span style={{ color: '#f59e0b', fontSize: 9, fontWeight: 850 }}>Pull</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 750 }}>{task.title}</span>
+                      <span style={{ color: '#f59e0b', fontSize: 11, fontWeight: 850 }}>Pull</span>
                     </button>
                   )) : (
-                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>Nothing parked in this scope.</p>
+                    <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.45 }}>Nothing parked in this scope.</p>
                   )}
                 </div>
               </div>
 
               <div style={{ padding: 14 }}>
-                <p style={{ color: '#a78bfa', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Body check</p>
+                <p style={{ color: '#a78bfa', fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Body check</p>
                 <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
-                  <p style={{ color: '#cbd5e1', fontSize: 11, lineHeight: 1.4 }}>
+                  <p style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.4 }}>
                     BP: {latestBloodPressure?.bp_systolic && latestBloodPressure.bp_diastolic
                       ? `${latestBloodPressure.bp_systolic}/${latestBloodPressure.bp_diastolic} ${latestBloodPressure.pulse ? `P${latestBloodPressure.pulse}` : ''}`
                       : 'not logged'}
                   </p>
-                  <p style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+                  <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.4 }}>
                     Food: {latestNutrition?.meal_name ?? (latestNutrition?.calories ? `${latestNutrition.calories} cal` : 'not logged')}
                   </p>
-                  <p style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+                  <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.4 }}>
                     Workout: {latestWorkout?.workout_type ?? (latestWorkout?.duration_mins ? `${latestWorkout.duration_mins} min` : 'not logged')}
                   </p>
                   <a
@@ -781,7 +781,7 @@ export default function CommandFeed({
                     style={{
                       width: 'fit-content',
                       color: '#a78bfa',
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: 850,
                       textDecoration: 'none',
                     }}
@@ -792,7 +792,7 @@ export default function CommandFeed({
               </div>
             </div>
             {(latestBloodPressure || latestNutrition || latestWorkout) && (
-              <div style={{ padding: '0 14px 12px', color: '#64748b', fontSize: 10 }}>
+              <div style={{ padding: '0 14px 12px', color: '#64748b', fontSize: 11 }}>
                 Latest health signal: {shortDateTime((latestBloodPressure ?? latestNutrition ?? latestWorkout)?.logged_at ?? new Date().toISOString())}
               </div>
             )}
@@ -811,7 +811,7 @@ export default function CommandFeed({
             />
             <div className="dashboard-daily-systems-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
               <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                <p style={{ color: '#22c55e', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Shipped today</p>
+                <p style={{ color: '#22c55e', fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Shipped today</p>
                 <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
                   {doneToday.length ? doneToday.slice(0, 4).map(task => (
                     <button
@@ -825,7 +825,7 @@ export default function CommandFeed({
                         background: 'rgba(34,197,94,0.045)',
                         color: '#cbd5e1',
                         textAlign: 'left',
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: 750,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -836,13 +836,13 @@ export default function CommandFeed({
                       {task.title}
                     </button>
                   )) : (
-                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>Nothing marked done today yet.</p>
+                    <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.45 }}>Nothing marked done today yet.</p>
                   )}
                 </div>
               </div>
 
               <div style={{ padding: 14, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                <p style={{ color: '#f59e0b', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Still open</p>
+                <p style={{ color: '#f59e0b', fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Still open</p>
                 <div style={{ display: 'grid', gap: 7, marginTop: 9 }}>
                   {stillOpen.length ? stillOpen.map(task => (
                     <button
@@ -863,19 +863,19 @@ export default function CommandFeed({
                         cursor: 'pointer',
                       }}
                     >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>{task.title}</span>
-                      <span style={{ color: tomorrowFocusId === task.id ? '#22c55e' : '#64748b', fontSize: 9, fontWeight: 850 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 750 }}>{task.title}</span>
+                      <span style={{ color: tomorrowFocusId === task.id ? '#22c55e' : '#64748b', fontSize: 11, fontWeight: 850 }}>
                         {tomorrowFocusId === task.id ? 'First' : 'Set'}
                       </span>
                     </button>
                   )) : (
-                    <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>No active or to-do items left in this scope.</p>
+                    <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.45 }}>No active or to-do items left in this scope.</p>
                   )}
                 </div>
               </div>
 
               <div style={{ padding: 14 }}>
-                <p style={{ color: '#a78bfa', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Closeout note</p>
+                <p style={{ color: '#a78bfa', fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Closeout note</p>
                 <textarea
                   value={closeoutNote}
                   onChange={e => saveCloseoutNote(e.target.value)}
@@ -892,7 +892,7 @@ export default function CommandFeed({
                     color: '#cbd5e1',
                     outline: 'none',
                     resize: 'vertical',
-                    fontSize: 12,
+                    fontSize: 14,
                     lineHeight: 1.45,
                   }}
                 />
@@ -925,7 +925,7 @@ export default function CommandFeed({
                       background: 'rgba(0,0,0,0.24)',
                       color: '#f8fafc',
                       outline: 'none',
-                      fontSize: 12,
+                      fontSize: 14,
                     }}
                   />
                   <ActionButton tone="#f472b6" onClick={captureInbox} disabled={!inboxText.trim()}>Capture</ActionButton>
@@ -946,22 +946,22 @@ export default function CommandFeed({
                         background: 'rgba(255,255,255,0.025)',
                       }}
                     >
-                      <span style={{ color: '#cbd5e1', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.content}</span>
+                      <span style={{ color: '#cbd5e1', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.content}</span>
                       <button
                         onClick={() => convertInboxToIdea(item)}
-                        style={{ color: '#f472b6', background: 'none', border: 'none', fontSize: 10, fontWeight: 850, cursor: 'pointer' }}
+                        style={{ color: '#f472b6', background: 'none', border: 'none', fontSize: 11, fontWeight: 850, cursor: 'pointer' }}
                       >
                         Idea
                       </button>
                       <button
                         onClick={() => clearInboxItem(item)}
-                        style={{ color: '#64748b', background: 'none', border: 'none', fontSize: 10, fontWeight: 850, cursor: 'pointer' }}
+                        style={{ color: '#64748b', background: 'none', border: 'none', fontSize: 11, fontWeight: 850, cursor: 'pointer' }}
                       >
                         Clear
                       </button>
                     </div>
                   ))}
-                  {!inboxItems.length && <p style={{ color: '#64748b', fontSize: 12 }}>Inbox is clear.</p>}
+                  {!inboxItems.length && <p style={{ color: '#64748b', fontSize: 14 }}>Inbox is clear.</p>}
                 </div>
               </div>
             </Card>
@@ -990,7 +990,7 @@ export default function CommandFeed({
                       background: 'rgba(0,0,0,0.24)',
                       color: '#f8fafc',
                       outline: 'none',
-                      fontSize: 12,
+                      fontSize: 14,
                     }}
                   />
                   <ActionButton tone="#38bdf8" onClick={addCalendarItem} disabled={!calendarText.trim()}>Add</ActionButton>
@@ -1008,14 +1008,14 @@ export default function CommandFeed({
                         background: 'rgba(255,255,255,0.025)',
                         color: '#cbd5e1',
                         textAlign: 'left',
-                        fontSize: 11,
+                        fontSize: 13,
                         cursor: 'pointer',
                       }}
                     >
                       {item}
                     </button>
                   ))}
-                  {!calendarItems.length && <p style={{ color: '#64748b', fontSize: 12 }}>No calendar holds captured.</p>}
+                  {!calendarItems.length && <p style={{ color: '#64748b', fontSize: 14 }}>No calendar holds captured.</p>}
                 </div>
               </div>
             </Card>
@@ -1046,7 +1046,7 @@ export default function CommandFeed({
                     }}
                   >
                     <span style={{ width: 12, height: 12, borderRadius: 5, border: `1px solid ${item.done ? '#22c55e' : '#64748b'}`, background: item.done ? '#22c55e' : 'transparent' }} />
-                    <span style={{ fontSize: 12, fontWeight: 750 }}>{item.label}</span>
+                    <span style={{ fontSize: 14, fontWeight: 750 }}>{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -1060,7 +1060,7 @@ export default function CommandFeed({
             >
               <SectionTitle label="Apple Health ready" detail="Manual tracking now. Watch sync is the next integration." />
               <div style={{ padding: 14, display: 'grid', gap: 10 }}>
-                <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.5 }}>
+                <p style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 1.5 }}>
                   The dashboard is already reading manual BP, nutrition, and workout logs. When Apple Health is connected, this panel should replace manual body check data with sleep, heart rate, activity, and workout summaries.
                 </p>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1075,7 +1075,7 @@ export default function CommandFeed({
                       border: '1px solid rgba(167,139,250,0.27)',
                       background: 'rgba(167,139,250,0.09)',
                       color: '#a78bfa',
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: 850,
                       textDecoration: 'none',
                       whiteSpace: 'nowrap',
@@ -1096,12 +1096,12 @@ export default function CommandFeed({
               <div className="dashboard-command-focus-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: 0 }}>
                 <div style={{ padding: 22, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ color: workspaceFor(commandTask)?.color ?? commandTheme.color, fontSize: 11, fontWeight: 900, letterSpacing: '0.1em' }}>
+                    <span style={{ color: workspaceFor(commandTask)?.color ?? commandTheme.color, fontSize: 13, fontWeight: 900, letterSpacing: '0.1em' }}>
                       {workspaceFor(commandTask)?.name ?? commandTask.brand ?? 'Unassigned'}
                     </span>
-                    <span style={{ color: '#cbd5e1', fontSize: 10, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>{priorityLabel[commandTask.priority]}</span>
-                    <span style={{ color: commandTheme.color, fontSize: 10, border: `1px solid ${commandTheme.color}33`, borderRadius: 999, padding: '2px 8px' }}>{commandLane}</span>
-                    <span style={{ color: commandTask.status === 'in_progress' ? '#38bdf8' : commandTask.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 10, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>
+                    <span style={{ color: '#cbd5e1', fontSize: 11, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>{priorityLabel[commandTask.priority]}</span>
+                    <span style={{ color: commandTheme.color, fontSize: 11, border: `1px solid ${commandTheme.color}33`, borderRadius: 999, padding: '2px 8px' }}>{commandLane}</span>
+                    <span style={{ color: commandTask.status === 'in_progress' ? '#38bdf8' : commandTask.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 11, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>
                       {statusLabel[commandTask.status]}
                     </span>
                   </div>
@@ -1125,8 +1125,8 @@ export default function CommandFeed({
                   >
                     {commandTask.title}
                   </button>
-                  <p style={{ color: '#9ca9bb', fontSize: 13, lineHeight: 1.55, marginTop: 11 }}>{notePreview(commandTask)}</p>
-                  <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.45, marginTop: 8 }}>{inferWhy(commandTask)}</p>
+                  <p style={{ color: '#9ca9bb', fontSize: 15, lineHeight: 1.55, marginTop: 11 }}>{notePreview(commandTask)}</p>
+                  <p style={{ color: '#64748b', fontSize: 13, lineHeight: 1.45, marginTop: 8 }}>{inferWhy(commandTask)}</p>
 
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 18 }}>
                     {commandTask.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => setTaskStatus(commandTask, 'in_progress')}>Start</ActionButton>}
@@ -1150,11 +1150,11 @@ export default function CommandFeed({
                     <div style={{ width: 104, height: 104, borderRadius: '50%', background: '#07101a', display: 'grid', placeItems: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
                       <div style={{ textAlign: 'center' }}>
                         <p style={{ color: commandTheme.color, fontSize: 30, lineHeight: 1, fontWeight: 950 }}>{needleScore(commandTask)}</p>
-                        <p style={{ color: '#7f8da3', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 5 }}>Needle</p>
+                        <p style={{ color: '#7f8da3', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 5 }}>Needle</p>
                       </div>
                     </div>
                   </div>
-                  <p style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.45, textAlign: 'center' }}>
+                  <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.45, textAlign: 'center' }}>
                     Use this as a quick signal, not a command. Pick another anytime.
                   </p>
                 </div>
@@ -1228,7 +1228,7 @@ export default function CommandFeed({
                       color: '#f8fafc',
                       padding: '0 12px',
                       outline: 'none',
-                      fontSize: 12,
+                      fontSize: 14,
                       boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset',
                     }}
                   />
@@ -1236,18 +1236,18 @@ export default function CommandFeed({
                     <ActionButton tone="#f472b6" onClick={handleCapture} disabled={!capture.trim() || capturing}>
                       Save idea
                     </ActionButton>
-                    <span style={{ color: '#64748b', fontSize: 10, lineHeight: 1.35 }}>
+                    <span style={{ color: '#64748b', fontSize: 11, lineHeight: 1.35 }}>
                       {selectedWs ? `Drops into ${selectedWs.name}` : 'Drops into all-workspace ideas'}
                     </span>
                   </div>
                 </div>
                 <div style={{ marginTop: 12, display: 'grid', gap: 7 }}>
                   {ideas.slice(0, 4).map(item => (
-                    <p key={item.id} style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.35, borderTop: '1px solid rgba(244,114,182,0.10)', paddingTop: 7 }}>
+                    <p key={item.id} style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.35, borderTop: '1px solid rgba(244,114,182,0.10)', paddingTop: 7 }}>
                       {item.title}
                     </p>
                   ))}
-                  {!ideas.length && <p style={{ color: '#64748b', fontSize: 11 }}>No parked ideas in this scope.</p>}
+                  {!ideas.length && <p style={{ color: '#64748b', fontSize: 13 }}>No parked ideas in this scope.</p>}
                 </div>
               </div>
             </Card>
@@ -1279,19 +1279,19 @@ export default function CommandFeed({
                         border: `1px solid ${color}`,
                         background: selected ? `${workspace?.color ?? laneTheme[lane].color}14` : 'rgba(255,255,255,0.025)',
                         color: '#f8fafc',
-                        fontSize: 12,
+                        fontSize: 14,
                         lineHeight: 1.35,
                         cursor: 'pointer',
                       }}
                     >
                       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
-                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 9, fontWeight: 850 }}>
+                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 11, fontWeight: 850 }}>
                         {statusLabel[task.status]}
                       </span>
                     </button>
                   )
                 }) : (
-                  <p style={{ color: '#64748b', fontSize: 11, lineHeight: 1.45, padding: 4 }}>No open tasks in this scope.</p>
+                  <p style={{ color: '#64748b', fontSize: 13, lineHeight: 1.45, padding: 4 }}>No open tasks in this scope.</p>
                 )}
               </div>
             </Card>
@@ -1317,10 +1317,10 @@ export default function CommandFeed({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: ws.color, boxShadow: `0 0 12px ${ws.color}88` }} />
-                    <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
-                    <span style={{ marginLeft: 'auto', color: ws.color, fontSize: 11, fontWeight: 850 }}>{count}</span>
+                    <span style={{ color: '#f8fafc', fontSize: 15, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+                    <span style={{ marginLeft: 'auto', color: ws.color, fontSize: 13, fontWeight: 850 }}>{count}</span>
                   </div>
-                  <p style={{ color: next ? '#94a3b8' : '#64748b', fontSize: 11, lineHeight: 1.4, marginTop: 12, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                  <p style={{ color: next ? '#94a3b8' : '#64748b', fontSize: 13, lineHeight: 1.4, marginTop: 12, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                     {next ? next.title : 'Clear for now'}
                   </p>
                 </button>

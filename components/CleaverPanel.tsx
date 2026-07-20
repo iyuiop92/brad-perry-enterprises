@@ -72,9 +72,9 @@ export default function CleaverPanel({
             <p className="text-xs font-[850]" style={{ color: '#e2e8f0', fontFamily: 'var(--font-outfit)' }}>
               Cleaver
             </p>
-            <span className="text-[8px] font-[750]" style={{ color: '#22c55e' }}>REASON</span>
+            <span className="text-[10px] font-[750]" style={{ color: '#22c55e' }}>REASON</span>
           </div>
-          <p className="text-[9px]" style={{ color: '#64748b' }}>
+          <p className="text-[11px]" style={{ color: '#64748b' }}>
             {selectedWs ? `Stepping back on ${selectedWs.name}` : 'Steady repair logic and tradeoffs'}
           </p>
         </div>
@@ -98,7 +98,7 @@ export default function CleaverPanel({
               }}
             >
               <p style={{ color: item.color, fontSize: 14, fontWeight: 900, lineHeight: 1 }}>{item.value}</p>
-              <p style={{ color: '#64748b', fontSize: 8, fontWeight: 750, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{item.label}</p>
+              <p style={{ color: '#64748b', fontSize: 11, fontWeight: 750, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{item.label}</p>
             </div>
           ))}
         </div>
@@ -107,7 +107,7 @@ export default function CleaverPanel({
       <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-3">
         {messages.length === 0 && (
           <div className="flex flex-col gap-2 mt-2">
-            <p className="text-[10px] px-1" style={{ color: '#64748b', lineHeight: 1.5 }}>
+            <p className="text-[13px] px-1" style={{ color: '#64748b', lineHeight: 1.5 }}>
               Use Cleaver for private local thinking, repair logic, tradeoffs, and stepping back before you start moving pieces.
             </p>
             {[
@@ -121,7 +121,7 @@ export default function CleaverPanel({
                   setInput(suggestion)
                   inputRef.current?.focus()
                 }}
-                className="text-left text-[10px] px-3 py-2 transition-all"
+                className="text-left text-[13px] px-3 py-2 transition-all"
                 style={{
                   background: 'rgba(255,255,255,0.02)',
                   border: '1px solid rgba(255,255,255,0.05)',
@@ -148,10 +148,10 @@ export default function CleaverPanel({
           return (
             <div key={msg.id} className={`flex flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
               {!isUser && (
-                <span className="text-[8px] font-[750] px-1" style={{ color: '#22c55e' }}>CLEAVER</span>
+                <span className="text-[10px] font-[750] px-1" style={{ color: '#22c55e' }}>CLEAVER</span>
               )}
               <div
-                className="px-3 py-2 text-xs leading-relaxed"
+                className="px-3 py-2 text-sm leading-relaxed"
                 style={{
                   maxWidth: '88%',
                   background: isUser ? 'rgba(34,197,94,0.11)' : 'rgba(255,255,255,0.03)',
@@ -197,13 +197,13 @@ export default function CleaverPanel({
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             placeholder="Ask Cleaver to reason locally..."
             disabled={isStreaming}
-            className="flex-1 bg-transparent outline-none text-xs"
+            className="flex-1 bg-transparent outline-none text-sm"
             style={{ color: '#cbd5e1', caretColor: '#22c55e' }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
-            className="shrink-0 text-[9px] font-[750] px-2 py-1 transition-all"
+            className="shrink-0 text-[11px] font-[750] px-2 py-1 transition-all"
             style={{
               background: 'rgba(34,197,94,0.14)',
               color: '#86efac',
@@ -216,7 +216,7 @@ export default function CleaverPanel({
             SEND
           </button>
         </div>
-        <p className="text-[8px] text-center mt-1.5" style={{ color: '#334155' }}>
+        <p className="text-[10px] text-center mt-1.5" style={{ color: '#334155' }}>
           Cleaver uses local Ollama when reachable, with Gemini as the production fallback.
         </p>
       </div>

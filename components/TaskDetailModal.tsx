@@ -363,7 +363,7 @@ function AnnotSpan({ text, note, onRemove }: { text: string; note: string; onRem
             position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, zIndex: 200,
             background: '#0d1626', border: '1px solid rgba(0,180,255,0.25)',
             borderRadius: 7, padding: '7px 10px',
-            fontSize: 12, color: '#94a3b8', lineHeight: '1.5',
+            fontSize: 14, color: "#94a3b8", lineHeight: "1.5",
             whiteSpace: 'normal', width: 210,
             boxShadow: '0 6px 20px rgba(0,0,0,0.6)',
             display: 'flex', flexDirection: 'column', gap: 5,
@@ -464,7 +464,7 @@ function NotesEditor({
 
   function renderNotes() {
     if (!notes.trim()) {
-      return <p style={{ color: '#334155', fontSize: 13 }}>No notes yet. Tap Edit to add.</p>
+      return <p style={{ color: "#334155", fontSize: 15 }}>No notes yet. Tap Edit to add.</p>
     }
     return notes.split('\n').map((line, i) => {
       if (!line) return <div key={i} style={{ height: 6 }} />
@@ -473,8 +473,8 @@ function NotesEditor({
       const parts = parseAnnotations(content)
       return (
         <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 3 }}>
-          {isBullet && <span style={{ color: '#00b4ff', flexShrink: 0, lineHeight: '1.6', fontSize: 14 }}>•</span>}
-          <span style={{ fontSize: 13, color: '#94a3b8', lineHeight: '1.65', flex: 1, wordBreak: 'break-word' }}>
+          {isBullet && <span style={{ color: '#00b4ff', flexShrink: 0, lineHeight: "1.6", fontSize: 15 }}>•</span>}
+          <span style={{ fontSize: 15, color: "#94a3b8", lineHeight: "1.65", flex: 1, wordBreak: 'break-word' }}>
             {parts.map((part, j) =>
               part.type === 'annot' ? (
                 <AnnotSpan
