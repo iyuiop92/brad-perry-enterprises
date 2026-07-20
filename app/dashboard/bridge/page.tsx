@@ -48,6 +48,7 @@ export default function BridgePage() {
   const sinceRef = useRef<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const poll = useCallback(async () => {
     const qs = sinceRef.current ? `?since=${encodeURIComponent(sinceRef.current)}` : ''
@@ -72,6 +73,11 @@ export default function BridgePage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Land with the cursor ready to type, like Telegram's compose box.
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
 
   async function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
@@ -283,6 +289,8 @@ export default function BridgePage() {
               </svg>
             </button>
             <textarea
+              ref={textareaRef}
+              autoFocus
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
