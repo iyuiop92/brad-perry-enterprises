@@ -115,7 +115,10 @@ function runAgent(agent, prompt, addDirs = []) {
       return out.trim()
     }
 
-    const child = spawn(spec.cmd, spec.args, { cwd: CWD, env: process.env })
+    // stdin must be closed (/dev/null), not an open pipe: codex `exec` reads
+    // stdin and blocks on "Reading additional input from stdin..." until it
+    // gets EOF, which otherwise never comes and the agent times out.
+    const child = spawn(spec.cmd, spec.args, { cwd: CWD, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
 
     const timer = setTimeout(() => {
       if (done) return
