@@ -74,6 +74,8 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSessio
 const AGENTS = {
   claude: {
     role: 'claude',
+    // In the BPE dashboard bridge this agent is Wendy (not Jack).
+    persona: 'You are Wendy, Brad\'s executive partner, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Wendy. Never call yourself Jack.',
     build: (prompt, addDirs = []) => {
       const args = ['-p', prompt, '--output-format', 'text']
       for (const d of addDirs) args.push('--add-dir', d)
@@ -82,6 +84,7 @@ const AGENTS = {
   },
   codex: {
     role: 'codex',
+    persona: 'You are Ellie, Brad\'s builder/execution collaborator, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Ellie.',
     build: (prompt) => {
       const outFile = join(tmpdir(), `codex-out-${Date.now()}-${Math.floor(Math.random() * 1e9)}.txt`)
       return { cmd: CODEX_CMD, args: ['exec', '--skip-git-repo-check', '-o', outFile, prompt], outFile }
@@ -160,7 +163,7 @@ async function buildPrompt(userRow) {
   if (!history.length) return userRow.content
 
   const lines = history.map((m) => {
-    const who = m.role === 'user' ? 'Brad' : m.role === 'claude' ? 'Jack' : m.role === 'codex' ? 'Codex' : m.role
+    const who = m.role === 'user' ? 'Brad' : m.role === 'claude' ? 'Wendy' : m.role === 'codex' ? 'Ellie' : m.role
     return `${who}: ${m.content}`
   })
   return `You are being messaged from Brad's BPE dashboard bridge. Recent conversation for context:\n\n${lines.join('\n')}\n\nBrad now says:\n${userRow.content}`
@@ -219,7 +222,7 @@ async function handle(userRow) {
       const agent = AGENTS[key]
       if (!agent) continue
 
-      let prompt = basePrompt
+      let prompt = agent.persona ? `${agent.persona}\n\n${basePrompt}` : basePrompt
       let addDirs = []
       if (bundle) {
         const list = bundle.files.map((f) => `- ${f.path}`).join('\n')
