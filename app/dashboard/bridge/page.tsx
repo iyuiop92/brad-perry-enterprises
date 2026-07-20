@@ -48,6 +48,11 @@ export default function BridgePage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Only auto-scroll to the newest message when the user is already near the
+  // bottom. Otherwise scrolling up to read history gets yanked back down every
+  // poll. `lastSigRef` avoids re-scrolling when a poll returns no real change.
+  const atBottomRef = useRef(true)
+  const lastSigRef = useRef('')
 
   const poll = useCallback(async () => {
     // Fetch the full recent thread every poll (no `since` cursor): a `since`
@@ -71,8 +76,27 @@ export default function BridgePage() {
     return () => clearInterval(t)
   }, [poll])
 
+  // Track whether the user is near the bottom of the page (the whole page
+  // scrolls; the composer is fixed). Threshold gives a little slack.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const onScroll = () => {
+      const nearBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 120
+      atBottomRef.current = nearBottom
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    const last = messages[messages.length - 1]
+    const sig = `${messages.length}:${last?.id ?? ''}:${last?.status ?? ''}`
+    if (sig === lastSigRef.current) return // poll returned nothing new; don't yank
+    lastSigRef.current = sig
+    if (atBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages])
 
   // Land with the cursor ready to type, like Telegram's compose box.
@@ -108,6 +132,7 @@ export default function BridgePage() {
   async function send() {
     const content = input.trim()
     if ((!content && pendingImages.length === 0) || sending) return
+    atBottomRef.current = true // sending your own message snaps back to the latest
     setSending(true)
     setInput('')
     const attachments = pendingImages.map((p) => ({
