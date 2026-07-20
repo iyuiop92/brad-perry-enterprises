@@ -1,0 +1,22 @@
+{
+  "name": "Brad Perry Enterprises",
+  "short_name": "BPE OS",
+  "description": "Your business operating system",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#04040a",
+  "theme_color": "#04040a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/bpe-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/bpe-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
