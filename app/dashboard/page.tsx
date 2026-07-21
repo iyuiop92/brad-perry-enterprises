@@ -82,6 +82,20 @@ export default function DashboardPage() {
           >
             Bridge ↗
           </a>
+          <a
+            href="/dashboard/room"
+            style={{
+              display: 'flex', alignItems: 'center',
+              height: 28, padding: '0 10px', cursor: 'pointer',
+              borderRadius: 8, textDecoration: 'none',
+              background: 'rgba(167,139,250,0.12)',
+              border: '1px solid rgba(167,139,250,0.35)',
+              fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.05em',
+            }}
+            title="Voice room — talk to Wendy and Ellie out loud"
+          >
+            Voice ↗
+          </a>
           <button
             onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
             style={{
@@ -165,6 +179,9 @@ export default function DashboardPage() {
           <div className="dashboard-team-menu-panel">
             <a href="/dashboard/bridge" style={{ color: '#00b4ff', fontWeight: 700 }}>
               Bridge ↗
+            </a>
+            <a href="/dashboard/room" style={{ color: '#a78bfa', fontWeight: 700 }}>
+              Voice ↗
             </a>
             <button
               type="button"
