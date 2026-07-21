@@ -1,0 +1,375 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --background: #000013;
+  --foreground: #ffffff;
+  --card: #1a1a2e;
+  --card-foreground: #ffffff;
+  --popover: #1a1a2e;
+  --popover-foreground: #ffffff;
+  --primary: #00ffff;
+  --primary-foreground: #000013;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #ffffff;
+  --muted: #16213e;
+  --muted-foreground: #a1a1aa;
+  --accent: #00ff41;
+  --accent-foreground: #000013;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.05);
+  --input-background: rgba(255, 255, 255, 0.05);
+  --switch-background: #374151;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #00ffff;
+  --chart-1: #00ffff;
+  --chart-2: #8b5cf6;
+  --chart-3: #00ff41;
+  --chart-4: #ff006e;
+  --chart-5: #ffd60a;
+  --radius: 0.625rem;
+  --sidebar: #1a1a2e;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #00ffff;
+  --sidebar-primary-foreground: #000013;
+  --sidebar-accent: #16213e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #00ffff;
+  
+  /* Custom neon colors */
+  --neon-cyan: #00ffff;
+  --neon-violet: #8b5cf6;
+  --neon-green: #00ff41;
+  --neon-pink: #ff006e;
+}
+
+.dark {
+  --background: #000013;
+  --foreground: #ffffff;
+  --card: #1a1a2e;
+  --card-foreground: #ffffff;
+  --popover: #1a1a2e;
+  --popover-foreground: #ffffff;
+  --primary: #00ffff;
+  --primary-foreground: #000013;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #ffffff;
+  --muted: #16213e;
+  --muted-foreground: #a1a1aa;
+  --accent: #00ff41;
+  --accent-foreground: #000013;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.05);
+  --ring: #00ffff;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: #00ffff;
+  --chart-2: #8b5cf6;
+  --chart-3: #00ff41;
+  --chart-4: #ff006e;
+  --chart-5: #ffd60a;
+  --sidebar: #1a1a2e;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #00ffff;
+  --sidebar-primary-foreground: #000013;
+  --sidebar-accent: #16213e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #00ffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  .header-safe {
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+    top: 0;
+  }
+  
+  .hero-safe {
+    padding-top: calc(5rem + env(safe-area-inset-top, 0px));
+    min-height: calc(100vh - env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* Custom neon glow effects */
+.neon-glow-cyan {
+  box-shadow: 0 0 20px var(--neon-cyan), 0 0 40px var(--neon-cyan), 0 0 60px var(--neon-cyan);
+}
+
+.neon-glow-violet {
+  box-shadow: 0 0 20px var(--neon-violet), 0 0 40px var(--neon-violet), 0 0 60px var(--neon-violet);
+}
+
+.neon-glow-green {
+  box-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--neon-green), 0 0 60px var(--neon-green);
+}
+
+/* Logo glow animation */
+@keyframes logo-glow {
+  0%, 100% { 
+    filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.3)) drop-shadow(0 0 40px rgba(139, 92, 246, 0.2)) drop-shadow(0 0 60px rgba(0, 255, 65, 0.1));
+  }
+  50% { 
+    filter: drop-shadow(0 0 30px rgba(0, 255, 255, 0.5)) drop-shadow(0 0 60px rgba(139, 92, 246, 0.3)) drop-shadow(0 0 80px rgba(0, 255, 65, 0.2));
+  }
+}
+
+.logo-glow-animate {
+  animation: logo-glow 4s ease-in-out infinite;
+}
+
+.neon-text-glow {
+  text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
+}
+
+.gradient-text {
+  background: linear-gradient(45deg, var(--neon-cyan), var(--neon-violet), var(--neon-green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tech-pattern {
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 75% 25%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 25% 75%, rgba(0, 255, 65, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(255, 0, 110, 0.1) 0%, transparent 50%);
+}
+
+.particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: var(--neon-cyan);
+  border-radius: 50%;
+  animation: float 6s ease-in-out infinite;
+}
+
+.particle:nth-child(2) { 
+  animation-delay: -1s; 
+  background: var(--neon-violet);
+}
+
+.particle:nth-child(3) { 
+  animation-delay: -2s; 
+  background: var(--neon-green);
+}
+
+.particle:nth-child(4) { 
+  animation-delay: -3s; 
+  background: var(--neon-pink);
+}
+
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px) rotate(0deg); 
+    opacity: 0.3;
+  }
+  50% { 
+    transform: translateY(-100px) rotate(180deg); 
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.pulse-glow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.glowing-border {
+  position: relative;
+  border: 1px solid transparent;
+  background: linear-gradient(var(--background), var(--background)) padding-box,
+              linear-gradient(45deg, var(--neon-cyan), var(--neon-violet), var(--neon-green)) border-box;
+}
+
+.card-hover {
+  transition: all 0.3s ease;
+  background: rgba(26, 26, 46, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.card-hover:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(0, 255, 255, 0.2);
+  background: rgba(26, 26, 46, 0.8);
+}
+
+/* Epic Quick Tips Styles */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.video-card-glow {
+  position: relative;
+}
+
+.video-card-glow::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(45deg, var(--primary), var(--secondary), var(--accent), var(--primary));
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+.video-card-glow:hover::before {
+  opacity: 0.3;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.epic-shadow {
+  box-shadow: 
+    0 4px 20px rgba(0, 255, 255, 0.1),
+    0 8px 40px rgba(139, 92, 246, 0.1),
+    0 12px 60px rgba(0, 255, 65, 0.05);
+}
+
+.epic-shadow:hover {
+  box-shadow: 
+    0 8px 30px rgba(0, 255, 255, 0.2),
+    0 16px 60px rgba(139, 92, 246, 0.2),
+    0 24px 80px rgba(0, 255, 65, 0.1);
+}

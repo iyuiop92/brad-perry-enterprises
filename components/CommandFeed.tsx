@@ -175,10 +175,9 @@ function ActionButton({
       disabled={disabled}
       style={{
         height: 32,
-        padding: '0 12px',
-        borderRadius: 5,
-        border: `1px solid ${tone}44`,
-        background: `${tone}18`,
+        padding: '0 8px',
+        border: 'none',
+        background: 'transparent',
         color: tone,
         fontSize: 13,
         fontWeight: 850,
