@@ -12,6 +12,7 @@ import SamPanel from '@/components/SamPanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
 import AddWorkspacePanel from '@/components/AddWorkspacePanel'
+import DashboardVoiceDock from '@/components/DashboardVoiceDock'
 
 type AssistantPanel = 'wendy' | 'ellie' | 'cleaver' | 'sam' | null
 
@@ -65,37 +66,11 @@ export default function DashboardPage() {
           gap: 10,
         }}
       >
+        <DashboardVoiceDock context={tasks.slice(0, 18).map(task => `${task.title} — ${task.status} — ${task.priority}`).join('\n')} />
         <div className="dashboard-desktop-actions">
-          {/* Joint Wendy + Ellie room (the Both/relay chat). Desktop had no link
-              to it — the buttons below only open each agent's solo drawer. */}
-          <a
-            href="/dashboard/bridge"
-            style={{
-              display: 'flex', alignItems: 'center',
-              height: 28, padding: '0 10px', cursor: 'pointer',
-              borderRadius: 8, textDecoration: 'none',
-              background: 'rgba(0,180,255,0.12)',
-              border: '1px solid rgba(0,180,255,0.35)',
-              fontSize: 11, fontWeight: 700, color: '#00b4ff', letterSpacing: '0.05em',
-            }}
-            title="Team chat — talk to Wendy and Ellie together"
-          >
-            Bridge ↗
-          </a>
-          <a
-            href="/dashboard/room"
-            style={{
-              display: 'flex', alignItems: 'center',
-              height: 28, padding: '0 10px', cursor: 'pointer',
-              borderRadius: 8, textDecoration: 'none',
-              background: 'rgba(167,139,250,0.12)',
-              border: '1px solid rgba(167,139,250,0.35)',
-              fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.05em',
-            }}
-            title="Voice room — talk to Wendy and Ellie out loud"
-          >
-            Voice ↗
-          </a>
+          <details style={{ position: 'relative' }}>
+            <summary style={{ listStyle: 'none', height: 28, padding: '0 4px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em' }}>Assistants ▾</summary>
+            <div style={{ position: 'absolute', right: 0, top: 34, width: 150, padding: 6, background: '#080b13', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 9, boxShadow: '0 16px 40px rgba(0,0,0,0.4)', display: 'grid', gap: 2 }}>
           <button
             onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
             style={{
@@ -159,6 +134,8 @@ export default function DashboardPage() {
               Sam
             </span>
           </button>
+            </div>
+          </details>
 
           <button
             onClick={() => setShowAddPanel(true)}
@@ -175,14 +152,8 @@ export default function DashboardPage() {
         </div>
 
         <details className="dashboard-team-menu">
-          <summary>Team</summary>
+          <summary>Assistants</summary>
           <div className="dashboard-team-menu-panel">
-            <a href="/dashboard/bridge" style={{ color: '#00b4ff', fontWeight: 700 }}>
-              Bridge ↗
-            </a>
-            <a href="/dashboard/room" style={{ color: '#a78bfa', fontWeight: 700 }}>
-              Voice ↗
-            </a>
             <button
               type="button"
               onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
@@ -217,6 +188,9 @@ export default function DashboardPage() {
           </div>
         </details>
       </div>
+
+      {/* ── Quick chat: drop-in composer, routes to full Bridge thread ── */}
+      <QuickChatComposer />
 
       {/* ── Activity ticker ── */}
       {tasks.length > 0 && (() => {
@@ -268,9 +242,6 @@ export default function DashboardPage() {
           </div>
         )
       })()}
-
-      {/* ── Quick chat: drop-in composer, routes to full Bridge thread ── */}
-      <QuickChatComposer />
 
       {/* ── Body ── */}
       <main className="dashboard-page-main" style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
