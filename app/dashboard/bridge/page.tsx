@@ -95,7 +95,11 @@ export default function BridgePage() {
     if (sig === lastSigRef.current) return // poll returned nothing new; don't yank
     lastSigRef.current = sig
     if (atBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      // block:'end' keeps the newest message at the BOTTOM of the viewport.
+      // Default block:'start' aligns the anchor to the top, which on a tall
+      // desktop viewport with a short thread shoved everything up ("snaps to
+      // the top") and left empty space below.
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
     }
   }, [messages])
 
