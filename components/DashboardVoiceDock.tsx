@@ -217,6 +217,6 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   </>
 }
 
-function buttonStyle(color: string) { return { border: `1px solid ${color}55`, background: `${color}14`, color, borderRadius: 7, padding: '7px 9px', cursor: 'pointer', fontSize: 11, fontWeight: 700 } }
-function headerButtonStyle(color: string) { return { height: 28, padding: '0 8px', border: `1px solid ${color}66`, background: `${color}16`, color, borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap' as const } }
+function buttonStyle(color: string) { return { border: 'none', background: 'transparent', color, padding: '6px 6px', minHeight: 28, cursor: 'pointer', fontSize: 11, fontWeight: 700 } }
+function headerButtonStyle(color: string) { return { height: 28, padding: '0 6px', border: 'none', background: 'transparent', color, cursor: 'pointer', fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap' as const } }
 function togglePillStyle(on: boolean) { const color = on ? '#00b4ff' : '#64748b'; return { height: 24, padding: '0 10px', border: `1px solid ${color}${on ? '99' : '44'}`, background: on ? '#00b4ff22' : 'transparent', color, borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' as const } }
