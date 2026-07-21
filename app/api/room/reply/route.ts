@@ -54,18 +54,22 @@ async function ellieReply(text: string, history: Message[]): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const { agent, text, history } = (await req.json()) as {
+  const { agent, text, history, context } = (await req.json()) as {
     agent: 'wendy' | 'ellie'
     text: string
     history?: Message[]
+    context?: string
   }
   if (!text?.trim()) return NextResponse.json({ error: 'text required' }, { status: 400 })
 
   try {
+    const contextualText = context?.trim()
+      ? `Dashboard context:\n${context.slice(0, 6000)}\n\nBrad said: ${text}`
+      : text
     const reply =
       agent === 'ellie'
-        ? await ellieReply(text, history ?? [])
-        : await wendyReply(text, history ?? [])
+        ? await ellieReply(contextualText, history ?? [])
+        : await wendyReply(contextualText, history ?? [])
     return NextResponse.json({ reply: reply || 'Sorry, I did not catch that.' })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'AI error'
