@@ -45,12 +45,14 @@ export default function BridgePage() {
   const [target, setTarget] = useState<Target>('claude')
   const [sending, setSending] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // Only auto-scroll to the newest message when the user is already near the
-  // bottom. Otherwise scrolling up to read history gets yanked back down every
-  // poll. `lastSigRef` avoids re-scrolling when a poll returns no real change.
+  // The messages list is its OWN scroll container (not the window). Only
+  // auto-scroll to newest when the user is already near the bottom, so scrolling
+  // up to read history is never yanked back. `lastSigRef` avoids re-scrolling
+  // when a poll returns no real change.
   const atBottomRef = useRef(true)
   const lastSigRef = useRef('')
 
@@ -76,31 +78,21 @@ export default function BridgePage() {
     return () => clearInterval(t)
   }, [poll])
 
-  // Track whether the user is near the bottom of the page (the whole page
-  // scrolls; the composer is fixed). Threshold gives a little slack.
-  useEffect(() => {
-    const onScroll = () => {
-      const nearBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 120
-      atBottomRef.current = nearBottom
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  // Update the at-bottom flag as the user scrolls the messages container.
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+  }
 
   useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
     const last = messages[messages.length - 1]
     const sig = `${messages.length}:${last?.id ?? ''}:${last?.status ?? ''}`
     if (sig === lastSigRef.current) return // poll returned nothing new; don't yank
     lastSigRef.current = sig
-    if (atBottomRef.current) {
-      // block:'end' keeps the newest message at the BOTTOM of the viewport.
-      // Default block:'start' aligns the anchor to the top, which on a tall
-      // desktop viewport with a short thread shoved everything up ("snaps to
-      // the top") and left empty space below.
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-    }
+    if (atBottomRef.current) el.scrollTop = el.scrollHeight
   }, [messages])
 
   // Land with the cursor ready to type, like Telegram's compose box.
@@ -161,8 +153,8 @@ export default function BridgePage() {
 
   return (
     <div
-      style={{ background: '#04040a', minHeight: '100vh', paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
-      className="flex flex-col"
+      style={{ background: '#04040a', height: '100dvh', paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
+      className="flex flex-col overflow-hidden"
     >
       {/* Always-visible close — returns to the dashboard without reloading the app. */}
       <button
@@ -184,7 +176,8 @@ export default function BridgePage() {
           <path d="M18 6 6 18" /><path d="m6 6 12 12" />
         </svg>
       </button>
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-40">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+       <div className="mx-auto flex w-full max-w-2xl flex-col px-4 pb-6">
         <header className="py-4 pr-14">
           <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Command Bridge</p>
           <h1 className="mt-1 text-2xl font-[800] text-white" style={{ fontFamily: 'var(--font-outfit)' }}>Talk to your builders</h1>
@@ -251,11 +244,12 @@ export default function BridgePage() {
           )}
           <div ref={bottomRef} />
         </div>
+        </div>
       </div>
 
       {/* Composer */}
       <div
-        className="fixed inset-x-0 bottom-0"
+        className="shrink-0"
         style={{ background: 'rgba(4,4,10,0.98)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="mx-auto w-full max-w-2xl px-4 py-3">
