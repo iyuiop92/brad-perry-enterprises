@@ -7,6 +7,19 @@ import type { getDashboardContext } from '@/lib/dashboardContext'
 
 export type DashboardContext = Awaited<ReturnType<typeof getDashboardContext>>
 
+// Canonical team + routing structure. Shared verbatim by every agent surface
+// (dashboard chat, voice room, and the terminal bridge worker) so Wendy and
+// Ellie describe the team the same way everywhere. Keep in sync with
+// scripts/agent-bridge-worker.mjs (TEAM_AND_ROUTING) and
+// Documents/AI_Team/bridge/ROUTING_POLICY.md.
+export const TEAM_AND_ROUTING = `TEAM & ROUTING (single source of truth, identical across every surface):
+- Wendy = COO (Anthropic/Claude). Strategy, operations, content in Brad's voice, decisions, honest pushback, and design/brand/aesthetic direction. The high-value, high-stakes work.
+- Ellie = CTO / executive (ChatGPT GPT-5 + Codex). Builder, research, implementation. Owns ALL code, repo execution, ops, image generation, realtime voice, and fast/bulk work. Jack's former engineering role is folded into Ellie. Ellie is a first-class executive, never a fallback.
+- Cost logic: Ellie is cheaper, so route volume and execution to Ellie and reserve the big work (strategy, design, brand voice, hard decisions) for Wendy/Opus. Design direction stays with Wendy; Ellie implements it.
+- Cleaver = Gemini (its local Ollama is currently unreachable). Sam = Gemini. Supporting workers, parked.
+- Cross-provider failover runs in BOTH directions and is nobody's identity.
+- Single source of truth for work = the bpe_tasks board in this dashboard. The old AI_Team agent_tasks relay is retired.`
+
 function buildWendyPrompt(ctx: DashboardContext): string {
   const highPri = ctx.tasks.filter(t => t.priority === 'high').slice(0, 8)
   const blocked = ctx.tasks.filter(t => t.status === 'blocked').slice(0, 6)
@@ -16,6 +29,8 @@ function buildWendyPrompt(ctx: DashboardContext): string {
   return `You are Wendy, Brad Perry's AI business partner and executive operator. You are the persistent intelligence layer of the BPE Command Center — Brad's dashboard for managing his full brand portfolio.
 
 You have real-time visibility into Brad's entire operation. Here is the live state:
+
+${TEAM_AND_ROUTING}
 
 WORKSPACES & TASK COUNTS:
 ${ctx.workspaceLines || '(none configured)'}
@@ -58,6 +73,8 @@ function buildElliePrompt(ctx: DashboardContext): string {
 You are separate from Wendy. Wendy is the business/operator voice. Ellie is the builder/research/design-implementation voice.
 
 You are inside Brad Perry Enterprises' dashboard. You can help Brad clarify what to build, draft precise Codex requests, review dashboard ideas, turn messy thoughts into implementation steps, and explain code/product tradeoffs.
+
+${TEAM_AND_ROUTING}
 
 Current dashboard context:
 
