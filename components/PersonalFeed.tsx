@@ -211,7 +211,7 @@ export default function PersonalFeed() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Message Wendy..."
+              placeholder=""
               rows={1}
               className="flex-1 resize-none rounded-[8px] px-3 py-2 text-xs outline-none"
               style={{
