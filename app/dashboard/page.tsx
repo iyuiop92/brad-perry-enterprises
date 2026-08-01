@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import type { Task, Workspace } from '@/lib/types'
 import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
@@ -68,6 +69,17 @@ export default function DashboardPage() {
       >
         <DashboardVoiceDock context={tasks.slice(0, 18).map(task => `${task.title} — ${task.status} — ${task.priority}`).join('\n')} />
         <div className="dashboard-desktop-actions">
+          <Link
+            href="/dashboard/bridge"
+            aria-label="Open Command Bridge"
+            style={{
+              height: 28, padding: '0 4px', display: 'flex', alignItems: 'center',
+              color: '#00b4ff', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+              textDecoration: 'none',
+            }}
+          >
+            Bridge
+          </Link>
           <details style={{ position: 'relative' }}>
             <summary style={{ listStyle: 'none', height: 28, padding: '0 4px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em' }}>Assistants ▾</summary>
             <div style={{ position: 'absolute', right: 0, top: 34, width: 150, padding: 6, background: '#080b13', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 9, boxShadow: '0 16px 40px rgba(0,0,0,0.4)', display: 'grid', gap: 2 }}>
@@ -154,6 +166,9 @@ export default function DashboardPage() {
         <details className="dashboard-team-menu">
           <summary>Assistants</summary>
           <div className="dashboard-team-menu-panel">
+            <Link href="/dashboard/bridge" style={{ color: '#00b4ff', textDecoration: 'none' }}>
+              Command Bridge
+            </Link>
             <button
               type="button"
               onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}

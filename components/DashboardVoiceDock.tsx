@@ -17,12 +17,12 @@ const META: Record<Agent, { label: string; color: string }> = {
   ellie: { label: 'Ellie', color: '#a78bfa' },
 }
 
-function route(text: string, active: Agent) {
+function route(text: string, active: Agent, includeBoth: boolean) {
   const clean = (re: RegExp) => text.replace(re, '').trim() || text
   if (/^(hey )?(both|team|everyone|you two)\b[,.: ]*/i.test(text)) return { agents: ['wendy', 'ellie'] as Agent[], text: clean(/^(hey )?(both|team|everyone|you two)\b[,.: ]*/i) }
   if (/^(hey )?wendy\b[,.: ]*/i.test(text)) return { agents: ['wendy'] as Agent[], text: clean(/^(hey )?wendy\b[,.: ]*/i) }
   if (/^(hey )?(ellie|ally|allie|elly|eli)\b[,.: ]*/i.test(text)) return { agents: ['ellie'] as Agent[], text: clean(/^(hey )?(ellie|ally|allie|elly|eli)\b[,.: ]*/i) }
-  return { agents: [active], text }
+  return { agents: includeBoth ? ['wendy', 'ellie'] as Agent[] : [active], text }
 }
 
 function asksForText(text: string) {
@@ -43,6 +43,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const [mode, setMode] = useState<Mode>('quick')
   const [deepPending, setDeepPending] = useState(false)
   const [locked, setLocked] = useState(false)
+  const [both, setBoth] = useState(false)
   const [showText, setShowText] = useState(false)
   const [log, setLog] = useState<LogEntry[]>([])
   const [error, setError] = useState('')
@@ -50,11 +51,13 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const activeRef = useRef<Agent>('wendy')
   const modeRef = useRef<Mode>('quick')
   const lockedRef = useRef(false)
+  const bothRef = useRef(false)
   const recRef = useRef<{ stop: () => void } | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const startRef = useRef<() => void>(() => {})
 
   useEffect(() => { lockedRef.current = locked }, [locked])
+  useEffect(() => { bothRef.current = both }, [both])
   useEffect(() => { modeRef.current = mode }, [mode])
   useEffect(() => () => { recRef.current?.stop(); audioRef.current?.pause() }, [])
 
@@ -98,7 +101,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   }
 
   const handleUtterance = async (raw: string) => {
-    const target = route(raw, activeRef.current)
+    const target = route(raw, activeRef.current, bothRef.current)
     if (asksForText(raw)) setShowText(true)
     push({ who: 'brad', text: raw })
 
@@ -167,6 +170,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     startListening()
   }
   const toggleLock = () => { const next = !locked; setLocked(next); setOpen(true); if (next && phase === 'idle') startListening(); if (!next && phase === 'listening') recRef.current?.stop() }
+  const toggleBoth = () => { setBoth(value => !value); setOpen(true) }
   const goDeeper = () => { setOpen(true); setFocused(value => !value) }
   const label = deepPending
     ? 'The real agent is working. This can take a minute. Keep talking if you want.'
@@ -184,6 +188,9 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       <button onClick={toggleLock} style={headerButtonStyle(locked ? '#c4b5fd' : '#94a3b8')}>
         {locked ? 'Unlock talk' : 'Lock talk'}
       </button>
+      <button onClick={toggleBoth} aria-pressed={both} style={headerButtonStyle(both ? '#00b4ff' : '#94a3b8')}>
+        {both ? 'Both on' : 'Both'}
+      </button>
       <button onClick={goDeeper} style={headerButtonStyle('#a78bfa')}>
         {focused ? 'Compact' : 'Go deeper'}
       </button>
@@ -198,6 +205,8 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         : { position: 'fixed', left: 12, right: 12, bottom: 'calc(18px + env(safe-area-inset-bottom))', zIndex: 116, width: 'auto', maxWidth: 370, marginLeft: 'auto', boxSizing: 'border-box', overflowY: 'auto', background: '#0a0a12', border: '1px solid rgba(167,139,250,0.42)', borderRadius: 10, padding: 14, boxShadow: '0 22px 70px rgba(0,0,0,0.56)', display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><div><strong style={{ color: '#f8fafc', fontSize: 14 }}>Dashboard conversation</strong><p style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>{focused ? 'Focused voice space — your dashboard remains behind it.' : 'Talk about the work while the board stays visible.'}</p></div><button aria-label="Close voice conversation" onClick={() => { setOpen(false); setFocused(false) }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button></div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ color: '#64748b', fontSize: 11 }}>Audience</span>
+        <button onClick={toggleBoth} style={togglePillStyle(both)}>Wendy + Ellie</button>
         <span style={{ color: '#64748b', fontSize: 11 }}>Mode</span>
         <button onClick={() => setMode('quick')} style={togglePillStyle(mode === 'quick')}>Quick</button>
         <button onClick={() => setMode('deep')} style={togglePillStyle(mode === 'deep')}>Deep</button>
