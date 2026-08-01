@@ -64,6 +64,20 @@ const POLL_MS = Number(process.env.BRIDGE_POLL_MS || 2000)
 const TIMEOUT_MS = Number(process.env.BRIDGE_TIMEOUT_MS || 600000)
 const HISTORY = Number(process.env.BRIDGE_HISTORY || 12)
 
+// Full build permissions for the dashboard bridge. A headless bridge cannot
+// answer interactive permission prompts, so Claude runs with bypassPermissions
+// and Codex with a workspace-write sandbox (matches the Telegram bridge, without
+// the prompt friction that used to stall it). Extra repos the agents may build in
+// are granted to Claude via --add-dir from BRIDGE_ADD_DIRS (default: the dashboard
+// repo, so the dashboard can fix itself). Set BRIDGE_BYPASS_PERMISSIONS=0 to
+// disable the bypass, or BRIDGE_CODEX_SANDBOX=read-only to make Codex read-only.
+const BYPASS_PERMISSIONS = process.env.BRIDGE_BYPASS_PERMISSIONS !== '0'
+const ADD_DIRS = (process.env.BRIDGE_ADD_DIRS || '/Users/bradperry/brad-perry-enterprises')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+const CODEX_SANDBOX = process.env.BRIDGE_CODEX_SANDBOX || 'workspace-write'
+
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
 // Each agent's build(prompt) returns { cmd, args, outFile? }.
@@ -77,8 +91,10 @@ const AGENTS = {
     // In the BPE dashboard bridge this agent is Wendy (not Jack).
     persona: 'You are Wendy, Brad\'s executive partner, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Wendy. Never call yourself Jack.',
     build: (prompt, addDirs = []) => {
-      const args = ['-p', prompt, '--output-format', 'text']
-      for (const d of addDirs) args.push('--add-dir', d)
+      const args = []
+      if (BYPASS_PERMISSIONS) args.push('--permission-mode', 'bypassPermissions')
+      args.push('-p', prompt, '--output-format', 'text')
+      for (const d of [...ADD_DIRS, ...addDirs]) args.push('--add-dir', d)
       return { cmd: CLAUDE_CMD, args }
     },
   },
@@ -87,7 +103,8 @@ const AGENTS = {
     persona: 'You are Ellie, Brad\'s builder/execution collaborator, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Ellie.',
     build: (prompt) => {
       const outFile = join(tmpdir(), `codex-out-${Date.now()}-${Math.floor(Math.random() * 1e9)}.txt`)
-      return { cmd: CODEX_CMD, args: ['exec', '--skip-git-repo-check', '-o', outFile, prompt], outFile }
+      const args = ['exec', '--skip-git-repo-check', '--sandbox', CODEX_SANDBOX, '--cd', CWD, '-o', outFile, prompt]
+      return { cmd: CODEX_CMD, args, outFile }
     },
   },
 }

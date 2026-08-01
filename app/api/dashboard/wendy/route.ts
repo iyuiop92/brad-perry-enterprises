@@ -4,6 +4,7 @@ import { google } from '@ai-sdk/google'
 import { requireAuth } from '@/lib/require-auth'
 import { getDashboardContext } from '@/lib/dashboardContext'
 import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
+import { routeWendyTier } from '@/lib/modelRouter'
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY_BPE ?? process.env.ANTHROPIC_API_KEY,
@@ -35,37 +36,12 @@ function messageText(message: UIMessage) {
     .trim() ?? ''
 }
 
-function selectWendyTier(messages: UIMessage[]) {
-  const tiers = {
-    claude5: {
-      name: 'Claude 5',
-      model: process.env.WENDY_CLAUDE_5_MODEL ?? 'claude-sonnet-5',
-    },
-    opus: {
-      name: 'Opus',
-      model: process.env.WENDY_OPUS_MODEL ?? 'claude-opus-4-8',
-    },
-    fable: {
-      name: 'Fable',
-      model: process.env.WENDY_FABLE_MODEL ?? 'claude-fable-5',
-    },
+// Text of the most recent user message — what the auto-router classifies on.
+function latestUserText(messages: UIMessage[]) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return messageText(messages[i])
   }
-
-  let selected = tiers.claude5
-  for (const message of messages) {
-    if (message.role !== 'user') continue
-    const text = messageText(message).toLowerCase()
-
-    if (/\b(fable|highest tier|top tier|max tier|maximum tier)\b/.test(text)) {
-      selected = tiers.fable
-    } else if (/\b(opus|deep mode|higher model|heavy model)\b/.test(text)) {
-      selected = tiers.opus
-    } else if (/\b(claude 5|sonnet 5|default tier|normal tier|standard tier)\b/.test(text)) {
-      selected = tiers.claude5
-    }
-  }
-
-  return selected
+  return ''
 }
 
 export async function POST(request: Request) {
@@ -78,7 +54,7 @@ export async function POST(request: Request) {
   const system = buildAgentSystemPrompt('wendy', dashboardContext)
 
   const modelMessages = await convertToModelMessages(messages)
-  const wendyTier = selectWendyTier(messages)
+  const wendyTier = routeWendyTier(latestUserText(messages))
 
   try {
     const { text } = await generateText({
@@ -88,13 +64,12 @@ export async function POST(request: Request) {
 ACTIVE WENDY TIER:
 - Tier name: ${wendyTier.name}
 - Anthropic model: ${wendyTier.model}
+- Selected by: ${wendyTier.auto ? 'auto-router (cheapest capable model for this message)' : 'Brad (manual override)'}
 
 Tier behavior:
-- Default tier is Claude 5.
-- If Brad asks what tier or model you are running, answer with the active tier name and model.
-- If Brad asks for Fable, highest tier, top tier, or maximum tier, use the Fable tier.
-- If Brad asks for Opus, deep mode, higher model, or heavy model, use the Opus tier.
-- If Brad asks for Claude 5, Sonnet 5, default tier, normal tier, or standard tier, use the Claude 5 tier.`,
+- Wendy auto-routes each message to the cheapest capable Claude tier: Haiku for quick/trivial, Claude 5 for everyday work, Opus for strategy/writing/decisions. Fable is manual-only.
+- Brad can always force a tier by naming it: "haiku", "claude 5"/"sonnet", "opus"/"deep mode"/"heavy model", or "fable"/"top tier"/"max tier".
+- If Brad asks what tier or model you are running, answer with the active tier name and model, and mention whether it was auto-routed or forced.`,
       messages: modelMessages,
     })
 
