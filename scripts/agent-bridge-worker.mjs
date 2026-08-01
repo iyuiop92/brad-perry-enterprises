@@ -92,6 +92,37 @@ const AGENTS = {
   },
 }
 
+// Canonical team + routing. Keep in sync with lib/agentSystemPrompt.ts (TEAM_AND_ROUTING).
+const TEAM_AND_ROUTING = `TEAM & ROUTING (single source of truth, identical across every surface):
+- Wendy = COO (Anthropic/Claude). Strategy, operations, content in Brad's voice, decisions, honest pushback, and design/brand/aesthetic direction. The high-value, high-stakes work.
+- Ellie = CTO / executive (ChatGPT GPT-5 + Codex). Builder, research, implementation. Owns ALL code, repo execution, ops, image generation, realtime voice, and fast/bulk work. Jack's former engineering role is folded into Ellie. Ellie is a first-class executive, never a fallback.
+- Cost logic: Ellie is cheaper, so route volume and execution to Ellie and reserve the big work (strategy, design, brand voice, hard decisions) for Wendy/Opus. Design direction stays with Wendy; Ellie implements it.
+- Cleaver = Gemini (its local Ollama is currently unreachable). Sam = Gemini. Supporting workers, parked.
+- Cross-provider failover runs in BOTH directions and is nobody's identity.
+- Single source of truth for work = the bpe_tasks board in this dashboard. The old AI_Team agent_tasks relay is retired.`
+
+// Pull a compact live snapshot of the dashboard board so bridge agents share the
+// same context as the dashboard chat agents. Never throws — returns '' on error.
+async function buildTeamContext() {
+  try {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix' }).format(new Date())
+    const [{ data: tasks }, { data: inbox }] = await Promise.all([
+      supabase.from('bpe_tasks').select('title, status, priority, brand, notes').neq('status', 'done'),
+      supabase.from('bpe_inbox').select('content').order('created_at', { ascending: false }).limit(6),
+    ])
+    const rank = { high: 0, medium: 1, low: 2 }
+    const taskLines = (tasks ?? [])
+      .sort((a, b) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3))
+      .slice(0, 20)
+      .map((t) => `  - [${t.status}/${t.priority}] ${t.title}${t.brand ? ` (${t.brand})` : ''}${t.notes ? ` — ${String(t.notes).slice(0, 160)}` : ''}`)
+      .join('\n')
+    const inboxLines = (inbox ?? []).map((i) => `  - ${i.content}`).join('\n')
+    return `LIVE DASHBOARD BOARD for ${today} (bpe_tasks, the single source of truth):\n${taskLines || '  (no open tasks)'}\n\nRECENT INBOX / NOTES:\n${inboxLines || '  (empty)'}`
+  } catch {
+    return ''
+  }
+}
+
 function log(...a) {
   console.log(new Date().toISOString(), ...a)
 }
@@ -207,6 +238,11 @@ async function handle(userRow) {
   await supabase.from('agent_bridge_messages').update({ status: 'processing' }).eq('id', userRow.id)
   const basePrompt = await buildPrompt(userRow)
 
+  // Shared context so bridge Wendy/Ellie see the same team + live board as the
+  // dashboard chat agents. teamContext is '' if the fetch fails — never blocks.
+  const teamContext = await buildTeamContext()
+  const contextBlock = teamContext ? `${TEAM_AND_ROUTING}\n\n${teamContext}` : TEAM_AND_ROUTING
+
   // Pull down any image attachments so the agent can actually see them.
   const bundle = await downloadAttachments(userRow.attachments)
   if (bundle) log(`  downloaded ${bundle.files.length} attachment(s)`)
@@ -222,7 +258,9 @@ async function handle(userRow) {
       const agent = AGENTS[key]
       if (!agent) continue
 
-      let prompt = agent.persona ? `${agent.persona}\n\n${basePrompt}` : basePrompt
+      let prompt = agent.persona
+        ? `${agent.persona}\n\n${contextBlock}\n\n${basePrompt}`
+        : `${contextBlock}\n\n${basePrompt}`
       let addDirs = []
       if (bundle) {
         const list = bundle.files.map((f) => `- ${f.path}`).join('\n')
