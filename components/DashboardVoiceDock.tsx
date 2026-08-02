@@ -29,6 +29,10 @@ function asksForText(text: string) {
   return /\b(show|read|open)\b.{0,48}\b(text|transcript|instructions|meaning)\b|show me what you mean|what did you (just )?say/i.test(text)
 }
 
+function isMobileVoiceLayout() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+}
+
 function historyFor(agent: Agent, log: LogEntry[]): Msg[] {
   return log.slice(-10).map(entry => entry.who === agent
     ? { role: 'assistant', content: entry.text }
@@ -45,6 +49,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const [locked, setLocked] = useState(false)
   const [both, setBoth] = useState(false)
   const [showText, setShowText] = useState(false)
+  const [typedMessage, setTypedMessage] = useState('')
   const [log, setLog] = useState<LogEntry[]>([])
   const [error, setError] = useState('')
   const logRef = useRef<LogEntry[]>([])
@@ -54,7 +59,6 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const bothRef = useRef(false)
   const recRef = useRef<{ stop: () => void } | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const startRef = useRef<() => void>(() => {})
 
   useEffect(() => { lockedRef.current = locked }, [locked])
   useEffect(() => { bothRef.current = both }, [both])
@@ -141,7 +145,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       setError(cause instanceof Error ? cause.message : 'Could not reach the team.')
     } finally {
       setPhase('idle')
-      if (lockedRef.current) window.setTimeout(() => startRef.current(), 250)
+      if (lockedRef.current && !isMobileVoiceLayout()) window.setTimeout(startListening, 250)
     }
   }
 
@@ -155,23 +159,43 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     recognition.interimResults = false
     recognition.lang = 'en-US'
     recognition.onresult = (event: any) => { const result = event.results[event.results.length - 1]; if (result.isFinal) { recognition.stop(); void handleUtterance(result[0].transcript) } }
-    recognition.onerror = (event: any) => { if (event.error !== 'aborted' && event.error !== 'no-speech') setError(`Mic error: ${event.error}`); setPhase('idle') }
-    recognition.onend = () => setPhase(current => current === 'listening' ? 'idle' : current)
+    recognition.onerror = (event: any) => {
+      if (event.error !== 'aborted' && event.error !== 'no-speech') {
+        setError(event.error === 'audio-capture'
+          ? 'Voice input is unavailable on this phone. Type below and the team will still reply aloud.'
+          : `Mic error: ${event.error}`)
+      }
+      recRef.current = null
+      setPhase('idle')
+    }
+    recognition.onend = () => { recRef.current = null; setPhase(current => current === 'listening' ? 'idle' : current) }
     recRef.current = { stop: () => { try { recognition.stop() } catch {} } }
     try { recognition.start(); setError(''); setPhase('listening') } catch {}
   }
-  startRef.current = startListening
 
-  const interrupt = () => { audioRef.current?.pause(); audioRef.current = null; setPhase('idle'); window.setTimeout(startListening, 0) }
+  const interrupt = () => { audioRef.current?.pause(); audioRef.current = null; setPhase('idle') }
   const talk = () => {
     setOpen(true)
     if (phase === 'speaking') { interrupt(); return }
     if (phase === 'listening') { recRef.current?.stop(); return }
     startListening()
   }
-  const toggleLock = () => { const next = !locked; setLocked(next); setOpen(true); if (next && phase === 'idle') startListening(); if (!next && phase === 'listening') recRef.current?.stop() }
+  const toggleLock = () => {
+    const next = !locked
+    setLocked(next)
+    setOpen(true)
+    if (next && phase === 'idle' && !isMobileVoiceLayout()) startListening()
+    if (!next && phase === 'listening') recRef.current?.stop()
+  }
   const toggleBoth = () => { setBoth(value => !value); setOpen(true) }
   const goDeeper = () => { setOpen(true); setFocused(value => !value) }
+  const sendTypedMessage = () => {
+    const text = typedMessage.trim()
+    if (!text || phase === 'thinking' || deepPending) return
+    setTypedMessage('')
+    setError('')
+    void handleUtterance(text)
+  }
   const label = deepPending
     ? 'The real agent is working. This can take a minute. Keep talking if you want.'
     : phase === 'listening' ? 'Listening — pause when you are done'
@@ -227,6 +251,19 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         {deepPending && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 10, background: '#00b4ff', marginRight: 6, animation: 'pulse 1.2s ease-in-out infinite' }} />}
         {label}
       </p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          aria-label="Message the team"
+          value={typedMessage}
+          onChange={event => setTypedMessage(event.target.value)}
+          onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendTypedMessage() } }}
+          placeholder={both ? 'Message Wendy and Ellie…' : `Message ${META[active].label}…`}
+          style={{ flex: 1, minWidth: 0, height: 34, border: '1px solid rgba(167,139,250,0.28)', borderRadius: 8, background: '#10111a', color: '#e2e8f0', padding: '0 10px', fontSize: 13, outline: 'none' }}
+        />
+        <button onClick={sendTypedMessage} disabled={!typedMessage.trim() || phase === 'thinking' || deepPending} style={{ border: 0, borderRadius: 8, background: '#a78bfa', color: '#0a0a12', padding: '0 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+          Send
+        </button>
+      </div>
       {showText && <div style={{ display: 'flex', gap: 8 }}><button onClick={() => setShowText(false)} style={buttonStyle('#94a3b8')}>Hide text</button></div>}
       {(showText || focused) && (log.length > 0
         ? <div style={{ display: 'grid', gap: 7, maxHeight: focused ? 360 : 220, overflowY: 'auto' }}>{log.map((entry, index) => <div key={index} style={{ background: '#10111a', color: entry.who === 'brad' ? '#cbd5e1' : META[entry.who].color, borderRadius: 7, padding: '8px 9px', fontSize: 12, lineHeight: 1.45 }}>{entry.text}</div>)}</div>
