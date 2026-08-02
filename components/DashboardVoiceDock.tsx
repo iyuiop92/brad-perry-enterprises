@@ -7,7 +7,7 @@ type Mode = 'quick' | 'deep'
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking'
 type LogEntry = { who: 'brad' | Agent; text: string }
 type Msg = { role: 'user' | 'assistant'; content: string }
-type BridgeMessage = { id: string; role: string; target: string; content: string; status: string; created_at: string }
+type BridgeMessage = { id: string; role: 'user' | 'claude' | 'codex' | 'system'; target: string | null; content: string; status: string; created_at: string }
 
 // Map a voice agent to its terminal-agent Bridge target.
 const BRIDGE_TARGET: Record<Agent, 'claude' | 'codex'> = { wendy: 'claude', ellie: 'codex' }
@@ -53,28 +53,64 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const [log, setLog] = useState<LogEntry[]>([])
   const [error, setError] = useState('')
   const logRef = useRef<LogEntry[]>([])
+  const phaseRef = useRef<Phase>('idle')
   const activeRef = useRef<Agent>('wendy')
   const modeRef = useRef<Mode>('quick')
   const lockedRef = useRef(false)
   const bothRef = useRef(false)
   const recRef = useRef<{ stop: () => void } | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const messageInputRef = useRef<HTMLInputElement | null>(null)
+  const spokenTextRef = useRef('')
+  const silenceTimerRef = useRef<number | null>(null)
+  const manualSpeechStopRef = useRef(false)
 
   useEffect(() => { lockedRef.current = locked }, [locked])
   useEffect(() => { bothRef.current = both }, [both])
   useEffect(() => { modeRef.current = mode }, [mode])
-  useEffect(() => () => { recRef.current?.stop(); audioRef.current?.pause() }, [])
+  useEffect(() => { phaseRef.current = phase }, [phase])
+  useEffect(() => () => {
+    recRef.current?.stop()
+    audioRef.current?.pause()
+    audioSourceRef.current?.stop()
+    if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current)
+    void audioContextRef.current?.close()
+  }, [])
 
   const push = (entry: LogEntry) => {
     logRef.current = [...logRef.current, entry].slice(-16)
     setLog(logRef.current)
   }
 
+  const unlockAudio = () => {
+    const browser = window as typeof window & { webkitAudioContext?: typeof AudioContext }
+    const AudioContextConstructor = browser.AudioContext ?? browser.webkitAudioContext
+    if (!AudioContextConstructor) return
+    if (!audioContextRef.current) audioContextRef.current = new AudioContextConstructor()
+    if (audioContextRef.current.state === 'suspended') void audioContextRef.current.resume()
+  }
+
   const speak = async (agent: Agent, text: string) => {
     const response = await fetch('/api/room/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text }) })
     if (!response.ok) throw new Error('Speech was unavailable.')
-    const url = URL.createObjectURL(await response.blob())
+    const bytes = await response.arrayBuffer()
+    const context = audioContextRef.current
+    if (context?.state === 'running') {
+      const buffer = await context.decodeAudioData(bytes.slice(0))
+      await new Promise<void>((resolve) => {
+        const source = context.createBufferSource()
+        source.buffer = buffer
+        source.connect(context.destination)
+        source.onended = () => { if (audioSourceRef.current === source) audioSourceRef.current = null; resolve() }
+        audioSourceRef.current = source
+        source.start()
+      })
+      return
+    }
+
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
     await new Promise<void>((resolve) => {
       const audio = new Audio(url)
       audioRef.current = audio
@@ -99,7 +135,9 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       const res = await fetch(`/api/bridge?since=${encodeURIComponent(since)}`)
       if (!res.ok) continue
       const rows = (await res.json()) as BridgeMessage[]
-      const reply = rows.find(row => row.role === 'assistant' && row.target === target && row.content?.trim())
+      // Bridge worker replies use the agent role (`claude` or `codex`) and do
+      // not copy the target column from Brad's queued message.
+      const reply = rows.find(row => row.role === target && row.content?.trim())
       if (reply) return reply.content.trim()
     }
     throw new Error('The real agent did not reply in time.')
@@ -124,6 +162,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
           setError(cause instanceof Error ? cause.message : 'The real agent could not be reached.')
         } finally {
           setDeepPending(false)
+          setPhase('idle')
         }
       })()
       return
@@ -150,16 +189,54 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     }
   }
 
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current)
+      silenceTimerRef.current = null
+    }
+  }
+
+  const finishDesktopSpeech = () => {
+    clearSilenceTimer()
+    const text = spokenTextRef.current.trim()
+    spokenTextRef.current = ''
+    manualSpeechStopRef.current = true
+    recRef.current?.stop()
+    recRef.current = null
+    if (text) {
+      setPhase('thinking')
+      void handleUtterance(text)
+    }
+    else setPhase('idle')
+  }
+
+  const armSilenceTimer = () => {
+    clearSilenceTimer()
+    silenceTimerRef.current = window.setTimeout(finishDesktopSpeech, 10_000)
+  }
+
   const startListening = () => {
     if (phase !== 'idle') return
     const browser = window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown }
     const Recognition = browser.SpeechRecognition ?? browser.webkitSpeechRecognition
     if (!Recognition) { setError('Voice requires Chrome or Safari.'); return }
     const recognition = new Recognition() as any
-    recognition.continuous = false
-    recognition.interimResults = false
+    recognition.continuous = true
+    recognition.interimResults = true
     recognition.lang = 'en-US'
-    recognition.onresult = (event: any) => { const result = event.results[event.results.length - 1]; if (result.isFinal) { recognition.stop(); void handleUtterance(result[0].transcript) } }
+    recognition.onresult = (event: any) => {
+      const result = event.results[event.results.length - 1]
+      if (!result.isFinal) return
+      const finalText = Array.from(event.results)
+        .slice(event.resultIndex)
+        .filter((item: any) => item.isFinal)
+        .map((item: any) => item[0].transcript)
+        .join(' ')
+        .trim()
+      if (!finalText) return
+      spokenTextRef.current = `${spokenTextRef.current} ${finalText}`.trim()
+      armSilenceTimer()
+    }
     recognition.onerror = (event: any) => {
       if (event.error !== 'aborted' && event.error !== 'no-speech') {
         setError(event.error === 'audio-capture'
@@ -167,23 +244,89 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
           : `Mic error: ${event.error}`)
       }
       recRef.current = null
+      clearSilenceTimer()
       setPhase('idle')
     }
-    recognition.onend = () => { recRef.current = null; setPhase(current => current === 'listening' ? 'idle' : current) }
+    recognition.onend = () => {
+      recRef.current = null
+      if (manualSpeechStopRef.current) { manualSpeechStopRef.current = false; return }
+      if (phaseRef.current === 'listening') {
+        window.setTimeout(() => {
+          try {
+            if (phaseRef.current === 'listening') {
+              recRef.current = { stop: () => { try { recognition.stop() } catch {} } }
+              recognition.start()
+            }
+          } catch {}
+        }, 150)
+      }
+    }
     recRef.current = { stop: () => { try { recognition.stop() } catch {} } }
-    try { recognition.start(); setError(''); setPhase('listening') } catch {}
+    try {
+      spokenTextRef.current = ''
+      clearSilenceTimer()
+      recognition.start()
+      setError('')
+      setPhase('listening')
+    } catch {}
   }
 
-  const interrupt = () => { audioRef.current?.pause(); audioRef.current = null; setPhase('idle') }
+  const transcribeMobileRecording = async (blob: Blob) => {
+    setPhase('thinking')
+    const form = new FormData()
+    form.set('audio', blob, `voice-message.${blob.type.includes('mp4') ? 'm4a' : 'webm'}`)
+    const response = await fetch('/api/room/transcribe', { method: 'POST', body: form })
+    const data = await response.json()
+    if (!response.ok || !data.text) throw new Error(data.error || 'Could not transcribe that recording.')
+    await handleUtterance(String(data.text))
+  }
+
+  const startMobileRecording = async () => {
+    if (phase !== 'idle') return
+    unlockAudio()
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const chunks: BlobPart[] = []
+      const recorder = new MediaRecorder(stream)
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data) }
+      recorder.onerror = () => { setError('Could not record your voice. Please try again.'); setPhase('idle') }
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop())
+        recRef.current = null
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        if (!blob.size) { setError('No audio was captured. Please try again.'); setPhase('idle'); return }
+        void transcribeMobileRecording(blob).catch(cause => {
+          setError(cause instanceof Error ? cause.message : 'Could not transcribe that recording.')
+          setPhase('idle')
+        })
+      }
+      recRef.current = { stop: () => { if (recorder.state !== 'inactive') recorder.stop() } }
+      recorder.start()
+      setError('')
+      setPhase('listening')
+    } catch {
+      setError('Microphone access is unavailable. You can type your message below.')
+      setPhase('idle')
+    }
+  }
+
+  const interrupt = () => {
+    audioRef.current?.pause()
+    audioRef.current = null
+    audioSourceRef.current?.stop()
+    audioSourceRef.current = null
+    setPhase('idle')
+  }
   const talk = () => {
     setOpen(true)
     if (isMobileVoiceLayout()) {
-      setError('')
-      window.requestAnimationFrame(() => messageInputRef.current?.focus())
+      if (phase === 'listening') { recRef.current?.stop(); return }
+      if (phase === 'speaking') { interrupt(); return }
+      void startMobileRecording()
       return
     }
     if (phase === 'speaking') { interrupt(); return }
-    if (phase === 'listening') { recRef.current?.stop(); return }
+    if (phase === 'listening') { finishDesktopSpeech(); return }
     startListening()
   }
   const toggleLock = () => {
@@ -200,6 +343,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     if (!text || phase === 'thinking' || deepPending) return
     setTypedMessage('')
     setError('')
+    unlockAudio()
     void handleUtterance(text)
   }
   const label = deepPending
