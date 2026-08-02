@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 // The voice meeting room. Tap once to speak ONE message (never always-listening).
@@ -64,8 +64,18 @@ export default function VoiceRoomPage() {
   const [error, setError] = useState('')
 
   const logRef = useRef<LogEntry[]>([])
+  const phaseRef = useRef<Phase>('idle')
   const activeRef = useRef<Agent>('wendy')
   const recRef = useRef<{ stop: () => void } | null>(null)
+  const spokenTextRef = useRef('')
+  const silenceTimerRef = useRef<number | null>(null)
+  const manualSpeechStopRef = useRef(false)
+
+  useEffect(() => { phaseRef.current = phase }, [phase])
+  useEffect(() => () => {
+    recRef.current?.stop()
+    if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current)
+  }, [])
 
   function pushLog(e: LogEntry) {
     logRef.current = [...logRef.current, e]
@@ -134,6 +144,33 @@ export default function VoiceRoomPage() {
     }
   }
 
+  function clearSilenceTimer() {
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current)
+      silenceTimerRef.current = null
+    }
+  }
+
+  function submitSpokenText() {
+    clearSilenceTimer()
+    const text = spokenTextRef.current.trim()
+    spokenTextRef.current = ''
+    manualSpeechStopRef.current = true
+    recRef.current?.stop()
+    recRef.current = null
+    if (text) {
+      setPhase('thinking')
+      void handleUtterance(text)
+    } else {
+      setPhase('idle')
+    }
+  }
+
+  function armSilenceTimer() {
+    clearSilenceTimer()
+    silenceTimerRef.current = window.setTimeout(submitSpokenText, 10_000)
+  }
+
   function startListen() {
     if (phase !== 'idle') return
     // Web Speech API isn't in the TS DOM lib here — access it untyped.
@@ -143,28 +180,61 @@ export default function VoiceRoomPage() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rec = new Ctor() as any
-    rec.continuous = false
+    rec.continuous = true
     rec.interimResults = true
     rec.lang = 'en-US'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
       const r = e.results[e.results.length - 1]
-      setTranscript(r[0].transcript)
-      if (r.isFinal) { rec.stop(); handleUtterance(r[0].transcript) }
+      if (!r.isFinal) { setTranscript(r[0].transcript); return }
+      const finalText = Array.from(e.results)
+        .slice(e.resultIndex)
+        .filter((item: any) => item.isFinal)
+        .map((item: any) => item[0].transcript)
+        .join(' ')
+        .trim()
+      if (!finalText) return
+      spokenTextRef.current = `${spokenTextRef.current} ${finalText}`.trim()
+      setTranscript(spokenTextRef.current)
+      armSilenceTimer()
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onerror = (e: any) => {
       if (e.error !== 'no-speech' && e.error !== 'aborted') setError('Mic error: ' + e.error)
+      clearSilenceTimer()
       setPhase('idle')
     }
-    rec.onend = () => setPhase((p) => (p === 'listening' ? 'idle' : p))
+    rec.onend = () => {
+      recRef.current = null
+      if (manualSpeechStopRef.current) { manualSpeechStopRef.current = false; return }
+      if (phaseRef.current === 'listening') {
+        window.setTimeout(() => {
+          try {
+            if (phaseRef.current === 'listening') {
+              recRef.current = { stop: () => { try { rec.stop() } catch {} } }
+              rec.start()
+            }
+          } catch {}
+        }, 150)
+      }
+    }
     recRef.current = { stop: () => { try { rec.stop() } catch {} } }
-    try { rec.start(); setError(''); setTranscript(''); setPhase('listening') } catch {}
+    try {
+      spokenTextRef.current = ''
+      clearSilenceTimer()
+      rec.start()
+      setError('')
+      setTranscript('')
+      setPhase('listening')
+    } catch {}
   }
 
   function stopAll() {
-    recRef.current?.stop()
-    setPhase('idle')
+    if (phaseRef.current === 'listening') submitSpokenText()
+    else {
+      recRef.current?.stop()
+      setPhase('idle')
+    }
   }
 
   const orbColor = phase === 'idle' ? '#64748b' : AGENT_META[active].color
