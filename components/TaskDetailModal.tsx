@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { Task, TaskStatus, TaskOwner, TaskPhase, TaskPriority } from '@/lib/types'
+import { ImageAttachmentPicker, type PendingImage } from './ImageAttachmentPicker'
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string; desc: string }[] = [
   { value: 'high',   label: 'High',  color: '#22c55e', desc: 'Do this now' },
@@ -637,6 +638,7 @@ function NotesEditor({
 function ChatTab({ taskId }: { taskId: string }) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState('')
+  const [images, setImages] = useState<PendingImage[]>([])
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({ api: `/api/tasks/${taskId}/chat` }),
@@ -648,9 +650,10 @@ function ChatTab({ taskId }: { taskId: string }) {
 
   function handleSend() {
     const text = input.trim()
-    if (!text || status !== 'ready') return
-    sendMessage({ text })
+    if ((!text && images.length === 0) || status !== 'ready') return
+    void sendMessage({ text: text || 'I attached a photo for context.', files: images.map(({ filename, mediaType, url }) => ({ type: 'file' as const, filename, mediaType, url })) })
     setInput('')
+    setImages([])
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -714,6 +717,7 @@ function ChatTab({ taskId }: { taskId: string }) {
       {/* Input */}
       <div className="shrink-0 px-6 pb-5 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="flex gap-2 items-end">
+          <ImageAttachmentPicker images={images} onChange={setImages} disabled={status !== 'ready'} color="#8b5cf6" />
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -725,7 +729,7 @@ function ChatTab({ taskId }: { taskId: string }) {
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || status !== 'ready'}
+            disabled={(!input.trim() && images.length === 0) || status !== 'ready'}
             className="shrink-0 rounded-xl px-4 py-3 text-xs font-[700] transition-all disabled:opacity-30"
             style={{ background: '#8b5cf6', color: '#fff' }}
           >

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ImageAttachmentPicker, type PendingImage } from './ImageAttachmentPicker'
 
 type Agent = 'wendy' | 'ellie'
 type Mode = 'quick' | 'deep'
@@ -50,6 +51,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const [both, setBoth] = useState(false)
   const [showText, setShowText] = useState(false)
   const [typedMessage, setTypedMessage] = useState('')
+  const [images, setImages] = useState<PendingImage[]>([])
   const [log, setLog] = useState<LogEntry[]>([])
   const [error, setError] = useState('')
   const logRef = useRef<LogEntry[]>([])
@@ -153,9 +155,9 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
 
   // Deep path: drive the real terminal agent through the Bridge. Post the
   // utterance, then poll for that agent's assistant reply (can take minutes).
-  const deepReply = async (agent: Agent, text: string): Promise<string> => {
+  const deepReply = async (agent: Agent, text: string, attachments: PendingImage[] = []): Promise<string> => {
     const target = BRIDGE_TARGET[agent]
-    const post = await fetch('/api/bridge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: text, target }) })
+    const post = await fetch('/api/bridge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: text, target, attachments: attachments.map(({ filename, mediaType, url }) => ({ filename, mime: mediaType, data_url: url })) }) })
     const posted = await post.json()
     if (!post.ok || posted?.error) throw new Error(posted?.error || 'Bridge did not accept the request.')
     const since = String(posted.created_at)
@@ -174,7 +176,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     throw new Error('The real agent did not reply in time.')
   }
 
-  const handleUtterance = async (raw: string) => {
+  const handleUtterance = async (raw: string, attachments: PendingImage[] = []) => {
     const target = route(raw, activeRef.current, bothRef.current)
     if (asksForText(raw)) setShowText(true)
     push({ who: 'brad', text: raw })
@@ -185,7 +187,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       void (async () => {
         try {
           for (const agent of target.agents) {
-            const reply = await deepReply(agent, target.text)
+            const reply = await deepReply(agent, target.text, attachments)
             push({ who: agent, text: reply })
             await speak(agent, reply)
           }
@@ -204,7 +206,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       for (const agent of target.agents) {
         activeRef.current = agent
         setActive(agent)
-        const response = await fetch('/api/room/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: target.text, history: historyFor(agent, logRef.current) }) })
+        const response = await fetch('/api/room/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: target.text, history: historyFor(agent, logRef.current), attachments: attachments.map(({ filename, mediaType, url }) => ({ filename, mediaType, url })) }) })
         const data = await response.json()
         if (!response.ok || data.error) throw new Error(data.error || 'Partner did not respond.')
         const reply = String(data.reply || '')
@@ -371,11 +373,13 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const goDeeper = () => { setOpen(true); setFocused(value => !value) }
   const sendTypedMessage = () => {
     const text = typedMessage.trim()
-    if (!text || phase === 'thinking' || deepPending) return
+    if ((!text && images.length === 0) || phase === 'thinking' || deepPending) return
     setTypedMessage('')
+    const attachments = images
+    setImages([])
     setError('')
     unlockAudio()
-    void handleUtterance(text)
+    void handleUtterance(text || 'I attached a photo for context.', attachments)
   }
   const label = deepPending
     ? 'The real agent is working. This can take a minute. Keep talking if you want.'
@@ -437,6 +441,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         {label}
       </p>
       <div className="dashboard-voice-composer" style={{ display: 'flex', gap: 8 }}>
+        <ImageAttachmentPicker images={images} onChange={setImages} disabled={phase === 'thinking' || deepPending} color="#a78bfa" />
         <input
           ref={messageInputRef}
           aria-label="Message the team"
@@ -446,7 +451,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
           placeholder={both ? 'Message Wendy and Ellie…' : `Message ${META[active].label}…`}
           style={{ flex: 1, minWidth: 0, height: 34, border: '1px solid rgba(167,139,250,0.28)', borderRadius: 8, background: '#10111a', color: '#e2e8f0', padding: '0 10px', fontSize: 13, outline: 'none' }}
         />
-        <button onClick={sendTypedMessage} disabled={!typedMessage.trim() || phase === 'thinking' || deepPending} style={{ border: 0, borderRadius: 8, background: '#a78bfa', color: '#0a0a12', padding: '0 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+        <button onClick={sendTypedMessage} disabled={(!typedMessage.trim() && images.length === 0) || phase === 'thinking' || deepPending} style={{ border: 0, borderRadius: 8, background: '#a78bfa', color: '#0a0a12', padding: '0 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
           Send
         </button>
       </div>

@@ -5,14 +5,14 @@ import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
 
 export const maxDuration = 60
 
-function messageText(message: UIMessage) {
-  return message.parts
-    ?.map(part => {
-      if (part.type === 'text') return part.text
-      return ''
-    })
-    .join('')
-    .trim() ?? ''
+function openAIContent(message: UIMessage) {
+  return message.parts.flatMap<any>(part => {
+    if (part.type === 'text') return [{ type: 'input_text', text: part.text }]
+    if (part.type === 'file' && part.mediaType.startsWith('image/')) {
+      return [{ type: 'input_image', image_url: part.url }]
+    }
+    return []
+  })
 }
 
 function extractOpenAIText(data: any) {
@@ -58,9 +58,9 @@ export async function POST(request: Request) {
   const openAIMessages = messages
     .map(message => ({
       role: message.role === 'assistant' ? 'assistant' : 'user',
-      content: messageText(message),
+      content: openAIContent(message),
     }))
-    .filter(message => message.content)
+    .filter(message => message.content.length > 0)
 
   try {
     const response = await fetch('https://api.openai.com/v1/responses', {

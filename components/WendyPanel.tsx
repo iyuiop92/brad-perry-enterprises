@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { Workspace, Task } from '@/lib/types'
+import { ImageAttachmentPicker, type PendingImage } from './ImageAttachmentPicker'
 
 function generateInsights(workspaces: Workspace[], tasks: Task[], selectedWs: Workspace | null): string[] {
   const insights: string[] = []
@@ -52,6 +53,7 @@ export default function WendyPanel({
   selectedWs: Workspace | null
 }) {
   const [input, setInput] = useState('')
+  const [images, setImages] = useState<PendingImage[]>([])
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
@@ -80,9 +82,10 @@ export default function WendyPanel({
 
   function handleSend() {
     const text = input.trim()
-    if (!text || isStreaming) return
+    if ((!text && images.length === 0) || isStreaming) return
     setInput('')
-    sendMessage({ role: 'user', parts: [{ type: 'text', text }] })
+    setImages([])
+    void sendMessage({ text: text || 'I attached a photo for context.', files: images.map(({ filename, mediaType, url }) => ({ type: 'file' as const, filename, mediaType, url })) })
   }
 
   return (
@@ -235,6 +238,7 @@ export default function WendyPanel({
           }}
         >
           <span className="text-sm font-[700] shrink-0" style={{ color: '#00b4ff' }}>›</span>
+          <ImageAttachmentPicker images={images} onChange={setImages} disabled={isStreaming} />
           <input
             ref={inputRef}
             value={input}
@@ -247,14 +251,14 @@ export default function WendyPanel({
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isStreaming}
+            disabled={(!input.trim() && images.length === 0) || isStreaming}
             className="shrink-0 text-[11px] font-[700] px-2 py-1 rounded-md transition-all"
             style={{
               background: 'rgba(0,180,255,0.12)',
               color: '#00b4ff',
               border: '1px solid rgba(0,180,255,0.2)',
-              opacity: input.trim() && !isStreaming ? 1 : 0,
-              pointerEvents: input.trim() && !isStreaming ? 'auto' : 'none',
+              opacity: (input.trim() || images.length) && !isStreaming ? 1 : 0,
+              pointerEvents: (input.trim() || images.length) && !isStreaming ? 'auto' : 'none',
             }}
           >
             SEND

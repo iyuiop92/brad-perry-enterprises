@@ -10,14 +10,17 @@ const anthropic = createAnthropic({
 
 export const maxDuration = 60
 
+type Attachment = { filename?: string; mediaType?: string; url?: string }
+
 export async function POST(request: Request) {
   const { supabase, unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
-  const { message } = await request.json()
-  if (!message?.trim()) {
+  const { message, attachments = [] } = await request.json() as { message?: string; attachments?: Attachment[] }
+  if (!message?.trim() && !attachments.length) {
     return NextResponse.json({ error: 'Message required' }, { status: 400 })
   }
+  const content = message?.trim() || 'I attached a photo for context.'
 
   // Fetch recent thread for context (last 20 messages)
   const { data: history } = await supabase
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
   // Add Brad's new message
   await supabase.from('bpe_feed_messages').insert({
     role: 'brad',
-    content: message.trim(),
+    content,
     metadata: { source: 'dashboard' },
   })
 
@@ -43,7 +46,15 @@ export async function POST(request: Request) {
     system: buildPersonalSystemPrompt(),
     messages: [
       ...recentMessages,
-      { role: 'user', content: message.trim() },
+      {
+        role: 'user',
+        content: [
+          { type: 'text' as const, text: content },
+          ...attachments
+            .filter(attachment => attachment.mediaType?.startsWith('image/') && attachment.url)
+            .map(attachment => ({ type: 'file' as const, mediaType: attachment.mediaType!, data: attachment.url!, filename: attachment.filename })),
+        ],
+      },
     ],
   })
 
