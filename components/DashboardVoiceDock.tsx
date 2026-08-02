@@ -385,23 +385,27 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     </div>
     {open && <>
       {focused && <div onClick={() => { setOpen(false); setFocused(false) }} style={{ position: 'fixed', inset: 0, zIndex: 114, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(3px)' }} />}
-      <aside style={focused
+      <aside className={`dashboard-voice-panel${focused ? ' is-focused' : ''}`} style={focused
         ? { position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 116, width: 'min(680px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', background: '#0a0a12', border: '1px solid rgba(167,139,250,0.42)', borderRadius: 10, padding: 18, boxShadow: '0 30px 90px rgba(0,0,0,0.7)', display: 'grid', gap: 12 }
         : { position: 'fixed', left: 12, right: 12, bottom: 'calc(18px + env(safe-area-inset-bottom))', zIndex: 116, width: 'auto', maxWidth: 370, marginLeft: 'auto', boxSizing: 'border-box', overflowY: 'auto', background: '#0a0a12', border: '1px solid rgba(167,139,250,0.42)', borderRadius: 10, padding: 14, boxShadow: '0 22px 70px rgba(0,0,0,0.56)', display: 'grid', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><div><strong style={{ color: '#f8fafc', fontSize: 14 }}>Dashboard conversation</strong><p style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>{focused ? 'Focused voice space — your dashboard remains behind it.' : 'Talk about the work while the board stays visible.'}</p></div><button aria-label="Close voice conversation" onClick={() => { setOpen(false); setFocused(false) }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button></div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: '#64748b', fontSize: 11 }}>Audience</span>
-        <button onClick={toggleBoth} style={togglePillStyle(both)}>Wendy + Ellie</button>
-        <span style={{ color: '#64748b', fontSize: 11 }}>Mode</span>
-        <button onClick={() => setMode('quick')} style={togglePillStyle(mode === 'quick')}>Quick</button>
-        <button onClick={() => setMode('deep')} style={togglePillStyle(mode === 'deep')}>Deep</button>
-        <span style={{ color: '#475569', fontSize: 10 }}>{mode === 'deep' ? 'real terminal agent, slow' : 'fast voice reply'}</span>
+      <div className="dashboard-voice-panel-heading" style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><div><strong style={{ color: '#f8fafc', fontSize: 14 }}>Dashboard conversation</strong><p style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>{focused ? 'Focused voice space — your dashboard remains behind it.' : 'Talk about the work while the board stays visible.'}</p></div><button aria-label="Close voice conversation" onClick={() => { setOpen(false); setFocused(false) }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button></div>
+      <div className="dashboard-voice-settings" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="dashboard-voice-setting-group">
+          <span style={{ color: '#64748b', fontSize: 11 }}>Audience</span>
+          <button onClick={toggleBoth} style={togglePillStyle(both)}>Wendy + Ellie</button>
+        </div>
+        <div className="dashboard-voice-setting-group">
+          <span style={{ color: '#64748b', fontSize: 11 }}>Mode</span>
+          <button onClick={() => setMode('quick')} style={togglePillStyle(mode === 'quick')}>Quick</button>
+          <button onClick={() => setMode('deep')} style={togglePillStyle(mode === 'deep')}>Deep</button>
+        </div>
+        <span className="dashboard-voice-mode-hint" style={{ color: '#475569', fontSize: 10 }}>{mode === 'deep' ? 'real terminal agent, slow' : 'fast voice reply'}</span>
       </div>
       <p style={{ color: deepPending ? '#00b4ff' : '#94a3b8', fontSize: 12, margin: 0 }}>
         {deepPending && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 10, background: '#00b4ff', marginRight: 6, animation: 'pulse 1.2s ease-in-out infinite' }} />}
         {label}
       </p>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="dashboard-voice-composer" style={{ display: 'flex', gap: 8 }}>
         <input
           ref={messageInputRef}
           aria-label="Message the team"
@@ -417,7 +421,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       </div>
       {showText && <div style={{ display: 'flex', gap: 8 }}><button onClick={() => setShowText(false)} style={buttonStyle('#94a3b8')}>Hide text</button></div>}
       {(showText || focused || isMobileVoiceLayout()) && (log.length > 0
-        ? <div style={{ display: 'grid', gap: 7, maxHeight: focused ? 360 : 220, overflowY: 'auto' }}>{log.map((entry, index) => <div key={index} style={{ background: '#10111a', color: entry.who === 'brad' ? '#cbd5e1' : META[entry.who].color, borderRadius: 7, padding: '8px 9px', fontSize: 12, lineHeight: 1.45 }}>{entry.text}</div>)}</div>
+        ? <div className="dashboard-voice-transcript" style={{ display: 'grid', gap: 7, maxHeight: focused ? 360 : 220, overflowY: 'auto' }}>{log.map((entry, index) => <div key={index} style={{ background: '#10111a', color: entry.who === 'brad' ? '#cbd5e1' : META[entry.who].color, borderRadius: 7, padding: '8px 9px', fontSize: 12, lineHeight: 1.45 }}>{entry.text}</div>)}</div>
         : focused ? <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>Say something to start. I have your dashboard context loaded.</p> : null)}
       {error && <p style={{ color: '#f87171', fontSize: 12 }}>{error}</p>}
     </aside>
@@ -427,4 +431,4 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
 
 function buttonStyle(color: string) { return { border: 'none', background: 'transparent', color, padding: '6px 6px', minHeight: 28, cursor: 'pointer', fontSize: 11, fontWeight: 700 } }
 function headerButtonStyle(color: string) { return { height: 28, padding: '0 6px', border: 'none', background: 'transparent', color, cursor: 'pointer', fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap' as const } }
-function togglePillStyle(on: boolean) { const color = on ? '#00b4ff' : '#64748b'; return { height: 24, padding: '0 10px', border: `1px solid ${color}${on ? '99' : '44'}`, background: on ? '#00b4ff22' : 'transparent', color, borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' as const } }
+function togglePillStyle(on: boolean) { return { minHeight: 24, padding: '0 2px', border: 'none', background: 'transparent', color: on ? '#00b4ff' : '#64748b', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' as const } }

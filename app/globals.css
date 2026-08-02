@@ -293,6 +293,66 @@ body {
     text-align: center;
   }
 
+  /* Keep the focused conversation panel inside the visual viewport, including
+     Safari's dynamic mobile browser chrome. */
+  .dashboard-voice-panel,
+  .dashboard-voice-panel.is-focused {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    padding: 14px !important;
+  }
+
+  .dashboard-voice-panel-heading,
+  .dashboard-voice-panel-heading > div,
+  .dashboard-voice-panel-heading p {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-voice-settings {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    align-items: start !important;
+    gap: 6px !important;
+    min-width: 0;
+  }
+
+  .dashboard-voice-setting-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .dashboard-voice-mode-hint {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-voice-composer {
+    min-width: 0;
+  }
+
+  .dashboard-voice-composer input {
+    min-width: 0 !important;
+  }
+
+  .dashboard-voice-composer button {
+    flex: 0 0 auto;
+  }
+
+  .dashboard-voice-transcript,
+  .dashboard-voice-transcript > div {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   input,
   textarea,
   select {
