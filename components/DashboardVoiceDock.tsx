@@ -178,25 +178,36 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     : phase === 'thinking' ? 'Thinking…'
     : phase === 'speaking' ? `${META[active].label} is speaking`
     : 'Ready'
+  const voiceControls = () => <>
+    <button className="dashboard-voice-control" onClick={talk} disabled={phase === 'thinking'} style={headerButtonStyle(phase === 'listening' ? '#f87171' : '#a78bfa')}>
+      {phase === 'speaking' ? 'Interrupt' : phase === 'listening' ? 'Stop' : 'Talk'}
+    </button>
+    <button className="dashboard-voice-control" onClick={toggleLock} style={headerButtonStyle(locked ? '#c4b5fd' : '#94a3b8')}>
+      {locked ? 'Unlock talk' : 'Lock talk'}
+    </button>
+    <button className="dashboard-voice-control" onClick={toggleBoth} aria-pressed={both} style={headerButtonStyle(both ? '#00b4ff' : '#94a3b8')}>
+      {both ? 'Both on' : 'Both'}
+    </button>
+    <button className="dashboard-voice-control" onClick={goDeeper} style={headerButtonStyle('#a78bfa')}>
+      {focused ? 'Compact' : 'Go deeper'}
+    </button>
+    {deepPending && <button className="dashboard-voice-control" onClick={() => { setOpen(true); setFocused(true) }} style={headerButtonStyle('#00b4ff')}>
+      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 10, background: '#00b4ff', marginRight: 5, animation: 'pulse 1.2s ease-in-out infinite' }} />Agent working
+    </button>}
+  </>
 
   return <>
     <style>{`@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.25 } }`}</style>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <button onClick={talk} disabled={phase === 'thinking'} style={headerButtonStyle(phase === 'listening' ? '#f87171' : '#a78bfa')}>
-        {phase === 'speaking' ? 'Interrupt' : phase === 'listening' ? 'Stop' : 'Talk'}
-      </button>
-      <button onClick={toggleLock} style={headerButtonStyle(locked ? '#c4b5fd' : '#94a3b8')}>
-        {locked ? 'Unlock talk' : 'Lock talk'}
-      </button>
-      <button onClick={toggleBoth} aria-pressed={both} style={headerButtonStyle(both ? '#00b4ff' : '#94a3b8')}>
-        {both ? 'Both on' : 'Both'}
-      </button>
-      <button onClick={goDeeper} style={headerButtonStyle('#a78bfa')}>
-        {focused ? 'Compact' : 'Go deeper'}
-      </button>
-      {deepPending && <button onClick={() => { setOpen(true); setFocused(true) }} style={headerButtonStyle('#00b4ff')}>
-        <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 10, background: '#00b4ff', marginRight: 5, animation: 'pulse 1.2s ease-in-out infinite' }} />Agent working
-      </button>}
+    <div className="dashboard-voice-header">
+      <div className="dashboard-voice-desktop" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        {voiceControls()}
+      </div>
+      <details className="dashboard-voice-mobile-menu">
+        <summary>Talk</summary>
+        <div className="dashboard-voice-mobile-menu-panel">
+          {voiceControls()}
+        </div>
+      </details>
     </div>
     {open && <>
       {focused && <div onClick={() => { setOpen(false); setFocused(false) }} style={{ position: 'fixed', inset: 0, zIndex: 114, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(3px)' }} />}

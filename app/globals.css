@@ -78,6 +78,10 @@ body {
   gap: 10px;
 }
 
+.dashboard-voice-mobile-menu {
+  display: none;
+}
+
 @media (max-width: 767px) {
   html,
   body {
@@ -207,6 +211,86 @@ body {
 
   .dashboard-desktop-actions {
     display: none !important;
+  }
+
+  .dashboard-voice-header {
+    position: fixed;
+    top: 5px;
+    left: 50%;
+    z-index: 145;
+    transform: translateX(-50%);
+  }
+
+  .dashboard-voice-desktop {
+    display: none !important;
+  }
+
+  .dashboard-voice-mobile-menu {
+    display: block;
+    position: relative;
+  }
+
+  .dashboard-voice-mobile-menu summary {
+    list-style: none;
+    cursor: pointer;
+    height: 28px;
+    min-width: 76px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    border: 1px solid rgba(167, 139, 250, 0.34);
+    border-radius: 5px;
+    background: rgba(15, 23, 42, 0.72);
+    color: #c4b5fd;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .dashboard-voice-mobile-menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .dashboard-voice-mobile-menu summary::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    margin-left: 8px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+    opacity: 0.8;
+  }
+
+  .dashboard-voice-mobile-menu[open] summary {
+    border-color: rgba(167, 139, 250, 0.72);
+    background: rgba(76, 29, 149, 0.28);
+  }
+
+  .dashboard-voice-mobile-menu-panel {
+    position: absolute;
+    top: 34px;
+    left: 50%;
+    z-index: 220;
+    display: grid;
+    min-width: 150px;
+    padding: 6px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(167, 139, 250, 0.32);
+    border-radius: 5px;
+    background: rgba(5, 7, 10, 0.98);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .dashboard-voice-mobile-menu-panel .dashboard-voice-control {
+    width: 100%;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    text-align: center;
   }
 
   input,
