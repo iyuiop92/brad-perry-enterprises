@@ -91,7 +91,43 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     const AudioContextConstructor = browser.AudioContext ?? browser.webkitAudioContext
     if (!AudioContextConstructor) return
     if (!audioContextRef.current) audioContextRef.current = new AudioContextConstructor()
-    if (audioContextRef.current.state === 'suspended') void audioContextRef.current.resume()
+    const context = audioContextRef.current
+    const prime = () => {
+      try {
+        const source = context.createOscillator()
+        const gain = context.createGain()
+        gain.gain.value = 0.00001
+        source.connect(gain)
+        gain.connect(context.destination)
+        source.start()
+        source.stop(context.currentTime + 0.02)
+      } catch {}
+    }
+    // This is called directly from the Talk/send tap. Priming the context here
+    // keeps iOS' audio session authorized for the asynchronous reply later.
+    if (context.state === 'suspended') void context.resume().then(prime).catch(() => {})
+    else prime()
+  }
+
+  const playWithAudioContext = async (bytes: ArrayBuffer) => {
+    const context = audioContextRef.current
+    if (!context) return false
+    try {
+      if (context.state === 'suspended') await context.resume()
+      if (context.state !== 'running') return false
+      const buffer = await context.decodeAudioData(bytes.slice(0))
+      await new Promise<void>((resolve) => {
+        const source = context.createBufferSource()
+        source.buffer = buffer
+        source.connect(context.destination)
+        source.onended = () => { if (audioSourceRef.current === source) audioSourceRef.current = null; resolve() }
+        audioSourceRef.current = source
+        source.start()
+      })
+      return true
+    } catch {
+      return false
+    }
   }
 
   const playWithAudioElement = async (bytes: ArrayBuffer) => {
@@ -125,30 +161,9 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     const response = await fetch('/api/room/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text }) })
     if (!response.ok) throw new Error('Speech was unavailable.')
     const bytes = await response.arrayBuffer()
-    // On iPhone, keep spoken replies on the media-element path. It preserves
-    // the speaker route after MediaRecorder stops and avoids a silent reply.
-    if (isMobileVoiceLayout()) return playWithAudioElement(bytes)
-
-    const context = audioContextRef.current
-    if (context) {
-      try {
-        if (context.state === 'suspended') await context.resume()
-        if (context.state === 'running') {
-          const buffer = await context.decodeAudioData(bytes.slice(0))
-          await new Promise<void>((resolve) => {
-            const source = context.createBufferSource()
-            source.buffer = buffer
-            source.connect(context.destination)
-            source.onended = () => { if (audioSourceRef.current === source) audioSourceRef.current = null; resolve() }
-            audioSourceRef.current = source
-            source.start()
-          })
-          return
-        }
-      } catch {
-        // Use the media element below if a browser cannot decode via Web Audio.
-      }
-    }
+    // AudioContext is primed during the user gesture, so it remains permitted
+    // after transcription and the teammate reply finish on iPhone.
+    if (await playWithAudioContext(bytes)) return
 
     await playWithAudioElement(bytes)
   }
