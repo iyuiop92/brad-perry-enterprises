@@ -59,6 +59,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const bothRef = useRef(false)
   const recRef = useRef<{ stop: () => void } | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const messageInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => { lockedRef.current = locked }, [locked])
   useEffect(() => { bothRef.current = both }, [both])
@@ -176,6 +177,11 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const interrupt = () => { audioRef.current?.pause(); audioRef.current = null; setPhase('idle') }
   const talk = () => {
     setOpen(true)
+    if (isMobileVoiceLayout()) {
+      setError('')
+      window.requestAnimationFrame(() => messageInputRef.current?.focus())
+      return
+    }
     if (phase === 'speaking') { interrupt(); return }
     if (phase === 'listening') { recRef.current?.stop(); return }
     startListening()
@@ -253,6 +259,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       </p>
       <div style={{ display: 'flex', gap: 8 }}>
         <input
+          ref={messageInputRef}
           aria-label="Message the team"
           value={typedMessage}
           onChange={event => setTypedMessage(event.target.value)}
@@ -265,7 +272,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         </button>
       </div>
       {showText && <div style={{ display: 'flex', gap: 8 }}><button onClick={() => setShowText(false)} style={buttonStyle('#94a3b8')}>Hide text</button></div>}
-      {(showText || focused) && (log.length > 0
+      {(showText || focused || isMobileVoiceLayout()) && (log.length > 0
         ? <div style={{ display: 'grid', gap: 7, maxHeight: focused ? 360 : 220, overflowY: 'auto' }}>{log.map((entry, index) => <div key={index} style={{ background: '#10111a', color: entry.who === 'brad' ? '#cbd5e1' : META[entry.who].color, borderRadius: 7, padding: '8px 9px', fontSize: 12, lineHeight: 1.45 }}>{entry.text}</div>)}</div>
         : focused ? <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>Say something to start. I have your dashboard context loaded.</p> : null)}
       {error && <p style={{ color: '#f87171', fontSize: 12 }}>{error}</p>}
