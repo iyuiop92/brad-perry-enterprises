@@ -12,6 +12,20 @@ function messageText(message: UIMessage) {
     .trim() ?? ''
 }
 
+function ollamaMessage(message: UIMessage) {
+  const images = message.parts.flatMap(part => {
+    if (part.type !== 'file' || !part.mediaType.startsWith('image/')) return []
+    const image = part.url.match(/^data:[^;,]+;base64,(.+)$/)?.[1]
+    return image ? [image] : []
+  })
+
+  return {
+    role: message.role === 'assistant' ? 'assistant' as const : 'user' as const,
+    content: messageText(message),
+    ...(images.length ? { images } : {}),
+  }
+}
+
 function cleaverStream(text: string) {
   const stream = createUIMessageStream({
     execute: ({ writer }) => {
@@ -100,10 +114,7 @@ Behavior:
   const ollamaMessages = [
     { role: 'system', content: system },
     ...messages
-      .map(message => ({
-        role: message.role === 'assistant' ? 'assistant' : 'user',
-        content: messageText(message),
-      }))
+      .map(ollamaMessage)
       .filter(message => message.content),
   ]
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ImageAttachmentPicker, type PendingImage } from './ImageAttachmentPicker'
 
 interface FeedMessage {
   id: string
@@ -23,6 +24,7 @@ export default function PersonalFeed() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<FeedMessage[]>([])
   const [input, setInput] = useState('')
+  const [images, setImages] = useState<PendingImage[]>([])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -46,24 +48,26 @@ export default function PersonalFeed() {
 
   async function handleSend() {
     const text = input.trim()
-    if (!text || sending) return
+    if ((!text && images.length === 0) || sending) return
 
     const optimistic: FeedMessage = {
       id: `opt-${Date.now()}`,
       role: 'brad',
-      content: text,
+      content: text || 'I attached a photo for context.',
       metadata: {},
       created_at: new Date().toISOString(),
     }
     setMessages((prev) => [...prev, optimistic])
     setInput('')
+    const attachments = images
+    setImages([])
     setSending(true)
 
     try {
       const res = await fetch('/api/personal/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text || 'I attached a photo for context.', attachments: attachments.map(({ filename, mediaType, url }) => ({ filename, mediaType, url })) }),
       })
       const data = await res.json()
       if (data.reply) {
@@ -206,6 +210,7 @@ export default function PersonalFeed() {
             className="shrink-0 flex gap-2 px-4 py-2.5"
             style={{ borderTop: '1px solid rgba(0, 180, 255, 0.08)' }}
           >
+            <ImageAttachmentPicker images={images} onChange={setImages} disabled={sending} />
             <textarea
               ref={inputRef}
               value={input}
@@ -229,7 +234,7 @@ export default function PersonalFeed() {
             />
             <button
               onClick={handleSend}
-              disabled={!input.trim() || sending}
+              disabled={(!input.trim() && images.length === 0) || sending}
               className="shrink-0 rounded-[8px] px-3 py-2 text-xs font-[600] transition-all disabled:opacity-30"
               style={{ background: '#00b4ff', color: '#04040a' }}
             >

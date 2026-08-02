@@ -20,24 +20,42 @@ const anthropic = createAnthropic({
 const VOICE_RULES = `You are speaking OUT LOUD in a live voice meeting with Brad. Keep it conversational and short — usually 1 to 3 sentences, no markdown, no lists, no headers, no em-dashes. Lead with the answer. Talk directly to Brad as "you". If your teammate just spoke, you may reference them by name.`
 
 type Message = { role: 'user' | 'assistant'; content: string }
+type Attachment = { filename?: string; mediaType?: string; url?: string }
 
-async function wendyReply(text: string, history: Message[], system: string): Promise<string> {
+async function wendyReply(text: string, history: Message[], system: string, attachments: Attachment[]): Promise<string> {
   const { text: reply } = await generateText({
     model: anthropic('claude-sonnet-4-6'),
     system,
-    messages: [...history, { role: 'user', content: text }],
+    messages: [...history, {
+      role: 'user',
+      content: [
+        { type: 'text' as const, text },
+        ...attachments
+          .filter(attachment => attachment.mediaType?.startsWith('image/') && attachment.url)
+          .map(attachment => ({ type: 'file' as const, mediaType: attachment.mediaType!, data: attachment.url!, filename: attachment.filename })),
+      ],
+    }],
   })
   return reply
 }
 
-async function ellieReply(text: string, history: Message[], system: string): Promise<string> {
+async function ellieReply(text: string, history: Message[], system: string, attachments: Attachment[]): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY_BPE ?? process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY_BPE not set')
   const model = process.env.ELLIE_OPENAI_MODEL ?? 'gpt-5.6-terra'
-  const input = [...history, { role: 'user' as const, content: text }].map(m => ({
+  const input: any[] = history.map(m => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: m.content,
   }))
+  input.push({
+    role: 'user',
+    content: [
+      { type: 'input_text', text },
+      ...attachments
+        .filter(attachment => attachment.mediaType?.startsWith('image/') && attachment.url)
+        .map(attachment => ({ type: 'input_image', image_url: attachment.url! })),
+    ],
+  } as any)
   const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -55,10 +73,11 @@ async function ellieReply(text: string, history: Message[], system: string): Pro
 }
 
 export async function POST(req: NextRequest) {
-  const { agent, text, history } = (await req.json()) as {
+  const { agent, text, history, attachments } = (await req.json()) as {
     agent: 'wendy' | 'ellie'
     text: string
     history?: Message[]
+    attachments?: Attachment[]
   }
   if (!text?.trim()) return NextResponse.json({ error: 'text required' }, { status: 400 })
 
@@ -70,8 +89,8 @@ export async function POST(req: NextRequest) {
     const system = `${buildAgentSystemPrompt(agent, dashboardContext)}\n\n${VOICE_RULES}`
     const reply =
       agent === 'ellie'
-        ? await ellieReply(text, history ?? [], system)
-        : await wendyReply(text, history ?? [], system)
+        ? await ellieReply(text, history ?? [], system, attachments ?? [])
+        : await wendyReply(text, history ?? [], system, attachments ?? [])
     return NextResponse.json({ reply: reply || 'Sorry, I did not catch that.' })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'AI error'

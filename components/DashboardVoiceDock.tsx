@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ImageAttachmentPicker, type PendingImage } from './ImageAttachmentPicker'
 
 type Agent = 'wendy' | 'ellie'
 type Mode = 'quick' | 'deep'
@@ -50,6 +51,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const [both, setBoth] = useState(false)
   const [showText, setShowText] = useState(false)
   const [typedMessage, setTypedMessage] = useState('')
+  const [images, setImages] = useState<PendingImage[]>([])
   const [log, setLog] = useState<LogEntry[]>([])
   const [error, setError] = useState('')
   const logRef = useRef<LogEntry[]>([])
@@ -92,39 +94,70 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     if (audioContextRef.current.state === 'suspended') void audioContextRef.current.resume()
   }
 
+  const playWithAudioElement = async (bytes: ArrayBuffer) => {
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
+    await new Promise<void>((resolve, reject) => {
+      const audio = new Audio(url)
+      let settled = false
+      const finish = (cause?: Error) => {
+        if (settled) return
+        settled = true
+        URL.revokeObjectURL(url)
+        if (audioRef.current === audio) audioRef.current = null
+        if (cause) reject(cause)
+        else resolve()
+      }
+
+      // iOS Safari is more reliable with an HTML media element than decoding a
+      // response in Web Audio after the microphone has been used.
+      audio.preload = 'auto'
+      audio.setAttribute('playsinline', '')
+      audio.muted = false
+      audio.volume = 1
+      audioRef.current = audio
+      audio.onended = () => finish()
+      audio.onerror = () => finish(new Error('Voice playback could not start. Turn off Silent Mode, raise the media volume, then tap Talk again.'))
+      void audio.play().catch(() => finish(new Error('Voice playback was blocked. Turn off Silent Mode, raise the media volume, then tap Talk again.')))
+    })
+  }
+
   const speak = async (agent: Agent, text: string) => {
     const response = await fetch('/api/room/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text }) })
     if (!response.ok) throw new Error('Speech was unavailable.')
     const bytes = await response.arrayBuffer()
+    // On iPhone, keep spoken replies on the media-element path. It preserves
+    // the speaker route after MediaRecorder stops and avoids a silent reply.
+    if (isMobileVoiceLayout()) return playWithAudioElement(bytes)
+
     const context = audioContextRef.current
-    if (context?.state === 'running') {
-      const buffer = await context.decodeAudioData(bytes.slice(0))
-      await new Promise<void>((resolve) => {
-        const source = context.createBufferSource()
-        source.buffer = buffer
-        source.connect(context.destination)
-        source.onended = () => { if (audioSourceRef.current === source) audioSourceRef.current = null; resolve() }
-        audioSourceRef.current = source
-        source.start()
-      })
-      return
+    if (context) {
+      try {
+        if (context.state === 'suspended') await context.resume()
+        if (context.state === 'running') {
+          const buffer = await context.decodeAudioData(bytes.slice(0))
+          await new Promise<void>((resolve) => {
+            const source = context.createBufferSource()
+            source.buffer = buffer
+            source.connect(context.destination)
+            source.onended = () => { if (audioSourceRef.current === source) audioSourceRef.current = null; resolve() }
+            audioSourceRef.current = source
+            source.start()
+          })
+          return
+        }
+      } catch {
+        // Use the media element below if a browser cannot decode via Web Audio.
+      }
     }
 
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
-    await new Promise<void>((resolve) => {
-      const audio = new Audio(url)
-      audioRef.current = audio
-      audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
-      audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
-      audio.play().catch(resolve)
-    })
+    await playWithAudioElement(bytes)
   }
 
   // Deep path: drive the real terminal agent through the Bridge. Post the
   // utterance, then poll for that agent's assistant reply (can take minutes).
-  const deepReply = async (agent: Agent, text: string): Promise<string> => {
+  const deepReply = async (agent: Agent, text: string, attachments: PendingImage[] = []): Promise<string> => {
     const target = BRIDGE_TARGET[agent]
-    const post = await fetch('/api/bridge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: text, target }) })
+    const post = await fetch('/api/bridge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: text, target, attachments: attachments.map(({ filename, mediaType, url }) => ({ filename, mime: mediaType, data_url: url })) }) })
     const posted = await post.json()
     if (!post.ok || posted?.error) throw new Error(posted?.error || 'Bridge did not accept the request.')
     const since = String(posted.created_at)
@@ -143,7 +176,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     throw new Error('The real agent did not reply in time.')
   }
 
-  const handleUtterance = async (raw: string) => {
+  const handleUtterance = async (raw: string, attachments: PendingImage[] = []) => {
     const target = route(raw, activeRef.current, bothRef.current)
     if (asksForText(raw)) setShowText(true)
     push({ who: 'brad', text: raw })
@@ -154,7 +187,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       void (async () => {
         try {
           for (const agent of target.agents) {
-            const reply = await deepReply(agent, target.text)
+            const reply = await deepReply(agent, target.text, attachments)
             push({ who: agent, text: reply })
             await speak(agent, reply)
           }
@@ -173,7 +206,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       for (const agent of target.agents) {
         activeRef.current = agent
         setActive(agent)
-        const response = await fetch('/api/room/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: target.text, history: historyFor(agent, logRef.current) }) })
+        const response = await fetch('/api/room/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: target.text, history: historyFor(agent, logRef.current), attachments: attachments.map(({ filename, mediaType, url }) => ({ filename, mediaType, url })) }) })
         const data = await response.json()
         if (!response.ok || data.error) throw new Error(data.error || 'Partner did not respond.')
         const reply = String(data.reply || '')
@@ -340,11 +373,13 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const goDeeper = () => { setOpen(true); setFocused(value => !value) }
   const sendTypedMessage = () => {
     const text = typedMessage.trim()
-    if (!text || phase === 'thinking' || deepPending) return
+    if ((!text && images.length === 0) || phase === 'thinking' || deepPending) return
     setTypedMessage('')
+    const attachments = images
+    setImages([])
     setError('')
     unlockAudio()
-    void handleUtterance(text)
+    void handleUtterance(text || 'I attached a photo for context.', attachments)
   }
   const label = deepPending
     ? 'The real agent is working. This can take a minute. Keep talking if you want.'
@@ -385,23 +420,28 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     </div>
     {open && <>
       {focused && <div onClick={() => { setOpen(false); setFocused(false) }} style={{ position: 'fixed', inset: 0, zIndex: 114, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(3px)' }} />}
-      <aside style={focused
+      <aside className={`dashboard-voice-panel${focused ? ' is-focused' : ''}`} style={focused
         ? { position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 116, width: 'min(680px, calc(100vw - 48px))', maxHeight: 'calc(100vh - 96px)', overflowY: 'auto', background: '#0a0a12', border: '1px solid rgba(167,139,250,0.42)', borderRadius: 10, padding: 18, boxShadow: '0 30px 90px rgba(0,0,0,0.7)', display: 'grid', gap: 12 }
         : { position: 'fixed', left: 12, right: 12, bottom: 'calc(18px + env(safe-area-inset-bottom))', zIndex: 116, width: 'auto', maxWidth: 370, marginLeft: 'auto', boxSizing: 'border-box', overflowY: 'auto', background: '#0a0a12', border: '1px solid rgba(167,139,250,0.42)', borderRadius: 10, padding: 14, boxShadow: '0 22px 70px rgba(0,0,0,0.56)', display: 'grid', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><div><strong style={{ color: '#f8fafc', fontSize: 14 }}>Dashboard conversation</strong><p style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>{focused ? 'Focused voice space — your dashboard remains behind it.' : 'Talk about the work while the board stays visible.'}</p></div><button aria-label="Close voice conversation" onClick={() => { setOpen(false); setFocused(false) }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button></div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: '#64748b', fontSize: 11 }}>Audience</span>
-        <button onClick={toggleBoth} style={togglePillStyle(both)}>Wendy + Ellie</button>
-        <span style={{ color: '#64748b', fontSize: 11 }}>Mode</span>
-        <button onClick={() => setMode('quick')} style={togglePillStyle(mode === 'quick')}>Quick</button>
-        <button onClick={() => setMode('deep')} style={togglePillStyle(mode === 'deep')}>Deep</button>
-        <span style={{ color: '#475569', fontSize: 10 }}>{mode === 'deep' ? 'real terminal agent, slow' : 'fast voice reply'}</span>
+      <div className="dashboard-voice-panel-heading" style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><div><strong style={{ color: '#f8fafc', fontSize: 14 }}>Dashboard conversation</strong><p style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>{focused ? 'Focused voice space — your dashboard remains behind it.' : 'Talk about the work while the board stays visible.'}</p></div><button aria-label="Close voice conversation" onClick={() => { setOpen(false); setFocused(false) }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button></div>
+      <div className="dashboard-voice-settings" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="dashboard-voice-setting-group">
+          <span style={{ color: '#64748b', fontSize: 11 }}>Audience</span>
+          <button onClick={toggleBoth} style={togglePillStyle(both)}>Wendy + Ellie</button>
+        </div>
+        <div className="dashboard-voice-setting-group">
+          <span style={{ color: '#64748b', fontSize: 11 }}>Mode</span>
+          <button onClick={() => setMode('quick')} style={togglePillStyle(mode === 'quick')}>Quick</button>
+          <button onClick={() => setMode('deep')} style={togglePillStyle(mode === 'deep')}>Deep</button>
+        </div>
+        <span className="dashboard-voice-mode-hint" style={{ color: '#475569', fontSize: 10 }}>{mode === 'deep' ? 'real terminal agent, slow' : 'fast voice reply'}</span>
       </div>
       <p style={{ color: deepPending ? '#00b4ff' : '#94a3b8', fontSize: 12, margin: 0 }}>
         {deepPending && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 10, background: '#00b4ff', marginRight: 6, animation: 'pulse 1.2s ease-in-out infinite' }} />}
         {label}
       </p>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="dashboard-voice-composer" style={{ display: 'flex', gap: 8 }}>
+        <ImageAttachmentPicker images={images} onChange={setImages} disabled={phase === 'thinking' || deepPending} color="#a78bfa" />
         <input
           ref={messageInputRef}
           aria-label="Message the team"
@@ -411,13 +451,13 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
           placeholder={both ? 'Message Wendy and Ellie…' : `Message ${META[active].label}…`}
           style={{ flex: 1, minWidth: 0, height: 34, border: '1px solid rgba(167,139,250,0.28)', borderRadius: 8, background: '#10111a', color: '#e2e8f0', padding: '0 10px', fontSize: 13, outline: 'none' }}
         />
-        <button onClick={sendTypedMessage} disabled={!typedMessage.trim() || phase === 'thinking' || deepPending} style={{ border: 0, borderRadius: 8, background: '#a78bfa', color: '#0a0a12', padding: '0 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+        <button onClick={sendTypedMessage} disabled={(!typedMessage.trim() && images.length === 0) || phase === 'thinking' || deepPending} style={{ border: 0, borderRadius: 8, background: '#a78bfa', color: '#0a0a12', padding: '0 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
           Send
         </button>
       </div>
       {showText && <div style={{ display: 'flex', gap: 8 }}><button onClick={() => setShowText(false)} style={buttonStyle('#94a3b8')}>Hide text</button></div>}
       {(showText || focused || isMobileVoiceLayout()) && (log.length > 0
-        ? <div style={{ display: 'grid', gap: 7, maxHeight: focused ? 360 : 220, overflowY: 'auto' }}>{log.map((entry, index) => <div key={index} style={{ background: '#10111a', color: entry.who === 'brad' ? '#cbd5e1' : META[entry.who].color, borderRadius: 7, padding: '8px 9px', fontSize: 12, lineHeight: 1.45 }}>{entry.text}</div>)}</div>
+        ? <div className="dashboard-voice-transcript" style={{ display: 'grid', gap: 7, maxHeight: focused ? 360 : 220, overflowY: 'auto' }}>{log.map((entry, index) => <div key={index} style={{ background: '#10111a', color: entry.who === 'brad' ? '#cbd5e1' : META[entry.who].color, borderRadius: 7, padding: '8px 9px', fontSize: 12, lineHeight: 1.45 }}>{entry.text}</div>)}</div>
         : focused ? <p style={{ color: '#64748b', fontSize: 12, margin: 0 }}>Say something to start. I have your dashboard context loaded.</p> : null)}
       {error && <p style={{ color: '#f87171', fontSize: 12 }}>{error}</p>}
     </aside>
@@ -427,4 +467,4 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
 
 function buttonStyle(color: string) { return { border: 'none', background: 'transparent', color, padding: '6px 6px', minHeight: 28, cursor: 'pointer', fontSize: 11, fontWeight: 700 } }
 function headerButtonStyle(color: string) { return { height: 28, padding: '0 6px', border: 'none', background: 'transparent', color, cursor: 'pointer', fontSize: 10, fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap' as const } }
-function togglePillStyle(on: boolean) { const color = on ? '#00b4ff' : '#64748b'; return { height: 24, padding: '0 10px', border: `1px solid ${color}${on ? '99' : '44'}`, background: on ? '#00b4ff22' : 'transparent', color, borderRadius: 10, cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' as const } }
+function togglePillStyle(on: boolean) { return { minHeight: 24, padding: '0 2px', border: 'none', background: 'transparent', color: on ? '#00b4ff' : '#64748b', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' as const } }
