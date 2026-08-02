@@ -92,32 +92,63 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     if (audioContextRef.current.state === 'suspended') void audioContextRef.current.resume()
   }
 
+  const playWithAudioElement = async (bytes: ArrayBuffer) => {
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
+    await new Promise<void>((resolve, reject) => {
+      const audio = new Audio(url)
+      let settled = false
+      const finish = (cause?: Error) => {
+        if (settled) return
+        settled = true
+        URL.revokeObjectURL(url)
+        if (audioRef.current === audio) audioRef.current = null
+        if (cause) reject(cause)
+        else resolve()
+      }
+
+      // iOS Safari is more reliable with an HTML media element than decoding a
+      // response in Web Audio after the microphone has been used.
+      audio.preload = 'auto'
+      audio.setAttribute('playsinline', '')
+      audio.muted = false
+      audio.volume = 1
+      audioRef.current = audio
+      audio.onended = () => finish()
+      audio.onerror = () => finish(new Error('Voice playback could not start. Turn off Silent Mode, raise the media volume, then tap Talk again.'))
+      void audio.play().catch(() => finish(new Error('Voice playback was blocked. Turn off Silent Mode, raise the media volume, then tap Talk again.')))
+    })
+  }
+
   const speak = async (agent: Agent, text: string) => {
     const response = await fetch('/api/room/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text }) })
     if (!response.ok) throw new Error('Speech was unavailable.')
     const bytes = await response.arrayBuffer()
+    // On iPhone, keep spoken replies on the media-element path. It preserves
+    // the speaker route after MediaRecorder stops and avoids a silent reply.
+    if (isMobileVoiceLayout()) return playWithAudioElement(bytes)
+
     const context = audioContextRef.current
-    if (context?.state === 'running') {
-      const buffer = await context.decodeAudioData(bytes.slice(0))
-      await new Promise<void>((resolve) => {
-        const source = context.createBufferSource()
-        source.buffer = buffer
-        source.connect(context.destination)
-        source.onended = () => { if (audioSourceRef.current === source) audioSourceRef.current = null; resolve() }
-        audioSourceRef.current = source
-        source.start()
-      })
-      return
+    if (context) {
+      try {
+        if (context.state === 'suspended') await context.resume()
+        if (context.state === 'running') {
+          const buffer = await context.decodeAudioData(bytes.slice(0))
+          await new Promise<void>((resolve) => {
+            const source = context.createBufferSource()
+            source.buffer = buffer
+            source.connect(context.destination)
+            source.onended = () => { if (audioSourceRef.current === source) audioSourceRef.current = null; resolve() }
+            audioSourceRef.current = source
+            source.start()
+          })
+          return
+        }
+      } catch {
+        // Use the media element below if a browser cannot decode via Web Audio.
+      }
     }
 
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
-    await new Promise<void>((resolve) => {
-      const audio = new Audio(url)
-      audioRef.current = audio
-      audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
-      audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
-      audio.play().catch(resolve)
-    })
+    await playWithAudioElement(bytes)
   }
 
   // Deep path: drive the real terminal agent through the Bridge. Post the
