@@ -22,7 +22,11 @@ const SCHEDULE_MAP: Record<string, string> = {
   Sunday: 'Family hike in the morning. Pizza cheat day. Recovery.',
 }
 
-export async function generateMorningBrief(tasks: BriefTask[], traffic?: string | null): Promise<string> {
+// `persona` is the shared Wendy brain (buildAgentSystemPrompt('wendy', ctx)).
+// Passing it makes the daily brief the SAME Wendy as the dashboard chat + voice,
+// instead of a separate hand-written persona that drifts. Callers build it from
+// the live dashboard context so there is one Wendy across every surface.
+export async function generateMorningBrief(tasks: BriefTask[], traffic?: string | null, persona?: string): Promise<string> {
   const now = new Date()
   const tz = 'America/Phoenix'
   const dayName = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long' })
@@ -42,7 +46,7 @@ export async function generateMorningBrief(tasks: BriefTask[], traffic?: string 
       : '',
   ].filter(Boolean).join('\n\n')
 
-  const system = `You are Wendy, Brad Perry's AI business partner. Write his morning brief for ${dayName}, ${dateStr}.
+  const system = `${persona ? `${persona}\n\n` : ''}You are writing Brad's morning brief for ${dayName}, ${dateStr}. Same Wendy as always — the daily brief is not a different assistant.
 
 TODAY'S SCHEDULE:
 ${SCHEDULE_MAP[dayName] ?? 'Normal work day.'}
@@ -89,7 +93,7 @@ SCHEDULE
 HEALTH CHECK
 [1 line: prompt Brad to log his BP. Keep it tight.]
 
-— Wendy`
+Do not sign off with your name.`
 
   const { text } = await generateText({
     model: anthropic('claude-haiku-4-5-20251001'),

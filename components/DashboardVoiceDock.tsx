@@ -12,6 +12,10 @@ type BridgeMessage = { id: string; role: string; target: string; content: string
 // Map a voice agent to its terminal-agent Bridge target.
 const BRIDGE_TARGET: Record<Agent, 'claude' | 'codex'> = { wendy: 'claude', ellie: 'codex' }
 
+// How long Brad can pause mid-thought before we treat the utterance as finished
+// and auto-send it. Single knob — tune here. (Brad picked 5s.)
+const LOCK_TALK_PAUSE_MS = 5000
+
 const META: Record<Agent, { label: string; color: string }> = {
   wendy: { label: 'Wendy', color: '#00b4ff' },
   ellie: { label: 'Ellie', color: '#a78bfa' },
@@ -53,10 +57,13 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const recRef = useRef<{ stop: () => void } | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const startRef = useRef<() => void>(() => {})
+  const silenceTimerRef = useRef<number | null>(null)
+  const transcriptRef = useRef('')
+  const sendOnEndRef = useRef(false)
 
   useEffect(() => { lockedRef.current = locked }, [locked])
   useEffect(() => { modeRef.current = mode }, [mode])
-  useEffect(() => () => { recRef.current?.stop(); audioRef.current?.pause() }, [])
+  useEffect(() => () => { if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current); recRef.current?.stop(); audioRef.current?.pause() }, [])
 
   const push = (entry: LogEntry) => {
     logRef.current = [...logRef.current, entry].slice(-16)
@@ -91,8 +98,14 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       const res = await fetch(`/api/bridge?since=${encodeURIComponent(since)}`)
       if (!res.ok) continue
       const rows = (await res.json()) as BridgeMessage[]
-      const reply = rows.find(row => row.role === 'assistant' && row.target === target && row.content?.trim())
-      if (reply) return reply.content.trim()
+      // The worker writes replies with role = the agent key ('claude'/'codex'),
+      // NOT 'assistant', and leaves target null. Match on role. Surface an error
+      // row (e.g. expired login) as a spoken/visible error instead of hanging.
+      const reply = rows.find(row => row.role === target && row.content?.trim())
+      if (reply) {
+        if (reply.status === 'error') throw new Error(reply.content.trim())
+        return reply.content.trim()
+      }
     }
     throw new Error('The real agent did not reply in time.')
   }
@@ -118,6 +131,8 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
           setDeepPending(false)
         }
       })()
+      // Open channel: deep runs detached, so keep listening for the next thought.
+      if (lockedRef.current) window.setTimeout(() => startRef.current(), 250)
       return
     }
 
@@ -142,31 +157,77 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     }
   }
 
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) { window.clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null }
+  }
+  // Every scrap of speech re-arms the pause countdown. When Brad goes quiet for
+  // LOCK_TALK_PAUSE_MS we stop recognition, which fires onend and auto-sends.
+  const armSilenceTimer = () => {
+    clearSilenceTimer()
+    silenceTimerRef.current = window.setTimeout(() => {
+      sendOnEndRef.current = true
+      try { recRef.current?.stop() } catch {}
+    }, LOCK_TALK_PAUSE_MS)
+  }
+
   const startListening = () => {
     if (phase !== 'idle') return
     const browser = window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown }
     const Recognition = browser.SpeechRecognition ?? browser.webkitSpeechRecognition
     if (!Recognition) { setError('Voice requires Chrome or Safari.'); return }
     const recognition = new Recognition() as any
-    recognition.continuous = false
-    recognition.interimResults = false
+    // Continuous + interim so WE detect the pause via a 5s timer, instead of
+    // relying on the browser's own end-of-speech (which is why Brad used to have
+    // to click Stop). Lock talk = hands-free open channel.
+    recognition.continuous = true
+    recognition.interimResults = true
     recognition.lang = 'en-US'
-    recognition.onresult = (event: any) => { const result = event.results[event.results.length - 1]; if (result.isFinal) { recognition.stop(); void handleUtterance(result[0].transcript) } }
-    recognition.onerror = (event: any) => { if (event.error !== 'aborted' && event.error !== 'no-speech') setError(`Mic error: ${event.error}`); setPhase('idle') }
-    recognition.onend = () => setPhase(current => current === 'listening' ? 'idle' : current)
+    transcriptRef.current = ''
+    sendOnEndRef.current = false
+    recognition.onresult = (event: any) => {
+      let text = ''
+      for (let i = 0; i < event.results.length; i++) text += event.results[i][0].transcript
+      transcriptRef.current = text.trim()
+      armSilenceTimer() // still talking — reset the pause countdown
+    }
+    recognition.onerror = (event: any) => {
+      if (event.error !== 'aborted' && event.error !== 'no-speech') setError(`Mic error: ${event.error}`)
+    }
+    recognition.onend = () => {
+      clearSilenceTimer()
+      const text = transcriptRef.current.trim()
+      transcriptRef.current = ''
+      if (sendOnEndRef.current && text) {
+        sendOnEndRef.current = false
+        setPhase('idle')
+        void handleUtterance(text) // its finally re-opens the channel if locked
+      } else {
+        // Stopped with nothing to send (manual stop, aborted, or silence). Keep
+        // the channel open if locked; otherwise settle to idle.
+        setPhase('idle')
+        if (lockedRef.current) window.setTimeout(() => startRef.current(), 250)
+      }
+    }
     recRef.current = { stop: () => { try { recognition.stop() } catch {} } }
-    try { recognition.start(); setError(''); setPhase('listening') } catch {}
+    try { recognition.start(); setError(''); setPhase('listening'); armSilenceTimer() } catch {}
   }
   startRef.current = startListening
 
-  const interrupt = () => { audioRef.current?.pause(); audioRef.current = null; setPhase('idle'); window.setTimeout(startListening, 0) }
+  const interrupt = () => { clearSilenceTimer(); audioRef.current?.pause(); audioRef.current = null; setPhase('idle'); window.setTimeout(startListening, 0) }
   const talk = () => {
     setOpen(true)
     if (phase === 'speaking') { interrupt(); return }
-    if (phase === 'listening') { recRef.current?.stop(); return }
+    if (phase === 'listening') { sendOnEndRef.current = true; recRef.current?.stop(); return } // manual Stop = send now
     startListening()
   }
-  const toggleLock = () => { const next = !locked; setLocked(next); setOpen(true); if (next && phase === 'idle') startListening(); if (!next && phase === 'listening') recRef.current?.stop() }
+  const toggleLock = () => {
+    const next = !locked
+    setLocked(next)
+    lockedRef.current = next // update immediately so onend loop logic sees it
+    setOpen(true)
+    if (next && phase === 'idle') startListening()
+    if (!next) { clearSilenceTimer(); sendOnEndRef.current = false; if (phase === 'listening') recRef.current?.stop() }
+  }
   const goDeeper = () => { setOpen(true); setFocused(value => !value) }
   const label = deepPending
     ? 'The real agent is working. This can take a minute. Keep talking if you want.'

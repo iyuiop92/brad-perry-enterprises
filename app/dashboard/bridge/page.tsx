@@ -172,6 +172,24 @@ export default function BridgePage() {
 
   const waiting = messages.some((m) => m.role === 'user' && (m.status === 'pending' || m.status === 'processing'))
 
+  // Per-agent status so Brad always knows if Wendy/Ellie are reachable, working,
+  // or errored — never a silent guess. Derived purely from the live thread.
+  function agentStatus(key: 'claude' | 'codex'): 'working' | 'error' | 'awake' {
+    const working = messages.some(
+      (m) => m.role === 'user' && (m.status === 'pending' || m.status === 'processing') && (m.target === key || m.target === 'both'),
+    )
+    if (working) return 'working'
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === key) return messages[i].status === 'error' ? 'error' : 'awake'
+    }
+    return 'awake'
+  }
+  const STATUS_META = {
+    working: { text: 'working', color: '#facc15' },
+    error: { text: 'needs attention', color: '#f87171' },
+    awake: { text: 'ready', color: '#22c55e' },
+  } as const
+
   return (
     <div
       style={{ background: '#04040a', height: '100dvh', paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
@@ -203,6 +221,26 @@ export default function BridgePage() {
         <p className="mt-1 text-xs" style={{ color: '#475569' }}>
           Messages route to your terminal agents on this Mac. The worker must be running.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(['claude', 'codex'] as const).map((key) => {
+            const s = STATUS_META[agentStatus(key)]
+            return (
+              <span
+                key={key}
+                className="inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1 text-[11px] font-[700]"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: ROLE_META[key].color }}
+              >
+                <span
+                  className={agentStatus(key) === 'working' ? 'h-1.5 w-1.5 animate-pulse rounded-full' : 'h-1.5 w-1.5 rounded-full'}
+                  style={{ background: s.color }}
+                  aria-hidden
+                />
+                {ROLE_META[key].label}
+                <span style={{ color: s.color, fontWeight: 400 }}>{s.text}</span>
+              </span>
+            )
+          })}
+        </div>
       </header>
 
       {/* Dedicated conversation scroll container. This is the ONLY thing that
@@ -248,7 +286,7 @@ export default function BridgePage() {
                     </div>
                   )}
                   {m.status === 'error'
-                    ? (m.error || 'Something went wrong.')
+                    ? (m.content || m.error || 'Something went wrong.')
                     : m.content || (m.attachments && m.attachments.length ? '' : '')}
                 </div>
                 {mine && m.status !== 'done' && m.status !== 'error' && (
