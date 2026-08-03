@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/require-auth'
 import { generateMorningBrief } from '@/lib/generateBrief'
+import { getDashboardContext } from '@/lib/dashboardContext'
+import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
 
 export const maxDuration = 60
 
@@ -14,7 +16,12 @@ export async function POST() {
     .neq('status', 'done')
     .order('sort_order')
 
-  const text = await generateMorningBrief(tasks ?? [])
+  // Same Wendy brain as the dashboard chat + voice, so the brief never drifts
+  // into a separate-sounding assistant.
+  const context = await getDashboardContext(supabase)
+  const persona = buildAgentSystemPrompt('wendy', context)
+
+  const text = await generateMorningBrief(tasks ?? [], null, persona)
 
   return NextResponse.json({ text })
 }

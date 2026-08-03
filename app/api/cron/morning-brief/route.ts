@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { generateMorningBrief } from '@/lib/generateBrief'
 import { getTrafficDigest } from '@/lib/ga'
+import { getDashboardContext } from '@/lib/dashboardContext'
+import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
 
 export const maxDuration = 60
 
@@ -27,7 +29,17 @@ export async function GET(request: Request) {
     traffic = null
   }
 
-  const text = await generateMorningBrief(tasks ?? [], traffic)
+  // Same shared Wendy brain as the dashboard chat + voice, so the daily brief
+  // is one Wendy, not a separate assistant. Best-effort: never block the brief.
+  let persona: string | undefined
+  try {
+    const context = await getDashboardContext(supabase)
+    persona = buildAgentSystemPrompt('wendy', context)
+  } catch {
+    persona = undefined
+  }
+
+  const text = await generateMorningBrief(tasks ?? [], traffic, persona)
 
   // Save brief into the persistent feed thread
   await supabase.from('bpe_feed_messages').insert({

@@ -221,6 +221,29 @@ async function insertReply(thread, role, content, status = 'done') {
   await supabase.from('agent_bridge_messages').insert({ thread, role, content, status })
 }
 
+// Turn a raw agent failure into a clear, actionable message the dashboard can
+// show Brad instead of a silent hang. The #1 cause is an expired CLI login.
+function friendlyAgentError(key, raw) {
+  const text = (raw || '').toString().trim()
+  const who = key === 'claude' ? 'Wendy' : key === 'codex' ? 'Ellie' : key
+  const cli = key === 'codex' ? 'Codex' : 'Claude'
+  const cmd = key === 'codex' ? 'codex' : 'claude'
+  if (/401|oauth|unauthor|authenticate|token has expired|access token/i.test(text)) {
+    return `${who}'s ${cli} login on the Mac has expired. Open Terminal, run \`${cmd}\`, then /login to reconnect. (${text.slice(0, 140)})`
+  }
+  if (/credit balance|insufficient|quota|billing/i.test(text)) {
+    const acct = key === 'codex' ? 'OpenAI' : 'Anthropic'
+    return `${who} is connected but the ${acct} account is out of credits. Top it up to continue. (${text.slice(0, 140)})`
+  }
+  if (/timed out/i.test(text)) {
+    return `${who} took too long and timed out. Try again, or break the request into a smaller step.`
+  }
+  if (/could not launch|BRIDGE_/i.test(text)) {
+    return `${who}'s agent could not start on the Mac. ${text.slice(0, 180)}`
+  }
+  return `${who} hit an error: ${text.slice(0, 200)}`
+}
+
 // Download a user row's image attachments from the private Storage bucket into a
 // fresh temp dir. Returns { dir, files:[{path, filename}] } or null if none.
 // Caller must clean up `dir`.
@@ -265,6 +288,7 @@ async function handle(userRow) {
   if (bundle) log(`  downloaded ${bundle.files.length} attachment(s)`)
 
   let anyError = false
+  let lastError = null
   // Relay: on 'both', each agent runs in turn and sees the teammate's reply from
   // this same message, so they build on / challenge each other instead of
   // answering in parallel isolation. Order is targets[] (claude -> codex).
@@ -295,11 +319,16 @@ async function handle(userRow) {
       }
 
       const result = await runAgent(agent, prompt, addDirs)
-      await insertReply(userRow.thread, agent.role, result.text, result.ok ? 'done' : 'error')
       if (!result.ok) {
+        // Write the CLEAR reason back as this agent's reply so the dashboard
+        // shows exactly why (e.g. expired login) instead of hanging silent.
+        const friendly = friendlyAgentError(key, result.text)
+        await insertReply(userRow.thread, agent.role, friendly, 'error')
         anyError = true
+        lastError = friendly
         log(`  ${key} error:`, result.text.slice(0, 160))
       } else {
+        await insertReply(userRow.thread, agent.role, result.text, 'done')
         priorReplies.push({ who: label(key), text: result.text })
         log(`  ${key} replied (${result.text.length} chars)`)
       }
@@ -312,8 +341,27 @@ async function handle(userRow) {
 
   await supabase
     .from('agent_bridge_messages')
-    .update({ status: anyError ? 'error' : 'done', error: anyError ? 'One or more agents failed — see reply.' : null })
+    .update({ status: anyError ? 'error' : 'done', error: anyError ? (lastError || 'One or more agents failed — see reply.') : null })
     .eq('id', userRow.id)
+}
+
+// Poll for the next pending message, retrying transient network blips a couple
+// times with short backoff so an occasional "fetch failed" never surfaces as a
+// missed message or log spam. Returns the supabase result of the last attempt.
+async function selectPending(retries = 2) {
+  let last
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    last = await supabase
+      .from('agent_bridge_messages')
+      .select('id, thread, target, content, attachments, created_at')
+      .eq('role', 'user')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(1)
+    if (!last.error) return last
+    if (attempt < retries) await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
+  }
+  return last
 }
 
 let busy = false
@@ -321,16 +369,10 @@ async function tick() {
   if (busy) return
   busy = true
   try {
-    const { data, error } = await supabase
-      .from('agent_bridge_messages')
-      .select('id, thread, target, content, attachments, created_at')
-      .eq('role', 'user')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-      .limit(1)
+    const { data, error } = await selectPending()
 
     if (error) {
-      log('poll error:', error.message)
+      log('poll error (after retries):', error.message)
     } else if (data && data.length) {
       await handle(data[0])
     }
