@@ -2,6 +2,7 @@ import { createUIMessageStream, createUIMessageStreamResponse, UIMessage } from 
 import { requireAuth } from '@/lib/require-auth'
 import { getDashboardContext } from '@/lib/dashboardContext'
 import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
+import { runEllieTaskToolLoop } from '@/lib/ellie-task-tool-loop'
 
 export const maxDuration = 60
 
@@ -13,17 +14,6 @@ function messageText(message: UIMessage) {
     })
     .join('')
     .trim() ?? ''
-}
-
-function extractOpenAIText(data: any) {
-  if (typeof data?.output_text === 'string') return data.output_text
-
-  const output = Array.isArray(data?.output) ? data.output : []
-  return output
-    .flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
-    .map((content: any) => content?.text ?? '')
-    .filter(Boolean)
-    .join('\n')
 }
 
 function ellieStream(text: string) {
@@ -57,33 +47,13 @@ export async function POST(request: Request) {
 
   const openAIMessages = messages
     .map(message => ({
-      role: message.role === 'assistant' ? 'assistant' : 'user',
+      role: (message.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
       content: messageText(message),
     }))
     .filter(message => message.content)
 
   try {
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        instructions: system,
-        input: openAIMessages,
-      }),
-    })
-
-    if (!response.ok) {
-      const detail = await response.text()
-      console.error('Ellie OpenAI error', response.status, detail)
-      return ellieStream(`Ellie could not reach the OpenAI model "${model}" yet. Check the Vercel env var ELLIE_OPENAI_MODEL and the OpenAI API key.`)
-    }
-
-    const data = await response.json()
-    const text = extractOpenAIText(data) || 'Ellie did not get a text response back from the model.'
+    const text = await runEllieTaskToolLoop({ apiKey, model, instructions: system, input: openAIMessages }) || 'Ellie did not get a text response back from the model.'
 
     return ellieStream(text)
   } catch (error) {

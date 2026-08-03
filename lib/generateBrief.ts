@@ -31,7 +31,7 @@ export async function generateMorningBrief(tasks: BriefTask[], traffic?: string 
   })
 
   const highPri = tasks.filter(t => t.priority === 'high').slice(0, 6)
-  const blocked = tasks.filter(t => t.status === 'blocked').slice(0, 4)
+  const blocked = tasks.filter(t => t.status === 'to_do').slice(0, 4)
 
   const taskLines = [
     highPri.length

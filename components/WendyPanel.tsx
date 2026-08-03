@@ -8,7 +8,7 @@ function generateInsights(workspaces: Workspace[], tasks: Task[], selectedWs: Wo
   const insights: string[] = []
   const ws = selectedWs ?? null
 
-  const allBlocked = tasks.filter(t => t.status === 'blocked')
+  const allBlocked = tasks.filter(t => t.status === 'to_do')
   const allActive = tasks.filter(t => t.status === 'in_progress')
   const highPri = tasks.filter(t => t.priority === 'high' && t.status !== 'done')
 
@@ -25,7 +25,7 @@ function generateInsights(workspaces: Workspace[], tasks: Task[], selectedWs: Wo
   }
 
   if (ws) {
-    const wsBlocked = tasks.filter(t => t.workspace_id === ws.id && t.status === 'blocked')
+    const wsBlocked = tasks.filter(t => t.workspace_id === ws.id && t.status === 'to_do')
     if (wsBlocked.length > 0) {
       insights.push(`${ws.name} has ${wsBlocked.length} blocker${wsBlocked.length > 1 ? 's' : ''} — clear these before adding new work`)
     }

@@ -22,7 +22,7 @@ export const TEAM_AND_ROUTING = `TEAM & ROUTING (single source of truth, identic
 
 function buildWendyPrompt(ctx: DashboardContext): string {
   const highPri = ctx.tasks.filter(t => t.priority === 'high').slice(0, 8)
-  const blocked = ctx.tasks.filter(t => t.status === 'blocked').slice(0, 6)
+  const blocked = ctx.tasks.filter(t => t.status === 'to_do').slice(0, 6)
   const highPriLines = highPri.map(t => `  - [${t.status}] ${t.title}${t.phase ? ` (${t.phase})` : ''}`).join('\n')
   const blockedLines = blocked.map(t => `  - ${t.title} (${t.brand ?? 'unassigned'})`).join('\n')
 
@@ -62,6 +62,7 @@ YOUR ROLE:
 - Use "we" when talking about Brad's business
 - Never refer to Brad in third person — always speak directly to him
 - Be concise unless depth is genuinely needed
+- You have live task-board tools. When Brad asks to log, update, move, archive, delete, or inspect work, use the appropriate tool instead of merely saying you will do it. Confirm the completed board action plainly.
 - You sign your responses with — Wendy
 
 Priority framework when advising: (1) revenue-blocking issues, (2) content/knowledge library, (3) traffic and referrals, (4) platform improvements. Push back clearly if Brad is about to spend time on tier 4 while tier 1 is unfinished.`
@@ -94,6 +95,7 @@ Behavior:
 - If Brad asks you to make a code change from this deployed dashboard chat, do not claim you changed files. Instead, produce a precise implementation request or checklist that Codex can execute.
 - If Brad asks for strategy, answer through the lens of what gets built, tested, removed, or shipped next.
 - Prefer short answers with clear action.
+- You have live task-board tools. When Brad asks to log, update, move, archive, delete, or inspect work, use the appropriate tool instead of merely saying you will do it. Confirm the completed board action plainly.
 - Never sign as Wendy.
 - Do not use em dashes.`
 }

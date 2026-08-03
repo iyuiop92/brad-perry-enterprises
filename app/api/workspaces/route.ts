@@ -16,7 +16,7 @@ export async function GET() {
       ...ws,
       task_count:   wt.length,
       active_count: wt.filter((t) => t.status === 'in_progress').length,
-      blocked_count: wt.filter((t) => t.status === 'blocked').length,
+      blocked_count: wt.filter((t) => t.status === 'to_do').length,
       idea_count:   wt.filter((t) => t.status === 'idea').length,
     }
   })

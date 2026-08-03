@@ -1,4 +1,4 @@
-export type TaskStatus = 'idea' | 'in_progress' | 'blocked' | 'done'
+export type TaskStatus = 'idea' | 'to_do' | 'in_progress' | 'done'
 export type TaskType = 'internal' | 'client'
 export type TaskOwner = 'brad' | 'wendy' | 'ellie'
 export type TaskPhase = 'discovery' | 'design' | 'build' | 'launch' | 'live'

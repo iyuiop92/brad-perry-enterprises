@@ -8,7 +8,7 @@ import type { Task, Workspace } from '@/lib/types'
 function workspaceSummary(workspaces: Workspace[], tasks: Task[]) {
   const openTasks = tasks.filter(task => task.status !== 'done')
   const active = openTasks.filter(task => task.status === 'in_progress').length
-  const todo = openTasks.filter(task => task.status === 'blocked').length
+  const todo = openTasks.filter(task => task.status === 'to_do').length
   const ideas = openTasks.filter(task => task.status === 'idea').length
 
   return {

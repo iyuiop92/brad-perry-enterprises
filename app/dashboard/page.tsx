@@ -214,7 +214,7 @@ export default function DashboardPage() {
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#00b4ff' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#8899aa' }}
                   >
-                    {t.title} — {t.status === 'blocked' ? 'to do' : t.status.replace('_', ' ')}
+                    {t.title} — {t.status === 'to_do' ? 'to do' : t.status.replace('_', ' ')}
                   </button>
                   {i < recentTasks.length - 1 && <span style={sepStyle}>·</span>}
                 </span>

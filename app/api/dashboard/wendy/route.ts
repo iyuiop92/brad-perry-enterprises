@@ -1,10 +1,11 @@
-import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, generateText, UIMessage } from 'ai'
+import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, generateText, stepCountIs, UIMessage } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import { requireAuth } from '@/lib/require-auth'
 import { getDashboardContext } from '@/lib/dashboardContext'
 import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
 import { routeWendyTier } from '@/lib/modelRouter'
+import { agentTaskAITools } from '@/lib/agent-task-ai-tools'
 
 const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY_BPE ?? process.env.ANTHROPIC_API_KEY,
@@ -71,6 +72,8 @@ Tier behavior:
 - Brad can always force a tier by naming it: "haiku", "claude 5"/"sonnet", "opus"/"deep mode"/"heavy model", or "fable"/"top tier"/"max tier".
 - If Brad asks what tier or model you are running, answer with the active tier name and model, and mention whether it was auto-routed or forced.`,
       messages: modelMessages,
+      tools: agentTaskAITools('wendy'),
+      stopWhen: stepCountIs(5),
     })
 
     return wendyStream(text)
@@ -82,6 +85,8 @@ Tier behavior:
         model: google(process.env.WENDY_GEMINI_MODEL ?? 'gemini-2.5-flash'),
         system: `${system}\n\nClaude tier ${wendyTier.name} (${wendyTier.model}) is currently unavailable, so you are running through Wendy's Gemini fallback. Stay fully in Wendy's voice and do not mention the provider unless Brad asks.`,
         messages: modelMessages,
+        tools: agentTaskAITools('wendy'),
+        stopWhen: stepCountIs(5),
       })
 
       return wendyStream(text)

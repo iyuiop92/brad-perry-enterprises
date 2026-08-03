@@ -6,7 +6,7 @@ import type { TaskStatus, TaskType, TaskOwner, TaskPhase, ChecklistItem } from '
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'idea', label: 'Idea' },
   { value: 'in_progress', label: 'In Progress' },
-  { value: 'blocked', label: 'Blocked' },
+  { value: 'to_do', label: 'To do' },
   { value: 'done', label: 'Done' },
 ]
 

@@ -52,7 +52,7 @@ export async function getDashboardContext(supabase: Supabase) {
   const workspaceLines = (workspaces ?? []).map(workspace => {
     const wsTasks = openTasks.filter(task => task.workspace_id === workspace.id)
     const active = wsTasks.filter(task => task.status === 'in_progress').length
-    const todo = wsTasks.filter(task => task.status === 'blocked').length
+    const todo = wsTasks.filter(task => task.status === 'to_do').length
     const ideas = wsTasks.filter(task => task.status === 'idea').length
     return `- ${workspace.name} (${workspace.type}): ${active} active, ${todo} to do, ${ideas} ideas`
   }).join('\n')

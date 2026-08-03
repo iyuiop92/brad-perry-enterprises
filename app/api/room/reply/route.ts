@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateText } from 'ai'
+import { generateText, stepCountIs } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { requireAuth } from '@/lib/require-auth'
 import { getDashboardContext } from '@/lib/dashboardContext'
 import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
+import { agentTaskAITools } from '@/lib/agent-task-ai-tools'
+import { runEllieTaskToolLoop } from '@/lib/ellie-task-tool-loop'
 
 // Fast conversational replies for the voice meeting room. Wendy = Anthropic,
 // Ellie = OpenAI. Kept snappy (2-4s) — the heavy terminal agents live in the
@@ -26,6 +28,8 @@ async function wendyReply(text: string, history: Message[], system: string): Pro
     model: anthropic('claude-sonnet-4-6'),
     system,
     messages: [...history, { role: 'user', content: text }],
+    tools: agentTaskAITools('wendy'),
+    stopWhen: stepCountIs(5),
   })
   return reply
 }
@@ -35,23 +39,10 @@ async function ellieReply(text: string, history: Message[], system: string): Pro
   if (!apiKey) throw new Error('OPENAI_API_KEY_BPE not set')
   const model = process.env.ELLIE_OPENAI_MODEL ?? 'gpt-5.6-terra'
   const input = [...history, { role: 'user' as const, content: text }].map(m => ({
-    role: m.role === 'assistant' ? 'assistant' : 'user',
+    role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
     content: m.content,
   }))
-  const res = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, instructions: system, input }),
-  })
-  if (!res.ok) throw new Error(`OpenAI ${res.status}`)
-  const data = await res.json()
-  if (typeof data.output_text === 'string' && data.output_text) return data.output_text
-  const out = Array.isArray(data.output) ? data.output : []
-  return out
-    .flatMap((it: { content?: { text?: string }[] }) => (Array.isArray(it.content) ? it.content : []))
-    .map((c: { text?: string }) => c?.text ?? '')
-    .filter(Boolean)
-    .join('\n')
+  return runEllieTaskToolLoop({ apiKey, model, instructions: system, input })
 }
 
 export async function POST(req: NextRequest) {

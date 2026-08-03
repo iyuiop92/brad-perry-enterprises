@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react'
 import type { DailyState, HealthLog, InboxItem, RecurringDailyItem, Task, Workspace } from '@/lib/types'
 import VideoPipelinePanel from '@/components/VideoPipelinePanel'
 
-type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
+type TaskAction = 'idea' | 'to_do' | 'in_progress' | 'done'
 type OperatingMode = 'sprint' | 'deep' | 'admin' | 'closeout'
 type WorkLane = 'Revenue' | 'Momentum' | 'Maintenance' | 'Explore'
 type ViewMode = 'active' | 'blocked' | 'ideas' | 'shipped'
@@ -15,7 +15,7 @@ const priorityLabel = { high: 'P1', medium: 'P2', low: 'P3' } as const
 const statusLabel = {
   idea: 'Idea',
   in_progress: 'Active',
-  blocked: 'To do',
+  to_do: 'To do',
   done: 'Done',
 } as const
 
@@ -65,7 +65,7 @@ function inferWhy(task: Task) {
   if (text.includes('video') || text.includes('content') || text.includes('article')) return 'Creates visible audience momentum instead of more planning.'
   if (text.includes('cancel')) return 'Removes avoidable spend and mental drag.'
   if (text.includes('launch') || text.includes('tier')) return 'Moves an offer closer to being sellable.'
-  if (task.status === 'blocked') return 'This is ready to be pulled into focus when you choose.'
+  if (task.status === 'to_do') return 'This is ready to be pulled into focus when you choose.'
   return 'This is one of the strongest open loops in the portfolio.'
 }
 
@@ -88,7 +88,7 @@ function needleScore(task: Task) {
   if (task.priority === 'high') score += 26
   if (task.priority === 'medium') score += 12
   if (task.status === 'in_progress') score += 18
-  if (task.status === 'blocked') score += 14
+  if (task.status === 'to_do') score += 14
   if (text.includes('revenue') || text.includes('client') || text.includes('lead')) score += 18
   if (text.includes('video') || text.includes('content') || text.includes('article')) score += 14
   if (text.includes('launch') || text.includes('tier')) score += 10
@@ -100,7 +100,7 @@ function needleScore(task: Task) {
 
 function sortForExecution(tasks: Task[]) {
   return [...tasks].sort((a, b) => {
-    const statusWeight = (t: Task) => t.status === 'blocked' ? 0 : t.status === 'in_progress' ? 1 : 2
+    const statusWeight = (t: Task) => t.status === 'to_do' ? 0 : t.status === 'in_progress' ? 1 : 2
     return statusWeight(a) - statusWeight(b)
       || (priorityRank[a.priority] ?? 2) - (priorityRank[b.priority] ?? 2)
       || needleScore(b) - needleScore(a)
@@ -213,7 +213,7 @@ function TaskRow({
 }) {
   const lane = classifyWork(task)
   const theme = laneTheme[lane]
-  const statusColor = task.status === 'blocked' ? '#f59e0b' : task.status === 'in_progress' ? '#38bdf8' : task.status === 'done' ? '#22c55e' : '#94a3b8'
+  const statusColor = task.status === 'to_do' ? '#f59e0b' : task.status === 'in_progress' ? '#38bdf8' : task.status === 'done' ? '#22c55e' : '#94a3b8'
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -233,7 +233,7 @@ function TaskRow({
       </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {task.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => onStatus('in_progress')}>Start</ActionButton>}
-        {task.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => onStatus('blocked')}>To do</ActionButton>}
+        {task.status !== 'to_do' && <ActionButton tone="#f59e0b" onClick={() => onStatus('to_do')}>To do</ActionButton>}
         {task.status !== 'done' && <ActionButton tone="#22c55e" onClick={() => onStatus('done')}>Done</ActionButton>}
       </div>
     </div>
@@ -392,7 +392,7 @@ export default function CommandFeed({
   }, [localTasks, selectedWs])
 
   const active = sortForExecution(scopedTasks.filter(t => t.status === 'in_progress'))
-  const blocked = sortForExecution(scopedTasks.filter(t => t.status === 'blocked'))
+  const blocked = sortForExecution(scopedTasks.filter(t => t.status === 'to_do'))
   const ideas = sortForExecution(scopedTasks.filter(t => t.status === 'idea'))
   const doneToday = localTasks
     .filter(t => t.status === 'done' && isSameDay(t.updated_at, new Date()))
@@ -409,7 +409,7 @@ export default function CommandFeed({
   const latestNutrition = healthLogs.find(log => log.entry_type === 'nutrition')
   const latestWorkout = healthLogs.find(log => log.entry_type === 'workout')
   const tomorrowFocus = localTasks.find(task => task.id === tomorrowFocusId)
-  const stillOpen = sortForExecution(scopedTasks.filter(task => task.status === 'in_progress' || task.status === 'blocked')).slice(0, 5)
+  const stillOpen = sortForExecution(scopedTasks.filter(task => task.status === 'in_progress' || task.status === 'to_do')).slice(0, 5)
   const recurringDone = recurringItems.filter(item => item.done).length
   const todayLabel = new Date().toLocaleDateString('en-US', {
     timeZone: 'America/Phoenix',
@@ -721,7 +721,7 @@ export default function CommandFeed({
                       }}
                     >
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 750 }}>{task.title}</span>
-                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#f472b6', fontSize: 11, fontWeight: 850 }}>{statusLabel[task.status]}</span>
+                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'to_do' ? '#f59e0b' : '#f472b6', fontSize: 11, fontWeight: 850 }}>{statusLabel[task.status]}</span>
                     </button>
                   )) : (
                     <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.45 }}>No extra open moves.</p>
@@ -1099,7 +1099,7 @@ export default function CommandFeed({
                     </span>
                     <span style={{ color: '#cbd5e1', fontSize: 11, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>{priorityLabel[commandTask.priority]}</span>
                     <span style={{ color: commandTheme.color, fontSize: 11, border: `1px solid ${commandTheme.color}33`, borderRadius: 999, padding: '2px 8px' }}>{commandLane}</span>
-                    <span style={{ color: commandTask.status === 'in_progress' ? '#38bdf8' : commandTask.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 11, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>
+                    <span style={{ color: commandTask.status === 'in_progress' ? '#38bdf8' : commandTask.status === 'to_do' ? '#f59e0b' : '#94a3b8', fontSize: 11, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999, padding: '2px 8px' }}>
                       {statusLabel[commandTask.status]}
                     </span>
                   </div>
@@ -1130,7 +1130,7 @@ export default function CommandFeed({
                     {commandTask.status !== 'in_progress' && <ActionButton tone="#38bdf8" onClick={() => setTaskStatus(commandTask, 'in_progress')}>Start</ActionButton>}
                     <ActionButton tone="#f8fafc" onClick={() => onSelectTask(commandTask)}>Open / edit</ActionButton>
                     <ActionButton tone="#a78bfa" onClick={chooseNextFocus}>Pick another</ActionButton>
-                    {commandTask.status !== 'blocked' && <ActionButton tone="#f59e0b" onClick={() => setTaskStatus(commandTask, 'blocked')}>To do</ActionButton>}
+                    {commandTask.status !== 'to_do' && <ActionButton tone="#f59e0b" onClick={() => setTaskStatus(commandTask, 'to_do')}>To do</ActionButton>}
                     <ActionButton tone="#22c55e" onClick={() => setTaskStatus(commandTask, 'done')}>Mark done</ActionButton>
                   </div>
                 </div>
@@ -1283,7 +1283,7 @@ export default function CommandFeed({
                       }}
                     >
                       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
-                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'blocked' ? '#f59e0b' : '#94a3b8', fontSize: 11, fontWeight: 850 }}>
+                      <span style={{ color: task.status === 'in_progress' ? '#38bdf8' : task.status === 'to_do' ? '#f59e0b' : '#94a3b8', fontSize: 11, fontWeight: 850 }}>
                         {statusLabel[task.status]}
                       </span>
                     </button>

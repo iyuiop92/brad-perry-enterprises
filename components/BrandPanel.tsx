@@ -36,7 +36,7 @@ export default function BrandPanel({
 }) {
   const wsTasks = workspace ? tasks.filter(t => t.workspace_id === workspace.id) : []
   const activeTasks = wsTasks.filter(t => t.status === 'in_progress')
-  const blockedTasks = wsTasks.filter(t => t.status === 'blocked')
+  const blockedTasks = wsTasks.filter(t => t.status === 'to_do')
   const pulse = workspace ? healthPulse(workspace) : 0
   const insight = wendyInsight(workspace, blockedTasks, activeTasks)
 

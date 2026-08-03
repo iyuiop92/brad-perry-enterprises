@@ -13,7 +13,7 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string; des
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'idea',        label: 'Idea'        },
   { value: 'in_progress', label: 'In Progress' },
-  { value: 'blocked',     label: 'To do'       },
+  { value: 'to_do',       label: 'To do'       },
   { value: 'done',        label: 'Done'        },
 ]
 

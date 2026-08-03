@@ -13,7 +13,7 @@ function taskProgress(task: Task): number {
     const done = task.deliverables.filter(d => d.done).length
     return Math.round((done / task.deliverables.length) * 100)
   }
-  const map: Record<string, number> = { idea: 5, in_progress: 50, blocked: 25, done: 100 }
+  const map: Record<string, number> = { idea: 5, to_do: 25, in_progress: 50, done: 100 }
   return map[task.status] ?? 0
 }
 
@@ -35,7 +35,7 @@ export default function ActionHub({
     .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
     .slice(0, 6)
 
-  const actionized = tasks.filter(t => t.status === 'blocked').slice(0, 3)
+  const actionized = tasks.filter(t => t.status === 'to_do').slice(0, 3)
 
   async function capture() {
     const text = input.trim()
