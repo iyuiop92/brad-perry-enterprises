@@ -346,7 +346,14 @@ export default function HealthPage() {
             <div className="health-timeline-row" key={log.id} style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr) auto', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               <p style={{ color: '#64748b', fontSize: 11 }}>{new Date(log.logged_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
               <div style={{ minWidth: 0 }}>
-                <p style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 850 }}>{entryLabel(log)}</p>
+                <p style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 850, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {entryLabel(log)}
+                  {log.source === 'apple_health' && (
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#00b4ff', background: 'rgba(0,180,255,0.12)', border: '1px solid rgba(0,180,255,0.25)', borderRadius: 10, padding: '1px 6px' }}>
+                      Apple Health
+                    </span>
+                  )}
+                </p>
                 <p style={{ color: '#94a3b8', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entryDetail(log)}{log.notes ? ` · ${log.notes}` : ''}</p>
               </div>
               <button style={button('#64748b')} onClick={() => remove(log)}>Delete</button>
