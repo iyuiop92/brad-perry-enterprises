@@ -158,6 +158,15 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   }
 
   const speak = async (agent: Agent, text: string) => {
+    // Guard against overlapping voices: stop anything still playing before we
+    // start a new reply. Sequential replies (e.g. Both mode) still play one
+    // after another because each speak() call is awaited to completion first;
+    // this only kills a second stream that would otherwise talk over the first.
+    try { audioRef.current?.pause() } catch {}
+    audioRef.current = null
+    try { audioSourceRef.current?.stop() } catch {}
+    audioSourceRef.current = null
+
     const response = await fetch('/api/room/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text }) })
     if (!response.ok) throw new Error('Speech was unavailable.')
     const bytes = await response.arrayBuffer()
