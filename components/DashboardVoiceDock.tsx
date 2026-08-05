@@ -487,6 +487,40 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         </div>
       </details>
     </div>
+    {/* Big mic FAB — center-bottom, visible the moment you land, one tap to talk */}
+    {!open && (
+      <button
+        onClick={talk}
+        aria-label="Talk to Wendy"
+        style={{
+          position: 'fixed',
+          bottom: 'calc(32px + env(safe-area-inset-bottom))',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 115,
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          background: '#00b4ff',
+          border: 'none',
+          boxShadow: '0 4px 32px rgba(0,180,255,0.55)',
+          cursor: 'pointer',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 2,
+        }}
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#04040a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+        <span style={{ fontSize: 8, fontWeight: 800, color: '#04040a', letterSpacing: '0.1em', textTransform: 'uppercase', lineHeight: 1 }}>Talk</span>
+      </button>
+    )}
     {open && <>
       {focused && <div onClick={() => { setOpen(false); setFocused(false) }} style={{ position: 'fixed', inset: 0, zIndex: 114, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(3px)' }} />}
       <aside className={`dashboard-voice-panel${focused ? ' is-focused' : ''}`} style={focused
