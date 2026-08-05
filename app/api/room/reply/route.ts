@@ -24,7 +24,7 @@ type Attachment = { filename?: string; mediaType?: string; url?: string }
 
 async function wendyReply(text: string, history: Message[], system: string, attachments: Attachment[]): Promise<string> {
   const { text: reply } = await generateText({
-    model: anthropic('claude-sonnet-4-6'),
+    model: anthropic('claude-haiku-4-5-20251001'),
     system,
     messages: [...history, {
       role: 'user',
