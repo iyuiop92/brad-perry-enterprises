@@ -308,6 +308,7 @@ export default function CommandFeed({
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([])
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
   const [inboxText, setInboxText] = useState('')
+  const [quickText, setQuickText] = useState('')
   const [closeoutNote, setCloseoutNote] = useState('')
   const [tomorrowFocusId, setTomorrowFocusId] = useState<string | null>(null)
   const [calendarText, setCalendarText] = useState('')
@@ -470,6 +471,22 @@ export default function CommandFeed({
     const content = inboxText.trim()
     if (!content) return
     setInboxText('')
+    const res = await fetch('/api/inbox', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    if (res.ok) {
+      const item: InboxItem = await res.json()
+      setInboxItems(prev => [item, ...prev])
+    }
+  }
+
+  // Top-of-dashboard quick capture — same inbox, no scrolling to reach it.
+  async function captureQuick() {
+    const content = quickText.trim()
+    if (!content) return
+    setQuickText('')
     const res = await fetch('/api/inbox', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -647,6 +664,30 @@ export default function CommandFeed({
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Quick capture — first thing under the date, so a thought can be
+              dumped before it's forgotten without scrolling. Same universal inbox. */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={quickText}
+              onChange={e => setQuickText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') captureQuick() }}
+              placeholder="Quick capture — dump a thought before you forget…"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: 42,
+                padding: '0 14px',
+                border: '1px solid rgba(244,114,182,0.3)',
+                borderRadius: 10,
+                background: 'rgba(244,114,182,0.05)',
+                color: '#f8fafc',
+                outline: 'none',
+                fontSize: 16,
+              }}
+            />
+            <ActionButton tone="#f472b6" onClick={captureQuick} disabled={!quickText.trim()}>Capture</ActionButton>
           </div>
 
           <Card
