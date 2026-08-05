@@ -64,6 +64,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const replyAbortRef = useRef<AbortController | null>(null)
   const messageInputRef = useRef<HTMLInputElement | null>(null)
   const spokenTextRef = useRef('')
   const silenceTimerRef = useRef<number | null>(null)
@@ -221,7 +222,16 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       for (const agent of target.agents) {
         activeRef.current = agent
         setActive(agent)
-        const response = await fetch('/api/room/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: target.text, history: historyFor(agent, logRef.current), attachments: attachments.map(({ filename, mediaType, url }) => ({ filename, mediaType, url })) }) })
+        const ac = new AbortController()
+        replyAbortRef.current = ac
+        const timer = window.setTimeout(() => ac.abort(), 30_000)
+        let response: Response
+        try {
+          response = await fetch('/api/room/reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent, text: target.text, history: historyFor(agent, logRef.current), attachments: attachments.map(({ filename, mediaType, url }) => ({ filename, mediaType, url })) }), signal: ac.signal })
+        } finally {
+          window.clearTimeout(timer)
+          replyAbortRef.current = null
+        }
         const data = await response.json()
         if (!response.ok || data.error) throw new Error(data.error || 'Partner did not respond.')
         const reply = String(data.reply || '')
@@ -230,7 +240,11 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         await speak(agent, reply)
       }
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'Could not reach the team.')
+      if (cause instanceof Error && cause.name === 'AbortError') {
+        setError('Cancelled.')
+      } else {
+        setError(cause instanceof Error ? cause.message : 'Could not reach the team.')
+      }
     } finally {
       setPhase('idle')
       if (lockedRef.current && !isMobileVoiceLayout()) window.setTimeout(startListening, 250)
@@ -359,6 +373,8 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   }
 
   const interrupt = () => {
+    replyAbortRef.current?.abort()
+    replyAbortRef.current = null
     audioRef.current?.pause()
     audioRef.current = null
     audioSourceRef.current?.stop()
@@ -369,11 +385,11 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     setOpen(true)
     if (isMobileVoiceLayout()) {
       if (phase === 'listening') { recRef.current?.stop(); return }
-      if (phase === 'speaking') { interrupt(); return }
+      if (phase === 'thinking' || phase === 'speaking') { interrupt(); return }
       void startMobileRecording()
       return
     }
-    if (phase === 'speaking') { interrupt(); return }
+    if (phase === 'thinking' || phase === 'speaking') { interrupt(); return }
     if (phase === 'listening') { finishDesktopSpeech(); return }
     startListening()
   }
@@ -406,10 +422,10 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     <button
       className="dashboard-voice-control"
       onClick={talk}
-      disabled={phase === 'thinking'}
-      aria-label={phase === 'speaking' ? 'Interrupt' : phase === 'listening' ? 'Stop listening' : 'Talk to Wendy'}
+      disabled={false}
+      aria-label={phase === 'speaking' ? 'Interrupt' : phase === 'listening' ? 'Stop listening' : phase === 'thinking' ? 'Cancel' : 'Talk to Wendy'}
       style={{
-        ...headerButtonStyle(phase === 'listening' ? '#f87171' : phase === 'speaking' ? '#facc15' : '#00b4ff'),
+        ...headerButtonStyle(phase === 'listening' ? '#f87171' : (phase === 'speaking' || phase === 'thinking') ? '#facc15' : '#00b4ff'),
         display: 'flex', alignItems: 'center', gap: 4,
         padding: '0 8px',
         border: `1px solid ${phase === 'listening' ? 'rgba(248,113,113,0.35)' : 'rgba(0,180,255,0.25)'}`,
@@ -424,6 +440,8 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
         </svg>
+      ) : phase === 'thinking' ? (
+        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#facc15', animation: 'pulse 1s ease-in-out infinite' }} aria-hidden />
       ) : (
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
@@ -432,7 +450,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
           <line x1="8" y1="23" x2="16" y2="23" />
         </svg>
       )}
-      {phase === 'speaking' ? 'Stop' : phase === 'listening' ? 'Listening' : 'Talk'}
+      {phase === 'speaking' ? 'Stop' : phase === 'listening' ? 'Listening' : phase === 'thinking' ? 'Cancel' : 'Talk'}
     </button>
     <button className="dashboard-voice-control" onClick={toggleLock} style={headerButtonStyle(locked ? '#c4b5fd' : '#94a3b8')}>
       {locked ? 'Unlock talk' : 'Lock talk'}
