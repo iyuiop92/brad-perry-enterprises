@@ -100,7 +100,7 @@ export default function BridgePage() {
     }
   }, [messages])
 
-  // Speak the latest agent reply when the user sent via voice.
+  // Speak the latest agent reply via ElevenLabs when the user sent via voice.
   useEffect(() => {
     if (!wasVoiceRef.current) return
     const last = [...messages]
@@ -109,10 +109,20 @@ export default function BridgePage() {
     if (!last || last.id === lastSpokenIdRef.current || !last.content) return
     lastSpokenIdRef.current = last.id
     wasVoiceRef.current = false
-    const utt = new SpeechSynthesisUtterance(last.content.slice(0, 600))
-    utt.lang = 'en-US'
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utt)
+    const agent = last.role === 'codex' ? 'ellie' : 'wendy'
+    fetch('/api/room/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: last.content.slice(0, 600), agent }),
+    })
+      .then((res) => (res.ok ? res.blob() : null))
+      .then((blob) => {
+        if (!blob) return
+        const url = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        audio.play()
+        audio.onended = () => URL.revokeObjectURL(url)
+      })
   }, [messages])
 
   useEffect(() => {
