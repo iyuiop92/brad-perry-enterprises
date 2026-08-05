@@ -403,8 +403,36 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
     : phase === 'speaking' ? `${META[active].label} is speaking`
     : 'Ready'
   const voiceControls = () => <>
-    <button className="dashboard-voice-control" onClick={talk} disabled={phase === 'thinking'} style={headerButtonStyle(phase === 'listening' ? '#f87171' : '#a78bfa')}>
-      {phase === 'speaking' ? 'Interrupt' : phase === 'listening' ? 'Stop' : 'Talk'}
+    <button
+      className="dashboard-voice-control"
+      onClick={talk}
+      disabled={phase === 'thinking'}
+      aria-label={phase === 'speaking' ? 'Interrupt' : phase === 'listening' ? 'Stop listening' : 'Talk to Wendy'}
+      style={{
+        ...headerButtonStyle(phase === 'listening' ? '#f87171' : phase === 'speaking' ? '#facc15' : '#00b4ff'),
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '0 8px',
+        border: `1px solid ${phase === 'listening' ? 'rgba(248,113,113,0.35)' : 'rgba(0,180,255,0.25)'}`,
+        borderRadius: 8,
+        background: phase === 'listening' ? 'rgba(248,113,113,0.08)' : 'rgba(0,180,255,0.06)',
+        height: 28,
+      }}
+    >
+      {phase === 'listening' ? (
+        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#f87171', animation: 'pulse 1s ease-in-out infinite' }} aria-hidden />
+      ) : phase === 'speaking' ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+      )}
+      {phase === 'speaking' ? 'Stop' : phase === 'listening' ? 'Listening' : 'Talk'}
     </button>
     <button className="dashboard-voice-control" onClick={toggleLock} style={headerButtonStyle(locked ? '#c4b5fd' : '#94a3b8')}>
       {locked ? 'Unlock talk' : 'Lock talk'}
@@ -427,7 +455,15 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
         {voiceControls()}
       </div>
       <details className="dashboard-voice-mobile-menu">
-        <summary>Talk</summary>
+        <summary style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+          Talk
+        </summary>
         <div className="dashboard-voice-mobile-menu-panel">
           {voiceControls()}
         </div>
