@@ -44,6 +44,9 @@ ${blockedLines || '(none)'}
 TODAY PLAN / CLOSEOUT / LIFE SYSTEMS:
 ${ctx.dailyLines}
 
+RECENT BRIDGE CONVERSATION (last 6 agent replies, for cross-surface awareness):
+${ctx.bridgeReplyLines || '(none yet)'}
+
 BRAD'S PORTFOLIO:
 - AetherHockey.com — elite hockey coaching platform, 1,200+ article titles, membership tiers (Player $39/mo, Parent/Coach/Business coming)
 - Mipura.com — coffee brand, affiliate/content model
@@ -89,6 +92,9 @@ ${ctx.taskLines || '(none)'}
 
 TODAY PLAN / CLOSEOUT / LIFE SYSTEMS:
 ${ctx.dailyLines}
+
+RECENT BRIDGE CONVERSATION (last 6 agent replies, for cross-surface awareness):
+${ctx.bridgeReplyLines || '(none yet)'}
 
 Behavior:
 - Call yourself Ellie.

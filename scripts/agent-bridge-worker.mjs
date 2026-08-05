@@ -19,13 +19,13 @@
  *   BRIDGE_CODEX_CMD               default: "codex"
  *   BRIDGE_POLL_MS                 default: 2000
  *   BRIDGE_TIMEOUT_MS              default: 240000 (4 min per agent call)
- *   BRIDGE_HISTORY                 how many prior messages to pass as context (default: 12)
  */
 
-import { readFileSync, unlinkSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { readFileSync, unlinkSync, writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
 const BUCKET = 'bridge-uploads'
@@ -62,7 +62,6 @@ const CLAUDE_CMD = process.env.BRIDGE_CLAUDE_CMD || 'claude'
 const CODEX_CMD = process.env.BRIDGE_CODEX_CMD || 'codex'
 const POLL_MS = Number(process.env.BRIDGE_POLL_MS || 2000)
 const TIMEOUT_MS = Number(process.env.BRIDGE_TIMEOUT_MS || 600000)
-const HISTORY = Number(process.env.BRIDGE_HISTORY || 12)
 
 // Full build permissions for the dashboard bridge. A headless bridge cannot
 // answer interactive permission prompts, so Claude runs with bypassPermissions
@@ -80,7 +79,30 @@ const CODEX_SANDBOX = process.env.BRIDGE_CODEX_SANDBOX || 'workspace-write'
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
-// Each agent's build(prompt) returns { cmd, args, outFile? }.
+// ---- Session persistence ----
+// Stores { "thread-uuid": { "claude": "session-uuid", "codex": "session-uuid" } }
+const SESSIONS_FILE = join(homedir(), 'brad-perry-enterprises', '.bridge-sessions.json')
+
+function loadSessions() {
+  try {
+    return JSON.parse(readFileSync(SESSIONS_FILE, 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+function saveSessions(sessions) {
+  try {
+    writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2), 'utf8')
+  } catch (e) {
+    log('warn: could not save sessions file:', e.message)
+  }
+}
+
+// Loaded once at startup, mutated in place, saved after each successful reply.
+const sessions = loadSessions()
+
+// Each agent's build(prompt, sessionId, addDirs) returns { cmd, args, outFile? }.
 // Codex prints a noisy session preamble to stdout, so we use --output-last-message
 // to capture ONLY the final reply into a temp file, then read that.
 // `addDirs` = extra directories the agent's file tools may read (used so Claude
@@ -90,9 +112,17 @@ const AGENTS = {
     role: 'claude',
     // In the BPE dashboard bridge this agent is Wendy (not Jack).
     persona: 'You are Wendy, Brad\'s executive partner, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Wendy. Never call yourself Jack.',
-    build: (prompt, addDirs = []) => {
+    build: (prompt, sessionId, addDirs = []) => {
       const args = []
       if (BYPASS_PERMISSIONS) args.push('--permission-mode', 'bypassPermissions')
+      // Session resumption: first turn uses --session-id to create a named session;
+      // subsequent turns use -r to resume it so claude remembers tool outputs and
+      // chained work across turns (mirrors the Telegram bridge behaviour).
+      if (sessionId) {
+        args.push('-r', sessionId)
+      } else {
+        args.push('--session-id', randomUUID())
+      }
       args.push('-p', prompt, '--output-format', 'text')
       for (const d of [...ADD_DIRS, ...addDirs]) args.push('--add-dir', d)
       return { cmd: CLAUDE_CMD, args }
@@ -101,9 +131,17 @@ const AGENTS = {
   codex: {
     role: 'codex',
     persona: 'You are Ellie, Brad\'s builder/execution collaborator, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Ellie.',
-    build: (prompt) => {
+    build: (prompt, sessionId) => {
       const outFile = join(tmpdir(), `codex-out-${Date.now()}-${Math.floor(Math.random() * 1e9)}.txt`)
-      const args = ['exec', '--skip-git-repo-check', '--sandbox', CODEX_SANDBOX, '--cd', CWD, '-o', outFile, prompt]
+      let args
+      if (sessionId) {
+        // Resume an existing Codex session.
+        args = ['exec', 'resume', sessionId, '--skip-git-repo-check', '--sandbox', CODEX_SANDBOX, '--cd', CWD, '-o', outFile]
+      } else {
+        // First turn: start a fresh exec with --json so we can parse the session ID
+        // from the JSONL event stream (codex emits session metadata early in output).
+        args = ['exec', '--skip-git-repo-check', '--sandbox', CODEX_SANDBOX, '--cd', CWD, '--json', '-o', outFile, prompt]
+      }
       return { cmd: CODEX_CMD, args, outFile }
     },
   },
@@ -119,13 +157,21 @@ const TEAM_AND_ROUTING = `TEAM & ROUTING (single source of truth, identical acro
 - Single source of truth for work = the bpe_tasks board in this dashboard. The old AI_Team agent_tasks relay is retired.`
 
 // Pull a compact live snapshot of the dashboard board so bridge agents share the
-// same context as the dashboard chat agents. Never throws — returns '' on error.
+// same context as the dashboard chat agents. Also includes last 6 agent replies
+// from agent_bridge_messages for cross-session awareness. Never throws — returns '' on error.
 async function buildTeamContext() {
   try {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix' }).format(new Date())
-    const [{ data: tasks }, { data: inbox }] = await Promise.all([
+    const [{ data: tasks }, { data: inbox }, { data: recentReplies }] = await Promise.all([
       supabase.from('bpe_tasks').select('title, status, priority, brand, notes').neq('status', 'done'),
       supabase.from('bpe_inbox').select('content').order('created_at', { ascending: false }).limit(6),
+      supabase
+        .from('agent_bridge_messages')
+        .select('role, content, created_at')
+        .neq('role', 'user')
+        .eq('status', 'done')
+        .order('created_at', { ascending: false })
+        .limit(6),
     ])
     const rank = { high: 0, medium: 1, low: 2 }
     const taskLines = (tasks ?? [])
@@ -134,7 +180,15 @@ async function buildTeamContext() {
       .map((t) => `  - [${t.status}/${t.priority}] ${t.title}${t.brand ? ` (${t.brand})` : ''}${t.notes ? ` — ${String(t.notes).slice(0, 160)}` : ''}`)
       .join('\n')
     const inboxLines = (inbox ?? []).map((i) => `  - ${i.content}`).join('\n')
-    return `LIVE DASHBOARD BOARD for ${today} (bpe_tasks, the single source of truth):\n${taskLines || '  (no open tasks)'}\n\nRECENT INBOX / NOTES:\n${inboxLines || '  (empty)'}`
+    const replyLines = (recentReplies ?? [])
+      .map((r) => `  - [${r.role}] ${String(r.content).slice(0, 200)}`)
+      .join('\n')
+
+    return [
+      `LIVE DASHBOARD BOARD for ${today} (bpe_tasks, the single source of truth):\n${taskLines || '  (no open tasks)'}`,
+      `\nRECENT INBOX / NOTES:\n${inboxLines || '  (empty)'}`,
+      replyLines ? `\nRECENT BRIDGE REPLIES (last 6 agent messages, for cross-session awareness):\n${replyLines}` : '',
+    ].join('')
   } catch {
     return ''
   }
@@ -144,10 +198,36 @@ function log(...a) {
   console.log(new Date().toISOString(), ...a)
 }
 
-// Run one agent CLI call, return { ok, text }
-function runAgent(agent, prompt, addDirs = []) {
+// Build a simple user prompt that lets the agent's session handle history natively.
+// This replaces the old 12-message history injection — claude's --session-id/-r flags
+// give it real tool-output continuity without text-dumping the whole thread.
+function buildUserPrompt(userRow, teamContext, persona) {
+  const contextBlock = teamContext ? `${TEAM_AND_ROUTING}\n\n${teamContext}` : TEAM_AND_ROUTING
+  return `${persona}\n\n${contextBlock}\n\n${userRow.content}`
+}
+
+// Parse the Codex JSONL stdout stream and extract a session ID from the event
+// metadata it emits early in the stream (looks for session_id or id field).
+function parseCodexSessionId(jsonlText) {
+  const lines = jsonlText.split('\n').filter(Boolean)
+  for (const line of lines) {
+    try {
+      const obj = JSON.parse(line)
+      if (obj && typeof obj === 'object') {
+        if (typeof obj.session_id === 'string' && obj.session_id) return obj.session_id
+        if (typeof obj.id === 'string' && obj.id && obj.type) return obj.id
+      }
+    } catch {
+      // not JSON, skip
+    }
+  }
+  return null
+}
+
+// Run one agent CLI call, return { ok, text, rawStdout }
+function runAgent(agent, prompt, sessionId, addDirs = []) {
   return new Promise((resolve) => {
-    const spec = agent.build(prompt, addDirs)
+    const spec = agent.build(prompt, sessionId, addDirs)
     let out = ''
     let err = ''
     let done = false
@@ -175,7 +255,7 @@ function runAgent(agent, prompt, addDirs = []) {
       if (done) return
       done = true
       child.kill('SIGKILL')
-      resolve({ ok: false, text: `Agent timed out after ${Math.round(TIMEOUT_MS / 1000)}s.` })
+      resolve({ ok: false, text: `Agent timed out after ${Math.round(TIMEOUT_MS / 1000)}s.`, rawStdout: out })
     }, TIMEOUT_MS)
 
     child.stdout.on('data', (d) => (out += d.toString()))
@@ -184,37 +264,25 @@ function runAgent(agent, prompt, addDirs = []) {
       if (done) return
       done = true
       clearTimeout(timer)
-      resolve({ ok: false, text: `Could not launch "${spec.cmd}": ${e.message}. Check BRIDGE_${agent.role === 'claude' ? 'CLAUDE' : 'CODEX'}_CMD.` })
+      resolve({ ok: false, text: `Could not launch "${spec.cmd}": ${e.message}. Check BRIDGE_${agent.role === 'claude' ? 'CLAUDE' : 'CODEX'}_CMD.`, rawStdout: out })
     })
     child.on('close', (code) => {
       if (done) return
       done = true
       clearTimeout(timer)
       const text = readReply()
-      if (code === 0 && text) resolve({ ok: true, text })
-      else resolve({ ok: false, text: text || err.trim() || `Agent exited with code ${code}.` })
+      if (code === 0 && text) resolve({ ok: true, text, rawStdout: out })
+      else resolve({ ok: false, text: text || err.trim() || `Agent exited with code ${code}.`, rawStdout: out })
     })
   })
 }
 
-// Build a prompt with recent thread context so the agent has continuity
-async function buildPrompt(userRow) {
-  const { data } = await supabase
-    .from('agent_bridge_messages')
-    .select('role, content, created_at')
-    .eq('thread', userRow.thread)
-    .lt('created_at', userRow.created_at)
-    .order('created_at', { ascending: false })
-    .limit(HISTORY)
-
-  const history = (data ?? []).reverse()
-  if (!history.length) return userRow.content
-
-  const lines = history.map((m) => {
-    const who = m.role === 'user' ? 'Brad' : m.role === 'claude' ? 'Wendy' : m.role === 'codex' ? 'Ellie' : m.role
-    return `${who}: ${m.content}`
-  })
-  return `You are being messaged from Brad's BPE dashboard bridge. Recent conversation for context:\n\n${lines.join('\n')}\n\nBrad now says:\n${userRow.content}`
+// Extract the actual session ID that was passed to --session-id in the claude args,
+// so we can store it for future -r resumption.
+function extractClaudeSessionId(args) {
+  const idx = args.indexOf('--session-id')
+  if (idx !== -1 && args[idx + 1]) return args[idx + 1]
+  return null
 }
 
 async function insertReply(thread, role, content, status = 'done') {
@@ -242,6 +310,12 @@ function friendlyAgentError(key, raw) {
     return `${who}'s agent could not start on the Mac. ${text.slice(0, 180)}`
   }
   return `${who} hit an error: ${text.slice(0, 200)}`
+}
+
+// Friendly stale-session error — tells Brad to resend once.
+function staleSessionError(key) {
+  const who = key === 'claude' ? 'Wendy' : key === 'codex' ? 'Ellie' : key
+  return `${who}'s session got stale — send the message again and I'll start fresh.`
 }
 
 // Download a user row's image attachments from the private Storage bucket into a
@@ -276,12 +350,10 @@ async function handle(userRow) {
   log(`handling ${userRow.id} -> ${targets.join(', ')}`)
 
   await supabase.from('agent_bridge_messages').update({ status: 'processing' }).eq('id', userRow.id)
-  const basePrompt = await buildPrompt(userRow)
 
   // Shared context so bridge Wendy/Ellie see the same team + live board as the
   // dashboard chat agents. teamContext is '' if the fetch fails — never blocks.
   const teamContext = await buildTeamContext()
-  const contextBlock = teamContext ? `${TEAM_AND_ROUTING}\n\n${teamContext}` : TEAM_AND_ROUTING
 
   // Pull down any image attachments so the agent can actually see them.
   const bundle = await downloadAttachments(userRow.attachments)
@@ -299,18 +371,23 @@ async function handle(userRow) {
       const agent = AGENTS[key]
       if (!agent) continue
 
-      let prompt = agent.persona
-        ? `${agent.persona}\n\n${contextBlock}\n\n${basePrompt}`
-        : `${contextBlock}\n\n${basePrompt}`
+      // Session continuity: look up existing session for this thread+agent.
+      const threadSessions = sessions[userRow.thread] ?? {}
+      const existingSessionId = threadSessions[key] ?? null
+
+      // Build the user prompt — simple, clean. claude's session handles history natively.
+      let basePrompt = buildUserPrompt(userRow, teamContext, agent.persona)
+
       let addDirs = []
       if (bundle) {
         const list = bundle.files.map((f) => `- ${f.path}`).join('\n')
         // Claude Code's Read tool ingests these local image paths as image blocks;
         // --add-dir grants tool access to the temp dir. Codex just gets the note.
-        prompt = `${prompt}\n\nBrad attached ${bundle.files.length} image(s). Read each one before replying:\n${list}`
+        basePrompt = `${basePrompt}\n\nBrad attached ${bundle.files.length} image(s). Read each one before replying:\n${list}`
         addDirs = [bundle.dir]
       }
 
+      let prompt = basePrompt
       if (priorReplies.length) {
         const teammate = priorReplies
           .map((r) => `${r.who} already replied to this message:\n${r.text}`)
@@ -318,16 +395,53 @@ async function handle(userRow) {
         prompt = `${prompt}\n\nYou are collaborating with your teammate in a shared room. ${teammate}\n\nBuild on or respectfully challenge their answer with your own distinct perspective. Do not just repeat what they said. Address them by name if you disagree.`
       }
 
-      const result = await runAgent(agent, prompt, addDirs)
+      const result = await runAgent(agent, prompt, existingSessionId, addDirs)
+
       if (!result.ok) {
-        // Write the CLEAR reason back as this agent's reply so the dashboard
-        // shows exactly why (e.g. expired login) instead of hanging silent.
-        const friendly = friendlyAgentError(key, result.text)
-        await insertReply(userRow.thread, agent.role, friendly, 'error')
-        anyError = true
-        lastError = friendly
-        log(`  ${key} error:`, result.text.slice(0, 160))
+        if (existingSessionId) {
+          // Stale session — clear it and return a friendly nudge to retry.
+          delete sessions[userRow.thread][key]
+          if (Object.keys(sessions[userRow.thread]).length === 0) delete sessions[userRow.thread]
+          saveSessions(sessions)
+          const friendly = staleSessionError(key)
+          await insertReply(userRow.thread, agent.role, friendly, 'error')
+          anyError = true
+          lastError = friendly
+          log(`  ${key} stale session cleared`)
+        } else {
+          // No existing session — surface a proper error message.
+          const friendly = friendlyAgentError(key, result.text)
+          await insertReply(userRow.thread, agent.role, friendly, 'error')
+          anyError = true
+          lastError = friendly
+          log(`  ${key} error:`, result.text.slice(0, 160))
+        }
       } else {
+        // Success — store or update the session ID.
+        if (!sessions[userRow.thread]) sessions[userRow.thread] = {}
+        if (key === 'claude') {
+          // For a new session, extract the ID we generated in build() via --session-id.
+          // For a resumed session (-r), the session ID is unchanged.
+          if (!existingSessionId) {
+            const spec = agent.build(prompt, null, addDirs)
+            const newId = extractClaudeSessionId(spec.args)
+            if (newId) {
+              sessions[userRow.thread][key] = newId
+              log(`  claude new session: ${newId}`)
+            }
+          }
+        } else if (key === 'codex') {
+          // For Codex, parse the session ID from the JSONL stdout if this was a fresh exec.
+          if (!existingSessionId) {
+            const parsedId = parseCodexSessionId(result.rawStdout)
+            if (parsedId) {
+              sessions[userRow.thread][key] = parsedId
+              log(`  codex new session: ${parsedId}`)
+            }
+          }
+        }
+        saveSessions(sessions)
+
         await insertReply(userRow.thread, agent.role, result.text, 'done')
         priorReplies.push({ who: label(key), text: result.text })
         log(`  ${key} replied (${result.text.length} chars)`)
@@ -384,6 +498,7 @@ async function tick() {
 }
 
 log(`Agent bridge worker up. cwd=${CWD} claude="${CLAUDE_CMD}" codex="${CODEX_CMD}" poll=${POLL_MS}ms`)
+log(`Sessions file: ${SESSIONS_FILE} (${Object.keys(sessions).length} thread(s) loaded)`)
 log('Waiting for dashboard messages… (Ctrl+C to stop)')
 setInterval(tick, POLL_MS)
 tick()
