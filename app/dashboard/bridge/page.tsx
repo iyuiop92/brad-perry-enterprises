@@ -45,21 +45,20 @@ export default function BridgePage() {
   const [target, setTarget] = useState<Target>('claude')
   const [sending, setSending] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  const [listening, setListening] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // Only auto-scroll to the newest message when the user is already near the
-  // bottom. Otherwise scrolling up to read history gets yanked back down every
-  // poll. `lastSigRef` avoids re-scrolling when a poll returns no real change.
   const atBottomRef = useRef(true)
   const lastSigRef = useRef('')
+  // Snap instantly to bottom on first load; smooth-scroll on subsequent changes.
+  const hasScrolledOnceRef = useRef(false)
+  // Set to true when the user sends via voice; triggers TTS on the next agent reply.
+  const wasVoiceRef = useRef(false)
+  const lastSpokenIdRef = useRef('')
+  const recognitionRef = useRef<any>(null)
 
   const poll = useCallback(async () => {
-    // Fetch the full recent thread every poll (no `since` cursor): a `since`
-    // filter on created_at only returns NEW rows, so status flips on existing
-    // messages (pending -> processing -> done) were never re-fetched and the
-    // UI stayed stuck on "working…"/"Waiting on a reply…" forever. The thread
-    // is small, so a full refresh each tick is cheap and always correct.
     const res = await fetch('/api/bridge', { cache: 'no-store' })
     if (!res.ok) return
     const rows: Message[] = await res.json()
@@ -76,8 +75,6 @@ export default function BridgePage() {
     return () => clearInterval(t)
   }, [poll])
 
-  // Track whether the user is near the bottom of the page (the whole page
-  // scrolls; the composer is fixed). Threshold gives a little slack.
   useEffect(() => {
     const onScroll = () => {
       const nearBottom =
@@ -89,28 +86,42 @@ export default function BridgePage() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Snap to bottom instantly on first load; smooth-scroll on new messages after that.
   useEffect(() => {
     const last = messages[messages.length - 1]
     const sig = `${messages.length}:${last?.id ?? ''}:${last?.status ?? ''}`
-    if (sig === lastSigRef.current) return // poll returned nothing new; don't yank
+    if (sig === lastSigRef.current) return
     lastSigRef.current = sig
-    if (atBottomRef.current) {
-      // block:'end' keeps the newest message at the BOTTOM of the viewport.
-      // Default block:'start' aligns the anchor to the top, which on a tall
-      // desktop viewport with a short thread shoved everything up ("snaps to
-      // the top") and left empty space below.
+    if (!hasScrolledOnceRef.current && messages.length > 0) {
+      hasScrolledOnceRef.current = true
+      bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' })
+    } else if (atBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
     }
   }, [messages])
 
-  // Land with the cursor ready to type, like Telegram's compose box.
+  // Speak the latest agent reply when the user sent via voice.
+  useEffect(() => {
+    if (!wasVoiceRef.current) return
+    const last = [...messages]
+      .reverse()
+      .find((m) => (m.role === 'claude' || m.role === 'codex') && m.status === 'done')
+    if (!last || last.id === lastSpokenIdRef.current || !last.content) return
+    lastSpokenIdRef.current = last.id
+    wasVoiceRef.current = false
+    const utt = new SpeechSynthesisUtterance(last.content.slice(0, 600))
+    utt.lang = 'en-US'
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utt)
+  }, [messages])
+
   useEffect(() => {
     textareaRef.current?.focus()
   }, [])
 
   async function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
-    e.target.value = '' // let the same file be picked again later
+    e.target.value = ''
     const images = files.filter((f) => f.type.startsWith('image/'))
     const loaded: PendingImage[] = []
     for (const f of images) {
@@ -133,12 +144,14 @@ export default function BridgePage() {
     setPendingImages((prev) => prev.filter((p) => p.id !== id))
   }
 
-  async function send() {
-    const content = input.trim()
+  // Accepts an optional content override so voice STT can send without waiting
+  // for React to flush the setInput state update.
+  async function send(contentOverride?: string) {
+    const content = (contentOverride ?? input).trim()
     if ((!content && pendingImages.length === 0) || sending) return
-    atBottomRef.current = true // sending your own message snaps back to the latest
+    atBottomRef.current = true
     setSending(true)
-    setInput('')
+    if (!contentOverride) setInput('')
     const attachments = pendingImages.map((p) => ({
       data_url: p.dataUrl,
       filename: p.filename,
@@ -157,10 +170,45 @@ export default function BridgePage() {
     }
   }
 
+  async function clearConversation() {
+    if (!confirm('Clear all Bridge messages? This cannot be undone.')) return
+    await fetch('/api/bridge', { method: 'DELETE' })
+    setMessages([])
+    lastSigRef.current = ''
+    hasScrolledOnceRef.current = false
+  }
+
+  function toggleMic() {
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+      return
+    }
+    const SR =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) {
+      alert('Voice input is not supported in this browser. Try Chrome or Edge.')
+      return
+    }
+    const r = new SR()
+    r.lang = 'en-US'
+    r.continuous = false
+    r.interimResults = false
+    r.onresult = (e: any) => {
+      const text: string = e.results[0][0].transcript
+      wasVoiceRef.current = true
+      setListening(false)
+      send(text)
+    }
+    r.onerror = () => setListening(false)
+    r.onend = () => setListening(false)
+    r.start()
+    recognitionRef.current = r
+    setListening(true)
+  }
+
   const waiting = messages.some((m) => m.role === 'user' && (m.status === 'pending' || m.status === 'processing'))
 
-  // Per-agent status so Brad always knows if Wendy/Ellie are reachable, working,
-  // or errored, never a silent guess. Derived purely from the live thread.
   function agentStatus(key: 'claude' | 'codex'): 'working' | 'error' | 'awake' {
     const working = messages.some(
       (m) => m.role === 'user' && (m.status === 'pending' || m.status === 'processing') && (m.target === key || m.target === 'both'),
@@ -182,7 +230,7 @@ export default function BridgePage() {
       style={{ background: '#04040a', minHeight: '100vh', paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}
       className="flex flex-col"
     >
-      {/* Always-visible close — returns to the dashboard without reloading the app. */}
+      {/* Close button */}
       <button
         onClick={() => router.push('/dashboard')}
         aria-label="Close chat"
@@ -209,7 +257,7 @@ export default function BridgePage() {
           <p className="mt-1 text-xs" style={{ color: '#475569' }}>
             Messages route to your terminal agents on this Mac. The worker must be running.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {(['claude', 'codex'] as const).map((key) => {
               const s = STATUS_META[agentStatus(key)]
               return (
@@ -228,6 +276,20 @@ export default function BridgePage() {
                 </span>
               )
             })}
+            {/* Clear conversation */}
+            <button
+              onClick={clearConversation}
+              aria-label="Clear conversation"
+              className="ml-auto inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1 text-[11px] font-[700] transition"
+              style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)', color: '#f87171' }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" /><path d="M14 11v6" />
+              </svg>
+              Clear
+            </button>
           </div>
         </header>
 
@@ -344,6 +406,7 @@ export default function BridgePage() {
               onChange={onPickFiles}
               className="hidden"
             />
+            {/* Attach images */}
             <button
               onClick={() => fileInputRef.current?.click()}
               aria-label="Attach images"
@@ -351,7 +414,6 @@ export default function BridgePage() {
               style={{ background: '#0d0d1a', border: '1px solid rgba(0,180,255,0.13)', color: '#00b4ff' }}
               disabled={sending}
             >
-              {/* paperclip */}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
               </svg>
@@ -368,12 +430,35 @@ export default function BridgePage() {
                 }
               }}
               rows={1}
-              placeholder={`Message ${target === 'both' ? 'both agents' : target === 'codex' ? 'Ellie' : 'Wendy'}…`}
+              placeholder={listening ? 'Listening…' : `Message ${target === 'both' ? 'both agents' : target === 'codex' ? 'Ellie' : 'Wendy'}…`}
               className="flex-1 resize-none rounded-[10px] px-3.5 py-2.5 text-[16px] outline-none"
               style={{ background: '#0d0d1a', border: '1px solid rgba(0,180,255,0.13)', color: '#e2e8f0', maxHeight: 160 }}
             />
+            {/* Mic — tap to speak, auto-sends transcript, speaks the reply back */}
             <button
-              onClick={send}
+              onClick={toggleMic}
+              aria-label={listening ? 'Stop listening' : 'Speak a message'}
+              className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[10px] transition"
+              style={{
+                background: listening ? 'rgba(248,113,113,0.15)' : '#0d0d1a',
+                border: `1px solid ${listening ? 'rgba(248,113,113,0.45)' : 'rgba(0,180,255,0.13)'}`,
+                color: listening ? '#f87171' : '#64748b',
+              }}
+            >
+              {listening ? (
+                // Pulsing stop indicator while recording
+                <span className="h-3 w-3 animate-pulse rounded-full" style={{ background: '#f87171' }} aria-hidden />
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={() => send()}
               disabled={sending || (!input.trim() && pendingImages.length === 0)}
               className="rounded-[10px] px-4 py-2.5 text-sm font-[700] transition disabled:opacity-40"
               style={{ background: '#00b4ff', color: '#04040a' }}
