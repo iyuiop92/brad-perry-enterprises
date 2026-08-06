@@ -13,6 +13,9 @@ const anthropic = createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY_BPE ??
 const safe = (value: unknown): value is ExecutiveAgent => value === 'wendy' || value === 'ellie'
 const scopeKey = (workspaceId: string | null) => workspaceId ? `workspace:${workspaceId}` : 'portfolio'
 const policy = `\n\nACTION SAFETY: This is planning-only chat. Never execute or claim completion of task, code, deployment, external-message, credential, permission, payment, migration, or destructive actions. Explain scope and verification. Action-like requests are recorded as pending proposals; explicit approval only records consent, and execution is disabled.`
+const responseText = (data: any) => typeof data?.output_text === 'string'
+  ? data.output_text
+  : (Array.isArray(data?.output) ? data.output : []).flatMap((item: any) => Array.isArray(item?.content) ? item.content : []).map((item: any) => item?.text ?? '').filter(Boolean).join('\n')
 
 async function conversation(supabase: any, actor: string, workspaceId: string | null) {
   const key = scopeKey(workspaceId)
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
       const apiKey = process.env.OPENAI_API_KEY_BPE ?? process.env.OPENAI_API_KEY; if (!apiKey) return NextResponse.json({ error: 'Ellie is not configured.', request_id: requestId }, { status: 503 })
       const response = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: process.env.ELLIE_OPENAI_MODEL ?? 'gpt-5.6-terra', instructions: system, input: history }) })
       if (!response.ok) throw new Error(`OpenAI response ${response.status}`)
-      const data: any = await response.json(), text = typeof data.output_text === 'string' ? data.output_text : ''; if (!text) throw new Error('Ellie returned no text')
+      const data: any = await response.json(), text = responseText(data); if (!text) throw new Error('Ellie returned no text')
       await save(text); return new Response(text, { headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8', 'x-bpe-streaming': 'buffered' } })
     }
     const result = streamText({ model: anthropic(routeWendyTier(content).model), system, messages: history as any, onFinish: async ({ text }) => { await save(text) } })
