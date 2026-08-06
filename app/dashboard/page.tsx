@@ -6,8 +6,7 @@ import type { Task, Workspace } from '@/lib/types'
 import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
 import QuickChatComposer from '@/components/QuickChatComposer'
-import WendyPanel from '@/components/WendyPanel'
-import ElliePanel from '@/components/ElliePanel'
+import ExecutiveChatPanel from '@/components/ExecutiveChatPanel'
 import CleaverPanel from '@/components/CleaverPanel'
 import SamPanel from '@/components/SamPanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
@@ -329,11 +328,8 @@ export default function DashboardPage() {
             </svg>
           </button>
         )}
-        {assistantPanel === 'wendy' && (
-          <WendyPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
-        )}
-        {assistantPanel === 'ellie' && (
-          <ElliePanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
+        {(assistantPanel === 'wendy' || assistantPanel === 'ellie') && (
+          <ExecutiveChatPanel agent={assistantPanel} onAgentChange={setAssistantPanel} workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
         )}
         {assistantPanel === 'cleaver' && (
           <CleaverPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
