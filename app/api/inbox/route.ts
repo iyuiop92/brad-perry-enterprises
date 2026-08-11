@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { requireAuth } from '@/lib/require-auth'
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data, error } = await supabase
+  const { supabase, unauthorized } = await requireAuth()
+  if (unauthorized) return unauthorized
+  const { data, error } = await supabase!
     .from('bpe_inbox')
     .select('*')
     .order('created_at', { ascending: false })
@@ -13,14 +14,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const { supabase, unauthorized } = await requireAuth()
+  if (unauthorized) return unauthorized
   const { content } = await request.json()
 
   if (!content?.trim()) {
     return NextResponse.json({ error: 'content required' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabase!
     .from('bpe_inbox')
     .insert({ content: content.trim() })
     .select()
