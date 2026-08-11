@@ -94,6 +94,7 @@ body {
 
   body {
     position: relative;
+    zoom: 1;
   }
 
   .dashboard-top-nav {
