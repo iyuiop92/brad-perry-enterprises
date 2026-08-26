@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/require-auth'
+import { executeAgentAction } from '@/lib/agent-actions'
 
 export async function GET() {
   const { supabase, unauthorized } = await requireAuth()
@@ -25,27 +26,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { supabase, unauthorized } = await requireAuth()
+  const { unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
   const { name, type, url, color } = await request.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-
-  const { data: existing } = await supabase
-    .from('bpe_workspaces')
-    .select('sort_order')
-    .order('sort_order', { ascending: false })
-    .limit(1)
-  const sortOrder = (existing?.[0]?.sort_order ?? 0) + 1
-
-  const { data, error } = await supabase
-    .from('bpe_workspaces')
-    .insert({ name: name.trim(), slug, color: color ?? '#00b4ff', type: type ?? 'brand', url: url || null, sort_order: sortOrder })
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { status: 201 })
+  try {
+    const result = await executeAgentAction({ type: 'workspace.create', data: { name, type: type ?? 'brand', color: color ?? '#00b4ff', url: url || null } }, { actorId: 'brad', source: 'dashboard' })
+    return NextResponse.json(result.data, { status: 201 })
+  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Workspace creation failed' }, { status: 400 }) }
 }

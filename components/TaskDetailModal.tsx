@@ -90,7 +90,9 @@ export default function TaskDetailModal({
   }
 
   async function handleDelete() {
-    await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+    const response = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+    const result = await response.json().catch(() => null)
+    if (!response.ok) throw new Error(result?.error ?? 'Could not archive task')
     onDeleted()
   }
 
@@ -283,16 +285,16 @@ function DetailTab({
         )}
       </p>
 
-      {/* Delete */}
+      {/* Archive */}
       {confirmDelete ? (
         <div className="flex items-center gap-3">
-          <span className="text-xs" style={{ color: '#94a3b8' }}>Delete this task?</span>
+          <span className="text-xs" style={{ color: '#94a3b8' }}>Archive this task?</span>
           <button
             onClick={handleDelete}
             className="text-xs font-[700] px-3 py-1 rounded-md"
             style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}
           >
-            Yes, delete
+            Yes, archive
           </button>
           <button
             onClick={() => setConfirmDelete(false)}
@@ -310,7 +312,7 @@ function DetailTab({
           onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
           onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
         >
-          Delete task
+          Archive task
         </button>
       )}
     </div>

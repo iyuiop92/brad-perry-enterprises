@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local bridge worker session state. Never share agent session IDs.
+.bridge-sessions.json
