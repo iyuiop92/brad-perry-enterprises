@@ -33,6 +33,7 @@ export default function DashboardVoiceDock() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [active, setActive] = useState<Agent>('wendy')
   const [deepPending, setDeepPending] = useState(false)
+  const [queuedCount, setQueuedCount] = useState(0)
   const [typedMessage, setTypedMessage] = useState('')
   const [images, setImages] = useState<PendingImage[]>([])
   const [log, setLog] = useState<LogEntry[]>([])
@@ -48,7 +49,10 @@ export default function DashboardVoiceDock() {
   const spokenTextRef = useRef('')
   const silenceTimerRef = useRef<number | null>(null)
   const manualSpeechStopRef = useRef(false)
+  const deepPendingRef = useRef(false)
+  const queueRef = useRef<{ text: string; attachments: PendingImage[] }[]>([])
 
+  useEffect(() => { deepPendingRef.current = deepPending }, [deepPending])
   useEffect(() => { phaseRef.current = phase }, [phase])
   useEffect(() => () => {
     recRef.current?.stop()
@@ -168,30 +172,46 @@ export default function DashboardVoiceDock() {
     throw new Error('The real agent did not reply in time.')
   }
 
-  const handleUtterance = async (raw: string, attachments: PendingImage[] = []) => {
+  // Run one utterance against the real bridge, then drain any messages Brad
+  // queued while it was working — answered in the order he sent them.
+  const runUtterance = async (raw: string, attachments: PendingImage[]) => {
     const target = route(raw, activeRef.current)
-    push({ who: 'brad', text: raw })
-
-    // Every request goes to the real bridge. There is no lightweight chat
-    // tier, so the dashboard and Telegram use the same capable agents.
-    setDeepPending(true)
-    void (async () => {
-      try {
-        for (const agent of target.agents) {
-          activeRef.current = agent
-          setActive(agent)
-          const reply = await deepReply(agent, target.text, attachments)
-          push({ who: agent, text: reply })
-          setPhase('speaking')
-          await speak(agent, reply)
-        }
-      } catch (cause: unknown) {
-        setError(cause instanceof Error ? cause.message : 'The real agent could not be reached.')
-      } finally {
+    try {
+      for (const agent of target.agents) {
+        activeRef.current = agent
+        setActive(agent)
+        const reply = await deepReply(agent, target.text, attachments)
+        push({ who: agent, text: reply })
+        setPhase('speaking')
+        await speak(agent, reply)
+      }
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : 'The real agent could not be reached.')
+    } finally {
+      const next = queueRef.current.shift()
+      setQueuedCount(queueRef.current.length)
+      if (next) {
+        setPhase('thinking')
+        void runUtterance(next.text, next.attachments)
+      } else {
         setDeepPending(false)
         setPhase('idle')
       }
-    })()
+    }
+  }
+
+  const handleUtterance = async (raw: string, attachments: PendingImage[] = []) => {
+    push({ who: 'brad', text: raw })
+    // If a turn is already running, line this one up instead of dropping it.
+    // Every request goes to the real bridge, so the dashboard and Telegram use
+    // the same capable agents.
+    if (deepPendingRef.current) {
+      queueRef.current.push({ text: raw, attachments })
+      setQueuedCount(queueRef.current.length)
+      return
+    }
+    setDeepPending(true)
+    void runUtterance(raw, attachments)
   }
 
   const clearSilenceTimer = () => {
@@ -336,7 +356,9 @@ export default function DashboardVoiceDock() {
   }
   const sendTypedMessage = () => {
     const text = typedMessage.trim()
-    if ((!text && images.length === 0) || phase === 'thinking' || deepPending) return
+    // No deepPending guard: sending while a turn is running queues the message
+    // so it is answered next, in order, instead of being dropped.
+    if (!text && images.length === 0) return
     setTypedMessage('')
     const attachments = images
     setImages([])
@@ -345,7 +367,9 @@ export default function DashboardVoiceDock() {
     void handleUtterance(text || 'I attached a photo for context.', attachments)
   }
   const label = deepPending
-    ? 'The real agent is working. This can take a minute. Keep talking if you want.'
+    ? queuedCount > 0
+      ? `The real agent is working. ${queuedCount} message${queuedCount === 1 ? '' : 's'} queued, answered in order.`
+      : 'The real agent is working. This can take a minute. Send another and it will queue.'
     : phase === 'listening' ? 'Listening — pause when you are done'
     : phase === 'thinking' ? 'Thinking…'
     : phase === 'speaking' ? `${META[active].label} is speaking`
@@ -449,7 +473,7 @@ export default function DashboardVoiceDock() {
         {label}
       </p>
       <div className="dashboard-voice-composer" style={{ display: 'flex', gap: 8 }}>
-        <ImageAttachmentPicker images={images} onChange={setImages} disabled={phase === 'thinking' || deepPending} color="#a78bfa" />
+        <ImageAttachmentPicker images={images} onChange={setImages} disabled={false} color="#a78bfa" />
         <input
           ref={messageInputRef}
           aria-label="Message the team"
@@ -459,8 +483,8 @@ export default function DashboardVoiceDock() {
           placeholder="Ask Wendy, Ellie, or Team…"
           style={{ flex: 1, minWidth: 0, height: 34, border: '1px solid rgba(167,139,250,0.28)', borderRadius: 8, background: '#10111a', color: '#e2e8f0', padding: '0 10px', fontSize: 13, outline: 'none' }}
         />
-        <button onClick={sendTypedMessage} disabled={(!typedMessage.trim() && images.length === 0) || phase === 'thinking' || deepPending} style={{ border: 0, borderRadius: 8, background: '#a78bfa', color: '#0a0a12', padding: '0 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
-          Send
+        <button onClick={sendTypedMessage} disabled={!typedMessage.trim() && images.length === 0} style={{ border: 0, borderRadius: 8, background: '#a78bfa', color: '#0a0a12', padding: '0 11px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+          {deepPending ? 'Queue' : 'Send'}
         </button>
       </div>
       {log.length > 0 && <div className="dashboard-voice-transcript" style={{ display: 'grid', gap: 7, maxHeight: 300, overflowY: 'auto' }}>{log.map((entry, index) => <div key={index} style={{ background: '#10111a', color: entry.who === 'brad' ? '#cbd5e1' : META[entry.who].color, borderRadius: 7, padding: '8px 9px', fontSize: 12, lineHeight: 1.45 }}>{entry.text}</div>)}</div>}
