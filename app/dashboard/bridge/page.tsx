@@ -38,6 +38,14 @@ const ROLE_META: Record<Role, { label: string; color: string }> = {
   system: { label: 'System', color: '#64748b' },
 }
 
+function routeTarget(text: string): { target: Target; content: string } {
+  const clean = (pattern: RegExp) => text.replace(pattern, '').trim() || text
+  if (/^(hey )?wendy\b[,.: ]*/i.test(text)) return { target: 'claude', content: clean(/^(hey )?wendy\b[,.: ]*/i) }
+  if (/^(hey )?(ellie|ally|allie|elly|eli)\b[,.: ]*/i.test(text)) return { target: 'codex', content: clean(/^(hey )?(ellie|ally|allie|elly|eli)\b[,.: ]*/i) }
+  if (/^(hey )?(both|team|everyone|you two)\b[,.: ]*/i.test(text)) return { target: 'both', content: clean(/^(hey )?(both|team|everyone|you two)\b[,.: ]*/i) }
+  return { target: 'claude', content: text }
+}
+
 export default function BridgePage() {
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
@@ -157,10 +165,12 @@ export default function BridgePage() {
   // Accepts an optional content override so voice STT can send without waiting
   // for React to flush the setInput state update.
   async function send(contentOverride?: string) {
-    const content = (contentOverride ?? input).trim()
+    const submitted = (contentOverride ?? input).trim()
+    const { target: routedTarget, content } = routeTarget(submitted)
     if ((!content && pendingImages.length === 0) || sending) return
     atBottomRef.current = true
     setSending(true)
+    setTarget(routedTarget)
     if (!contentOverride) setInput('')
     const attachments = pendingImages.map((p) => ({
       data_url: p.dataUrl,
@@ -172,7 +182,7 @@ export default function BridgePage() {
       await fetch('/api/bridge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, target, attachments }),
+        body: JSON.stringify({ content, target: routedTarget, attachments }),
       })
       await poll()
     } finally {
@@ -262,8 +272,8 @@ export default function BridgePage() {
       </button>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-40">
         <header className="py-4 pr-14">
-          <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Command Bridge</p>
-          <h1 className="mt-1 text-2xl font-[800] text-white" style={{ fontFamily: 'var(--font-outfit)' }}>Talk to your builders</h1>
+          <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Command Room</p>
+          <h1 className="mt-1 text-2xl font-[800] text-white" style={{ fontFamily: 'var(--font-outfit)' }}>Talk to your team</h1>
           <p className="mt-1 text-xs" style={{ color: '#475569' }}>
             Messages route to your terminal agents on this Mac. The worker must be running.
           </p>
@@ -369,22 +379,7 @@ export default function BridgePage() {
         style={{ background: 'rgba(4,4,10,0.98)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="mx-auto w-full max-w-2xl px-4 py-3">
-          <div className="mb-2 flex gap-1.5">
-            {(['claude', 'codex', 'both'] as Target[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTarget(t)}
-                className="rounded-[8px] px-3 py-1 text-[11px] font-[700] uppercase tracking-wider transition"
-                style={{
-                  background: target === t ? 'rgba(0,180,255,0.15)' : 'transparent',
-                  border: `1px solid ${target === t ? 'rgba(0,180,255,0.4)' : 'rgba(255,255,255,0.10)'}`,
-                  color: target === t ? '#00b4ff' : '#64748b',
-                }}
-              >
-                {t === 'claude' ? 'Wendy' : t === 'codex' ? 'Ellie' : 'Both'}
-              </button>
-            ))}
-          </div>
+          <p className="mb-2 text-[11px]" style={{ color: '#64748b' }}>Start with “Wendy,” “Ellie,” or “Team.” Otherwise Wendy takes the lead.</p>
           {pendingImages.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {pendingImages.map((p) => (

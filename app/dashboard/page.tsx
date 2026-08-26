@@ -5,7 +5,6 @@ import Link from 'next/link'
 import type { Task, Workspace } from '@/lib/types'
 import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
-import QuickChatComposer from '@/components/QuickChatComposer'
 import ExecutiveChatPanel from '@/components/ExecutiveChatPanel'
 import CleaverPanel from '@/components/CleaverPanel'
 import SamPanel from '@/components/SamPanel'
@@ -66,8 +65,8 @@ export default function DashboardPage() {
           gap: 10,
         }}
       >
-        <DashboardVoiceDock context={tasks.slice(0, 18).map(task => `${task.title} — ${task.status} — ${task.priority}`).join('\n')} />
-        <div className="dashboard-desktop-actions">
+        <DashboardVoiceDock />
+        <div className="dashboard-desktop-actions" style={{ display: 'none' }}>
           <Link
             href="/dashboard/bridge"
             aria-label="Open Command Bridge"
@@ -162,7 +161,14 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <details className="dashboard-team-menu">
+        <button
+          onClick={() => setShowAddPanel(true)}
+          aria-label="Create a task"
+          style={{ height: 28, padding: '0 4px', cursor: 'pointer', background: 'transparent', color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', border: 'none', boxShadow: 'none' }}
+        >
+          New
+        </button>
+        <details className="dashboard-team-menu" style={{ display: 'none' }}>
           <summary>Assistants</summary>
           <div className="dashboard-team-menu-panel">
             <Link href="/dashboard/bridge" style={{ color: '#00b4ff', textDecoration: 'none' }}>
@@ -203,8 +209,6 @@ export default function DashboardPage() {
         </details>
       </div>
 
-      {/* ── Quick chat: drop-in composer, routes to full Bridge thread ── */}
-      <QuickChatComposer />
 
       {/* ── Activity ticker ── */}
       {tasks.length > 0 && (() => {
