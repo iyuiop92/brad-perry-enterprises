@@ -114,3 +114,17 @@ export async function POST(request: Request) {
 
   return NextResponse.json(data)
 }
+
+// DELETE /api/bridge  -> clears all messages in the thread
+export async function DELETE() {
+  const { supabase, unauthorized } = await requireAuth()
+  if (unauthorized) return unauthorized
+
+  const { error } = await supabase
+    .from('agent_bridge_messages')
+    .delete()
+    .eq('thread', THREAD)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

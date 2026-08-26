@@ -12,6 +12,9 @@ create table if not exists agent_bridge_messages (
   -- for user rows: which agent(s) the message is addressed to
   target text check (target in ('claude', 'codex', 'both')),
   content text not null,
+  -- Present only for turns that came from Telegram. The local bridge worker
+  -- uses it to return the eventual terminal-agent reply to the same chat.
+  telegram_chat_id text,
   -- lifecycle of a user row: pending -> processing -> done | error
   -- agent/system rows are inserted already 'done'
   status text not null default 'pending' check (status in ('pending', 'processing', 'done', 'error')),

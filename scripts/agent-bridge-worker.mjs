@@ -112,16 +112,19 @@ const AGENTS = {
     role: 'claude',
     // In the BPE dashboard bridge this agent is Wendy (not Jack).
     persona: 'You are Wendy, Brad\'s executive partner, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Wendy. Never call yourself Jack.',
-    build: (prompt, sessionId, addDirs = []) => {
+    build: (prompt, sessionId, addDirs = [], newId = null) => {
       const args = []
       if (BYPASS_PERMISSIONS) args.push('--permission-mode', 'bypassPermissions')
       // Session resumption: first turn uses --session-id to create a named session;
       // subsequent turns use -r to resume it so claude remembers tool outputs and
       // chained work across turns (mirrors the Telegram bridge behaviour).
+      // The fresh id MUST be supplied by the caller (newId) and reused when the
+      // session is stored — otherwise we'd save a different id than the one claude
+      // actually created, and every resume would fail.
       if (sessionId) {
         args.push('-r', sessionId)
       } else {
-        args.push('--session-id', randomUUID())
+        args.push('--session-id', newId || randomUUID())
       }
       args.push('-p', prompt, '--output-format', 'text')
       for (const d of [...ADD_DIRS, ...addDirs]) args.push('--add-dir', d)
@@ -194,6 +197,31 @@ async function buildTeamContext() {
   }
 }
 
+// The room transcript is the missing link between Wendy, Ellie, the dashboard,
+// and Telegram. Each terminal agent keeps its own native session, but neither
+// session can see the other agent's turns unless we supply this shared tail.
+// Keep it compact so the real work remains in each agent's own session memory.
+async function buildRoundtableHistory(thread, before) {
+  try {
+    let query = supabase
+      .from('agent_bridge_messages')
+      .select('role, content, created_at')
+      .eq('thread', thread)
+      .order('created_at', { ascending: false })
+      .limit(28)
+    if (before) query = query.lt('created_at', before)
+    const { data, error } = await query
+    if (error || !data?.length) return ''
+    const name = (role) => role === 'user' ? 'Brad' : role === 'claude' ? 'Wendy' : role === 'codex' ? 'Ellie' : 'System'
+    return data
+      .reverse()
+      .map((row) => `${name(row.role)}: ${String(row.content).slice(0, 1400)}`)
+      .join('\n')
+  } catch {
+    return ''
+  }
+}
+
 function log(...a) {
   console.log(new Date().toISOString(), ...a)
 }
@@ -201,9 +229,12 @@ function log(...a) {
 // Build a simple user prompt that lets the agent's session handle history natively.
 // This replaces the old 12-message history injection — claude's --session-id/-r flags
 // give it real tool-output continuity without text-dumping the whole thread.
-function buildUserPrompt(userRow, teamContext, persona) {
+function buildUserPrompt(userRow, teamContext, roundtableHistory, persona) {
   const contextBlock = teamContext ? `${TEAM_AND_ROUTING}\n\n${teamContext}` : TEAM_AND_ROUTING
-  return `${persona}\n\n${contextBlock}\n\n${userRow.content}`
+  const historyBlock = roundtableHistory
+    ? `\n\nSHARED ROUNDTABLE TRANSCRIPT (dashboard and Telegram):\n${roundtableHistory}\n\nRespond to Brad's newest message below. If Wendy or Ellie already answered the same point, build on it, challenge it only when useful, and do not repeat it.`
+    : ''
+  return `${persona}\n\n${contextBlock}${historyBlock}\n\nBRAD'S NEWEST MESSAGE:\n${userRow.content}`
 }
 
 // Parse the Codex JSONL stdout stream and extract a session ID from the event
@@ -225,9 +256,9 @@ function parseCodexSessionId(jsonlText) {
 }
 
 // Run one agent CLI call, return { ok, text, rawStdout }
-function runAgent(agent, prompt, sessionId, addDirs = []) {
+function runAgent(agent, prompt, sessionId, addDirs = [], newId = null) {
   return new Promise((resolve) => {
-    const spec = agent.build(prompt, sessionId, addDirs)
+    const spec = agent.build(prompt, sessionId, addDirs, newId)
     let out = ''
     let err = ''
     let done = false
@@ -285,8 +316,26 @@ function extractClaudeSessionId(args) {
   return null
 }
 
-async function insertReply(thread, role, content, status = 'done') {
+async function sendTelegramReply(chatId, text) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  if (!chatId || !token) return
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    })
+  } catch (error) {
+    log('telegram reply failed:', error?.message || error)
+  }
+}
+
+async function insertReply(thread, role, content, status = 'done', telegramChatId = null) {
   await supabase.from('agent_bridge_messages').insert({ thread, role, content, status })
+  if (status === 'done' && telegramChatId) {
+    const speaker = role === 'claude' ? 'Wendy' : role === 'codex' ? 'Ellie' : 'Team'
+    await sendTelegramReply(telegramChatId, `${speaker}: ${content}`)
+  }
 }
 
 // Turn a raw agent failure into a clear, actionable message the dashboard can
@@ -354,6 +403,7 @@ async function handle(userRow) {
   // Shared context so bridge Wendy/Ellie see the same team + live board as the
   // dashboard chat agents. teamContext is '' if the fetch fails — never blocks.
   const teamContext = await buildTeamContext()
+  const roundtableHistory = await buildRoundtableHistory(userRow.thread, userRow.created_at)
 
   // Pull down any image attachments so the agent can actually see them.
   const bundle = await downloadAttachments(userRow.attachments)
@@ -376,7 +426,7 @@ async function handle(userRow) {
       const existingSessionId = threadSessions[key] ?? null
 
       // Build the user prompt — simple, clean. claude's session handles history natively.
-      let basePrompt = buildUserPrompt(userRow, teamContext, agent.persona)
+      let basePrompt = buildUserPrompt(userRow, teamContext, roundtableHistory, agent.persona)
 
       let addDirs = []
       if (bundle) {
@@ -395,44 +445,50 @@ async function handle(userRow) {
         prompt = `${prompt}\n\nYou are collaborating with your teammate in a shared room. ${teammate}\n\nBuild on or respectfully challenge their answer with your own distinct perspective. Do not just repeat what they said. Address them by name if you disagree.`
       }
 
-      const result = await runAgent(agent, prompt, existingSessionId, addDirs)
+      let activeSessionId = existingSessionId
+      // Pre-generate the fresh claude session id so the id we run with is the
+      // exact id we store for resumption. (Codex parses its own id from output.)
+      let freshId = existingSessionId ? null : randomUUID()
+      let result = await runAgent(agent, prompt, activeSessionId, addDirs, freshId)
 
-      if (!result.ok) {
-        if (existingSessionId) {
-          // Stale session — clear it and return a friendly nudge to retry.
+      // Auto-heal a failed resume: a resume can fail for transient reasons
+      // (timeout, empty reply, a crashed turn) that don't mean the session is
+      // truly gone. Rather than bounce Brad with "send the message again," we
+      // clear the session and silently retry ONCE with a fresh session in the
+      // same turn. He gets a real answer; continuity resets quietly. Only a
+      // second failure surfaces as a real error.
+      if (!result.ok && activeSessionId) {
+        log(`  ${key} resume failed (${result.text.slice(0, 80)}) — retrying fresh`)
+        if (sessions[userRow.thread]) {
           delete sessions[userRow.thread][key]
           if (Object.keys(sessions[userRow.thread]).length === 0) delete sessions[userRow.thread]
           saveSessions(sessions)
-          const friendly = staleSessionError(key)
-          await insertReply(userRow.thread, agent.role, friendly, 'error')
-          anyError = true
-          lastError = friendly
-          log(`  ${key} stale session cleared`)
-        } else {
-          // No existing session — surface a proper error message.
-          const friendly = friendlyAgentError(key, result.text)
-          await insertReply(userRow.thread, agent.role, friendly, 'error')
-          anyError = true
-          lastError = friendly
-          log(`  ${key} error:`, result.text.slice(0, 160))
         }
+        activeSessionId = null
+        freshId = randomUUID()
+        result = await runAgent(agent, prompt, null, addDirs, freshId)
+      }
+
+      if (!result.ok) {
+        // Fresh attempt (or a first-turn call) still failed — surface a real error.
+        const friendly = friendlyAgentError(key, result.text)
+        await insertReply(userRow.thread, agent.role, friendly, 'error', userRow.telegram_chat_id)
+        anyError = true
+        lastError = friendly
+        log(`  ${key} error:`, result.text.slice(0, 160))
       } else {
         // Success — store or update the session ID.
         if (!sessions[userRow.thread]) sessions[userRow.thread] = {}
         if (key === 'claude') {
-          // For a new session, extract the ID we generated in build() via --session-id.
+          // For a new session, store the exact id we ran with (freshId).
           // For a resumed session (-r), the session ID is unchanged.
-          if (!existingSessionId) {
-            const spec = agent.build(prompt, null, addDirs)
-            const newId = extractClaudeSessionId(spec.args)
-            if (newId) {
-              sessions[userRow.thread][key] = newId
-              log(`  claude new session: ${newId}`)
-            }
+          if (!activeSessionId && freshId) {
+            sessions[userRow.thread][key] = freshId
+            log(`  claude new session: ${freshId}`)
           }
         } else if (key === 'codex') {
           // For Codex, parse the session ID from the JSONL stdout if this was a fresh exec.
-          if (!existingSessionId) {
+          if (!activeSessionId) {
             const parsedId = parseCodexSessionId(result.rawStdout)
             if (parsedId) {
               sessions[userRow.thread][key] = parsedId
@@ -442,7 +498,7 @@ async function handle(userRow) {
         }
         saveSessions(sessions)
 
-        await insertReply(userRow.thread, agent.role, result.text, 'done')
+        await insertReply(userRow.thread, agent.role, result.text, 'done', userRow.telegram_chat_id)
         priorReplies.push({ who: label(key), text: result.text })
         log(`  ${key} replied (${result.text.length} chars)`)
       }
@@ -467,7 +523,7 @@ async function selectPending(retries = 2) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     last = await supabase
       .from('agent_bridge_messages')
-      .select('id, thread, target, content, attachments, created_at')
+      .select('id, thread, target, content, attachments, telegram_chat_id, created_at')
       .eq('role', 'user')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })

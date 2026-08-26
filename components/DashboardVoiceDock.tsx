@@ -21,6 +21,16 @@ const META: Record<Agent, { label: string; color: string }> = {
 function route(text: string, active: Agent, includeBoth: boolean) {
   const clean = (re: RegExp) => text.replace(re, '').trim() || text
   if (/^(hey )?(both|team|everyone|you two)\b[,.: ]*/i.test(text)) return { agents: ['wendy', 'ellie'] as Agent[], text: clean(/^(hey )?(both|team|everyone|you two)\b[,.: ]*/i) }
+  // The Roundtable control is the source of truth. Before this guard, saying
+  // "Ellie" while Both was on silently bypassed Wendy and fell into Quick
+  // mode, which made the room feel broken. "only" remains an intentional
+  // escape hatch for a one-on-one turn.
+  if (includeBoth && !/^(hey )?(wendy|ellie|ally|allie|elly|eli)\s+only\b/i.test(text)) {
+    return {
+      agents: ['wendy', 'ellie'] as Agent[],
+      text: clean(/^(hey )?(wendy|ellie|ally|allie|elly|eli)\b[,.: ]*/i),
+    }
+  }
   if (/^(hey )?wendy\b[,.: ]*/i.test(text)) return { agents: ['wendy'] as Agent[], text: clean(/^(hey )?wendy\b[,.: ]*/i) }
   if (/^(hey )?(ellie|ally|allie|elly|eli)\b[,.: ]*/i.test(text)) return { agents: ['ellie'] as Agent[], text: clean(/^(hey )?(ellie|ally|allie|elly|eli)\b[,.: ]*/i) }
   return { agents: includeBoth ? ['wendy', 'ellie'] as Agent[] : [active], text }
@@ -65,12 +75,15 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null)
   const replyAbortRef = useRef<AbortController | null>(null)
+  const deepPendingRef = useRef(false)
+  const deepRunRef = useRef(0)
   const messageInputRef = useRef<HTMLInputElement | null>(null)
   const spokenTextRef = useRef('')
   const silenceTimerRef = useRef<number | null>(null)
   const manualSpeechStopRef = useRef(false)
 
   useEffect(() => { lockedRef.current = locked }, [locked])
+  useEffect(() => { deepPendingRef.current = deepPending }, [deepPending])
   useEffect(() => { bothRef.current = both }, [both])
   useEffect(() => { modeRef.current = mode }, [mode])
   useEffect(() => { phaseRef.current = phase }, [phase])
@@ -195,23 +208,39 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   const handleUtterance = async (raw: string, attachments: PendingImage[] = []) => {
     const target = route(raw, activeRef.current, bothRef.current)
     if (asksForText(raw)) setShowText(true)
+
+    // A deep turn controls real terminal agents. Letting a second turn start
+    // while the first is still polling creates overlapping replies and audio.
+    if ((modeRef.current === 'deep' || target.agents.length > 1) && deepPendingRef.current) {
+      setError('The team is still working on your last message. Wait for the reply or press Cancel once to stop it.')
+      return
+    }
     push({ who: 'brad', text: raw })
 
-    if (modeRef.current === 'deep') {
+    // A roundtable must always use the real terminal bridge. Quick mode is
+    // useful for a single fast answer, but it has no shared agent transcript.
+    if (modeRef.current === 'deep' || target.agents.length > 1) {
       // Deep replies are slow. Run detached so Quick input is never blocked.
+      const runId = ++deepRunRef.current
+      deepPendingRef.current = true
       setDeepPending(true)
       void (async () => {
         try {
           for (const agent of target.agents) {
             const reply = await deepReply(agent, target.text, attachments)
+            if (runId !== deepRunRef.current) return
             push({ who: agent, text: reply })
             await speak(agent, reply)
+            if (runId !== deepRunRef.current) return
           }
         } catch (cause: unknown) {
-          setError(cause instanceof Error ? cause.message : 'The real agent could not be reached.')
+          if (runId === deepRunRef.current) setError(cause instanceof Error ? cause.message : 'The real agent could not be reached.')
         } finally {
-          setDeepPending(false)
-          setPhase('idle')
+          if (runId === deepRunRef.current) {
+            deepPendingRef.current = false
+            setDeepPending(false)
+            setPhase('idle')
+          }
         }
       })()
       return
@@ -373,6 +402,11 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
   }
 
   const interrupt = () => {
+    // The bridge itself cannot cancel a CLI call already running on the Mac,
+    // but invalidating this run guarantees its eventual reply is never spoken.
+    deepRunRef.current += 1
+    deepPendingRef.current = false
+    setDeepPending(false)
     replyAbortRef.current?.abort()
     replyAbortRef.current = null
     audioRef.current?.pause()
@@ -389,6 +423,7 @@ export default function DashboardVoiceDock({ context }: { context: string }) {
       void startMobileRecording()
       return
     }
+    if (deepPendingRef.current) { interrupt(); return }
     if (phase === 'thinking' || phase === 'speaking') { interrupt(); return }
     if (phase === 'listening') { finishDesktopSpeech(); return }
     startListening()

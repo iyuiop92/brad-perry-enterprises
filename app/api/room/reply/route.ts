@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateText } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { requireAuth } from '@/lib/require-auth'
+import { createAdminClient } from '@/lib/supabase-admin'
 import { getDashboardContext } from '@/lib/dashboardContext'
 import { buildAgentSystemPrompt } from '@/lib/agentSystemPrompt'
 
@@ -21,6 +22,31 @@ const VOICE_RULES = `You are speaking OUT LOUD in a live voice meeting with Brad
 
 type Message = { role: 'user' | 'assistant'; content: string }
 type Attachment = { filename?: string; mediaType?: string; url?: string }
+
+async function recordRoomMessage(
+  supabase: Awaited<ReturnType<typeof requireAuth>>['supabase'],
+  message: { role: 'user' | 'claude' | 'codex'; content: string }
+) {
+  const { error } = await supabase!.from('agent_bridge_messages').insert({
+    thread: 'main',
+    role: message.role,
+    content: message.content,
+    status: 'done',
+  })
+  if (error) throw new Error(`Could not record room message: ${error.message}`)
+}
+
+async function roundtableHistory(supabase: ReturnType<typeof createAdminClient>) {
+  const { data } = await supabase
+    .from('agent_bridge_messages')
+    .select('role, content')
+    .eq('thread', 'main')
+    .order('created_at', { ascending: false })
+    .limit(24)
+  if (!data?.length) return ''
+  const name = (role: string) => role === 'user' ? 'Brad' : role === 'claude' ? 'Wendy' : role === 'codex' ? 'Ellie' : 'System'
+  return data.reverse().map(row => `${name(row.role)}: ${String(row.content).slice(0, 1400)}`).join('\n')
+}
 
 async function wendyReply(text: string, history: Message[], system: string, attachments: Attachment[]): Promise<string> {
   const { text: reply } = await generateText({
@@ -85,12 +111,22 @@ export async function POST(req: NextRequest) {
   if (unauthorized) return unauthorized
 
   try {
-    const dashboardContext = await getDashboardContext(supabase)
-    const system = `${buildAgentSystemPrompt(agent, dashboardContext)}\n\n${VOICE_RULES}`
+    const [dashboardContext, sharedHistory] = await Promise.all([
+      getDashboardContext(supabase),
+      roundtableHistory(supabase),
+    ])
+    const transcript = sharedHistory
+      ? `\n\nSHARED ROUNDTABLE TRANSCRIPT (BPE and Telegram):\n${sharedHistory}\n\nThis is a team conversation. Build on Wendy or Ellie's earlier answer when it exists. Do not repeat it.`
+      : ''
+    const system = `${buildAgentSystemPrompt(agent, dashboardContext)}\n\n${VOICE_RULES}${transcript}`
+    // Quick voice is still fast, but it is no longer a separate conversation.
+    // Terminal-agent and Telegram turns read these completed rows on their next turn.
+    await recordRoomMessage(supabase, { role: 'user', content: text })
     const reply =
       agent === 'ellie'
         ? await ellieReply(text, history ?? [], system, attachments ?? [])
         : await wendyReply(text, history ?? [], system, attachments ?? [])
+    await recordRoomMessage(supabase, { role: agent === 'ellie' ? 'codex' : 'claude', content: reply || 'Sorry, I did not catch that.' })
     return NextResponse.json({ reply: reply || 'Sorry, I did not catch that.' })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'AI error'
