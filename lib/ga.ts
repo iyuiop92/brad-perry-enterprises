@@ -1,13 +1,45 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data'
 
-// Reads aetherhockey.com GA4 traffic for the morning brief. Credentials come
-// from env so this runs in the cloud cron (no local key file):
+// Reads aetherhockey.com GA4 traffic. Credentials come from env so this runs
+// in Vercel without a local key file:
 //   GA_PROPERTY_ID      numeric GA4 property id
 //   GA_SA_KEY_B64       base64 of the service-account JSON key
-// Returns a compact text digest, or null if unconfigured / GA errors (the brief
-// must never fail because analytics hiccupped).
+// The reader is shared by the morning brief and the protected dashboard.
 
-const CORE = ['activeUsers', 'sessions', 'newUsers', 'screenPageViews'] as const
+const CORE = [
+  'activeUsers',
+  'sessions',
+  'newUsers',
+  'screenPageViews',
+  'engagedSessions',
+  'engagementRate',
+  'keyEvents',
+] as const
+
+export interface AnalyticsTotals {
+  activeUsers: number
+  sessions: number
+  newUsers: number
+  screenPageViews: number
+  engagedSessions: number
+  engagementRate: number
+  keyEvents: number
+}
+
+export interface AnalyticsRow {
+  label: string
+  value: number
+}
+
+export interface AnalyticsSnapshot {
+  configured: boolean
+  error?: string
+  activeNow: number | null
+  current: AnalyticsTotals
+  previous: AnalyticsTotals
+  topPages: AnalyticsRow[]
+  topChannels: AnalyticsRow[]
+}
 
 function client(): BetaAnalyticsDataClient | null {
   const b64 = process.env.GA_SA_KEY_B64
@@ -28,66 +60,106 @@ const pct = (cur: number, prev: number) =>
   prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0
 const arrow = (p: number) => (p > 0 ? `+${p}%` : p < 0 ? `${p}%` : 'flat')
 
-export async function getTrafficDigest(): Promise<string | null> {
+const emptyTotals = (): AnalyticsTotals => ({
+  activeUsers: 0,
+  sessions: 0,
+  newUsers: 0,
+  screenPageViews: 0,
+  engagedSessions: 0,
+  engagementRate: 0,
+  keyEvents: 0,
+})
+
+export async function getAnalyticsSnapshot(): Promise<AnalyticsSnapshot> {
   const propertyId = process.env.GA_PROPERTY_ID
   const ga = client()
-  if (!propertyId || !ga) return null
+  const empty: AnalyticsSnapshot = {
+    configured: Boolean(propertyId && ga),
+    activeNow: null,
+    current: emptyTotals(),
+    previous: emptyTotals(),
+    topPages: [],
+    topChannels: [],
+  }
+
+  if (!propertyId || !ga) return empty
+  const analytics = ga
   const property = `properties/${propertyId}`
 
   try {
-    async function totals(startDate: string, endDate: string) {
-      const [resp] = await ga!.runReport({
+    async function totals(startDate: string, endDate: string): Promise<AnalyticsTotals> {
+      const [resp] = await analytics.runReport({
         property,
         dateRanges: [{ startDate, endDate }],
         metrics: CORE.map((name) => ({ name })),
       })
       const vals = resp.rows?.[0]?.metricValues ?? []
-      const out: Record<string, number> = {}
-      CORE.forEach((m, i) => (out[m] = n(vals[i]?.value)))
+      const out = emptyTotals()
+      CORE.forEach((metric, index) => {
+        out[metric] = n(vals[index]?.value)
+      })
       return out
     }
 
-    const [cur, prev, rt, pagesResp, srcResp] = await Promise.all([
-      totals('7daysAgo', 'today'),
-      totals('14daysAgo', '8daysAgo'),
-      ga.runRealtimeReport({ property, metrics: [{ name: 'activeUsers' }] }).then(
-        ([r]) => n(r.rows?.[0]?.metricValues?.[0]?.value),
+    const [current, previous, realtime, pagesResp, channelsResp] = await Promise.all([
+      totals('6daysAgo', 'today'),
+      totals('13daysAgo', '7daysAgo'),
+      analytics.runRealtimeReport({ property, metrics: [{ name: 'activeUsers' }] }).then(
+        ([response]) => n(response.rows?.[0]?.metricValues?.[0]?.value),
         () => null,
       ),
-      ga.runReport({
+      analytics.runReport({
         property,
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '6daysAgo', endDate: 'today' }],
         dimensions: [{ name: 'pagePath' }],
         metrics: [{ name: 'screenPageViews' }],
         orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-        limit: 4,
+        limit: 8,
       }),
-      ga.runReport({
+      analytics.runReport({
         property,
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '6daysAgo', endDate: 'today' }],
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [{ name: 'sessions' }],
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-        limit: 4,
+        limit: 8,
       }),
     ])
 
-    const pages = (pagesResp[0].rows ?? [])
-      .map((r) => `${r.dimensionValues?.[0]?.value} (${n(r.metricValues?.[0]?.value)})`)
-      .join(', ')
-    const sources = (srcResp[0].rows ?? [])
-      .map((r) => `${r.dimensionValues?.[0]?.value} (${n(r.metricValues?.[0]?.value)})`)
-      .join(', ')
+    const rows = (response: {
+      rows?: Array<{
+        dimensionValues?: Array<{ value?: string | null }> | null
+        metricValues?: Array<{ value?: string | null }> | null
+      }> | null
+    }): AnalyticsRow[] =>
+      (response.rows ?? []).map((row) => ({
+        label: row.dimensionValues?.[0]?.value || '(not set)',
+        value: n(row.metricValues?.[0]?.value),
+      }))
 
-    return [
-      `Active now: ${rt ?? '—'}`,
-      `New users: ${cur.newUsers} (${arrow(pct(cur.newUsers, prev.newUsers))} vs prior 7d)`,
-      `Sessions: ${cur.sessions} (${arrow(pct(cur.sessions, prev.sessions))})`,
-      `Page views: ${cur.screenPageViews} (${arrow(pct(cur.screenPageViews, prev.screenPageViews))})`,
-      `Top pages: ${pages}`,
-      `Top sources: ${sources}`,
-    ].join('\n')
+    return {
+      configured: true,
+      activeNow: realtime,
+      current,
+      previous,
+      topPages: rows(pagesResp[0]),
+      topChannels: rows(channelsResp[0]),
+    }
   } catch {
-    return null
+    return { ...empty, error: 'Google Analytics is temporarily unavailable. Try again in a moment.' }
   }
+}
+
+export async function getTrafficDigest(): Promise<string | null> {
+  const snapshot = await getAnalyticsSnapshot()
+  if (!snapshot.configured || snapshot.error) return null
+
+  return [
+    `Active now: ${snapshot.activeNow ?? '—'}`,
+    `New users: ${snapshot.current.newUsers} (${arrow(pct(snapshot.current.newUsers, snapshot.previous.newUsers))} vs prior 7d)`,
+    `Sessions: ${snapshot.current.sessions} (${arrow(pct(snapshot.current.sessions, snapshot.previous.sessions))})`,
+    `Page views: ${snapshot.current.screenPageViews} (${arrow(pct(snapshot.current.screenPageViews, snapshot.previous.screenPageViews))})`,
+    `Top pages: ${snapshot.topPages.slice(0, 4).map((row) => `${row.label} (${row.value})`).join(', ')}`,
+    `Top sources: ${snapshot.topChannels.slice(0, 4).map((row) => `${row.label} (${row.value})`).join(', ')}`,
+  ].join('\n')
 }
