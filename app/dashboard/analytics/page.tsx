@@ -1,4 +1,11 @@
-import { getAnalyticsSnapshot, type AnalyticsRow, type AnalyticsTotals } from '@/lib/ga'
+import {
+  getAnalyticsSnapshot,
+  getSearchConsoleSnapshot,
+  type AnalyticsRow,
+  type AnalyticsTotals,
+  type SearchConsoleRow,
+  type SearchConsoleTotals,
+} from '@/lib/ga'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,8 +62,65 @@ function FunnelCall({ totals }: { totals: AnalyticsTotals }) {
   )
 }
 
+function SearchMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 16 }}>
+      <p style={{ margin: 0, color: '#64748b', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</p>
+      <p style={{ margin: '9px 0 4px', color: '#f8fafc', fontSize: 26, fontWeight: 900 }}>{value}</p>
+      <p style={{ margin: 0, color: '#64748b', fontSize: 12 }}>{detail}</p>
+    </article>
+  )
+}
+
+function SearchList({ title, rows, empty }: { title: string; rows: SearchConsoleRow[]; empty: string }) {
+  return (
+    <section style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 16 }}>
+      <h2 style={{ margin: 0, color: '#f8fafc', fontSize: 15, fontWeight: 850 }}>{title}</h2>
+      {rows.length === 0 ? <p style={{ color: '#64748b', fontSize: 13 }}>{empty}</p> : (
+        <ol style={{ margin: '14px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 9 }}>
+          {rows.map((row, index) => (
+            <li key={row.label} style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr) auto', gap: 8, alignItems: 'center', color: '#cbd5e1', fontSize: 13 }}>
+              <span style={{ color: '#475569', fontSize: 11, fontWeight: 800 }}>{index + 1}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
+              <strong style={{ color: '#f8fafc', fontSize: 12 }}>{number.format(row.clicks)} clicks</strong>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+function SearchConsolePanel({ totals, startDate, endDate, topQueries, topPages }: {
+  totals: SearchConsoleTotals
+  startDate: string
+  endDate: string
+  topQueries: SearchConsoleRow[]
+  topPages: SearchConsoleRow[]
+}) {
+  return (
+    <section style={{ marginTop: 24 }}>
+      <div style={{ marginBottom: 12 }}>
+        <p style={{ margin: 0, color: '#38bdf8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Search Console</p>
+        <h2 style={{ margin: '4px 0', color: '#f8fafc', fontSize: 18, fontWeight: 900 }}>Search demand and winning pages</h2>
+        <p style={{ margin: 0, color: '#64748b', fontSize: 12 }}>Last 7 complete Search Console days: {startDate} through {endDate}.</p>
+      </div>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 12 }}>
+        <SearchMetric label="Search clicks" value={number.format(totals.clicks)} detail="Google organic visits" />
+        <SearchMetric label="Impressions" value={number.format(totals.impressions)} detail="Times Aether appeared" />
+        <SearchMetric label="CTR" value={`${(totals.ctr * 100).toFixed(1)}%`} detail="Click-through rate" />
+        <SearchMetric label="Avg. position" value={totals.position ? totals.position.toFixed(1) : '—'} detail="Lower is better" />
+      </section>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 12 }}>
+        <SearchList title="Top Google queries" rows={topQueries} empty="No query data returned yet." />
+        <SearchList title="Top Google landing pages" rows={topPages} empty="No landing-page data returned yet." />
+      </section>
+    </section>
+  )
+}
+
 export default async function AnalyticsPage() {
-  const snapshot = await getAnalyticsSnapshot()
+  const [snapshot, searchConsole] = await Promise.all([getAnalyticsSnapshot(), getSearchConsoleSnapshot()])
 
   return (
     <main style={{ minHeight: '100vh', background: '#04040a', color: '#e2e8f0', padding: '28px 24px', fontFamily: 'Outfit, sans-serif' }}>
@@ -93,6 +157,11 @@ export default async function AnalyticsPage() {
             <RankedList title="Top viewed paths" rows={snapshot.topPages} empty="No page data returned." />
             <RankedList title="Traffic channels" rows={snapshot.topChannels} empty="No channel data returned." />
           </section>
+          {searchConsole.error ? (
+            <section style={{ marginTop: 24, border: '1px solid rgba(251,113,133,0.32)', background: 'rgba(251,113,133,0.08)', borderRadius: 10, padding: 18, color: '#fecdd3' }}>{searchConsole.error}</section>
+          ) : searchConsole.configured ? (
+            <SearchConsolePanel {...searchConsole} />
+          ) : null}
         </>
       )}
     </main>
