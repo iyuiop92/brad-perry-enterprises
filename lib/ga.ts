@@ -1,4 +1,5 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data'
+import { GoogleAuth } from 'google-auth-library'
 
 // Reads aetherhockey.com GA4 traffic. Credentials come from env so this runs
 // in Vercel without a local key file:
@@ -41,18 +42,52 @@ export interface AnalyticsSnapshot {
   topChannels: AnalyticsRow[]
 }
 
-function client(): BetaAnalyticsDataClient | null {
+export interface SearchConsoleTotals {
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number
+}
+
+export interface SearchConsoleRow extends SearchConsoleTotals {
+  label: string
+}
+
+export interface SearchConsoleSnapshot {
+  configured: boolean
+  error?: string
+  startDate: string
+  endDate: string
+  totals: SearchConsoleTotals
+  topQueries: SearchConsoleRow[]
+  topPages: SearchConsoleRow[]
+}
+
+type ServiceAccount = {
+  client_email: string
+  private_key: string
+  project_id: string
+}
+
+function serviceAccount(): ServiceAccount | null {
   const b64 = process.env.GA_SA_KEY_B64
   if (!b64) return null
   try {
     const key = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'))
-    return new BetaAnalyticsDataClient({
-      credentials: { client_email: key.client_email, private_key: key.private_key },
-      projectId: key.project_id,
-    })
+    if (!key.client_email || !key.private_key || !key.project_id) return null
+    return key
   } catch {
     return null
   }
+}
+
+function client(): BetaAnalyticsDataClient | null {
+  const key = serviceAccount()
+  if (!key) return null
+  return new BetaAnalyticsDataClient({
+    credentials: { client_email: key.client_email, private_key: key.private_key },
+    projectId: key.project_id,
+  })
 }
 
 const n = (v: string | null | undefined) => Number(v ?? 0)
@@ -162,4 +197,96 @@ export async function getTrafficDigest(): Promise<string | null> {
     `Top pages: ${snapshot.topPages.slice(0, 4).map((row) => `${row.label} (${row.value})`).join(', ')}`,
     `Top sources: ${snapshot.topChannels.slice(0, 4).map((row) => `${row.label} (${row.value})`).join(', ')}`,
   ].join('\n')
+}
+
+const emptySearchTotals = (): SearchConsoleTotals => ({
+  clicks: 0,
+  impressions: 0,
+  ctr: 0,
+  position: 0,
+})
+
+function searchDateRange() {
+  // Search Console is typically 2–3 days behind. Use complete available days,
+  // not a misleading partial "today" window.
+  const end = new Date()
+  end.setUTCDate(end.getUTCDate() - 3)
+  const start = new Date(end)
+  start.setUTCDate(start.getUTCDate() - 6)
+  const format = (date: Date) => date.toISOString().slice(0, 10)
+  return { startDate: format(start), endDate: format(end) }
+}
+
+type SearchConsoleApiRow = {
+  keys?: string[]
+  clicks?: number
+  impressions?: number
+  ctr?: number
+  position?: number
+}
+
+async function searchConsoleReport(
+  auth: GoogleAuth,
+  siteUrl: string,
+  startDate: string,
+  endDate: string,
+  dimension?: 'query' | 'page',
+) {
+  const client = await auth.getClient()
+  const response = await client.request<{ rows?: SearchConsoleApiRow[] }>({
+    url: `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+    method: 'POST',
+    data: {
+      startDate,
+      endDate,
+      ...(dimension ? { dimensions: [dimension], rowLimit: 8 } : {}),
+    },
+  })
+  return response.data.rows ?? []
+}
+
+export async function getSearchConsoleSnapshot(): Promise<SearchConsoleSnapshot> {
+  const key = serviceAccount()
+  const siteUrl = process.env.SEARCH_CONSOLE_SITE_URL || 'sc-domain:aetherhockey.com'
+  const { startDate, endDate } = searchDateRange()
+  const empty: SearchConsoleSnapshot = {
+    configured: Boolean(key),
+    startDate,
+    endDate,
+    totals: emptySearchTotals(),
+    topQueries: [],
+    topPages: [],
+  }
+  if (!key) return empty
+
+  try {
+    const auth = new GoogleAuth({
+      credentials: key,
+      scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+    })
+    const [totalRows, queryRows, pageRows] = await Promise.all([
+      searchConsoleReport(auth, siteUrl, startDate, endDate),
+      searchConsoleReport(auth, siteUrl, startDate, endDate, 'query'),
+      searchConsoleReport(auth, siteUrl, startDate, endDate, 'page'),
+    ])
+    const row = (value?: SearchConsoleApiRow): SearchConsoleTotals => ({
+      clicks: value?.clicks ?? 0,
+      impressions: value?.impressions ?? 0,
+      ctr: value?.ctr ?? 0,
+      position: value?.position ?? 0,
+    })
+    const rows = (values: SearchConsoleApiRow[]): SearchConsoleRow[] => values.map((value) => ({
+      label: value.keys?.[0] || '(not set)',
+      ...row(value),
+    }))
+
+    return {
+      ...empty,
+      totals: row(totalRows[0]),
+      topQueries: rows(queryRows),
+      topPages: rows(pageRows),
+    }
+  } catch {
+    return { ...empty, error: 'Search Console is temporarily unavailable. Try again in a moment.' }
+  }
 }
