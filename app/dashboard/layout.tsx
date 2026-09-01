@@ -72,6 +72,18 @@ export default async function DashboardLayout({
         >
           Analytics
         </a>
+        <a
+          className="dashboard-nav-link"
+          href="/dashboard/content"
+          style={{
+            height: 26, padding: '0 12px', borderRadius: 5,
+            display: 'flex', alignItems: 'center',
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+            color: '#64748b', textDecoration: 'none',
+          }}
+        >
+          Content
+        </a>
         <details className="dashboard-mobile-menu">
           <summary>Menu</summary>
           <div className="dashboard-mobile-menu-panel">
@@ -79,6 +91,7 @@ export default async function DashboardLayout({
             <a href="/dashboard#idea-capture">Idea</a>
             <a href="/dashboard/health">Health</a>
             <a href="/dashboard/analytics">Analytics</a>
+            <a href="/dashboard/content">Content</a>
           </div>
         </details>
       </nav>
