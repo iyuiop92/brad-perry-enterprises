@@ -102,6 +102,35 @@ export interface DailyState {
   updated_at: string
 }
 
+export type ContentType = 'article' | 'video' | 'social'
+export type ContentStatus = 'idea' | 'draft' | 'ready' | 'scheduled' | 'posted'
+export type ContentPlatform =
+  | 'instagram'
+  | 'tiktok'
+  | 'youtube'
+  | 'facebook'
+  | 'threads'
+  | 'linkedin'
+
+export interface ContentItem {
+  id: string
+  title: string
+  content_type: ContentType
+  status: ContentStatus
+  brand: string
+  caption: string
+  platforms: ContentPlatform[]
+  media_url: string | null
+  scheduled_at: string | null
+  posted_at: string | null
+  blotato_ids: Record<string, string>
+  published_urls: Record<string, string>
+  notes: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export type VideoIdeaStatus = 'idea' | 'research' | 'planned' | 'filmed' | 'edited' | 'published'
 
 export interface VideoIdea {
