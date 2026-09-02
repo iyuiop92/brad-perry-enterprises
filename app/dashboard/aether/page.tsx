@@ -7,7 +7,7 @@ const AETHER_ADMIN = 'https://www.aetherhockey.com'
 
 type Pulse = {
   updated_at: string
-  members: { total: number; free: number; paid: number; player: number; coach: number; business: number }
+  members: { total: number; free: number; paid: number; comped: number; player: number; coach: number; business: number }
   new_signups_7d: number
   est_mrr: number
   unread_member_messages: number
@@ -83,8 +83,9 @@ export default function AetherSpokePage() {
         <>
           {/* Top stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 14 }}>
-            <Stat label="Paid members" value={pulse.members.paid} accent />
+            <Stat label="Paying members" value={pulse.members.paid} accent />
             <Stat label="Est. MRR" value={`$${pulse.est_mrr.toLocaleString()}`} accent />
+            <Stat label="Comped" value={pulse.members.comped} />
             <Stat label="Total members" value={pulse.members.total} />
             <Stat label="New signups · 7d" value={pulse.new_signups_7d} />
             <Stat label="Needs your reply" value={pulse.unread_member_messages} alert={pulse.unread_member_messages > 0} />

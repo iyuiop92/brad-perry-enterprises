@@ -39,12 +39,20 @@ export async function GET() {
   const since = sevenDaysAgoISO()
 
   try {
+    // A real payer has a Stripe subscription. Comped members hold a paid tier
+    // with no stripe_subscription_id — they must NOT count as paid or as MRR.
+    const notNullSub = (q: { not: (a: string, b: string, c: null) => unknown }) =>
+      q.not('stripe_subscription_id', 'is', null)
+
     const [
       total,
       free,
       player,
       coach,
       business,
+      payingPlayer,
+      payingCoach,
+      payingBusiness,
       newSignups7d,
       unreadMessages,
       askCoach7d,
@@ -55,6 +63,9 @@ export async function GET() {
       count(supabase, (q) => q.eq('tier', 'player')),
       count(supabase, (q) => q.eq('tier', 'coach')),
       count(supabase, (q) => q.eq('tier', 'business')),
+      count(supabase, (q) => notNullSub(q.eq('tier', 'player'))),
+      count(supabase, (q) => notNullSub(q.eq('tier', 'coach'))),
+      count(supabase, (q) => notNullSub(q.eq('tier', 'business'))),
       count(supabase, (q) => q.gte('created_at', since)),
       // member_messages: a member wrote and admin hasn't read it yet = needs Brad
       supabase
@@ -77,13 +88,17 @@ export async function GET() {
         .then(({ data }) => data ?? []),
     ])
 
-    const paid = player + coach + business
+    // Paid = actually paying (has a Stripe sub). Comped = paid tier, no sub.
+    const paid = payingPlayer + payingCoach + payingBusiness
+    const comped = player + coach + business - paid
     const estMrr =
-      player * TIER_PRICE.player + coach * TIER_PRICE.coach + business * TIER_PRICE.business
+      payingPlayer * TIER_PRICE.player +
+      payingCoach * TIER_PRICE.coach +
+      payingBusiness * TIER_PRICE.business
 
     return NextResponse.json({
       updated_at: new Date().toISOString(),
-      members: { total, free, paid, player, coach, business },
+      members: { total, free, paid, comped, player, coach, business },
       new_signups_7d: newSignups7d,
       est_mrr: estMrr,
       unread_member_messages: unreadMessages,
