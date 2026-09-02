@@ -38,6 +38,7 @@ const EMPTY: Partial<ContentItem> = {
   content_type: 'social',
   status: 'idea',
   brand: 'aether',
+  requested_by: null,
   caption: '',
   platforms: [],
   media_url: '',
@@ -101,7 +102,7 @@ function fromLocalInput(local: string): string | null {
 export default function ContentBoardPage() {
   const [items, setItems] = useState<ContentItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'pipeline' | 'calendar'>('pipeline')
+  const [view, setView] = useState<'pipeline' | 'calendar' | 'requests'>('pipeline')
   const [editing, setEditing] = useState<Partial<ContentItem> | null>(null)
   const [saving, setSaving] = useState(false)
   const [month, setMonth] = useState(() => {
@@ -128,6 +129,7 @@ export default function ContentBoardPage() {
       content_type: editing.content_type,
       status: editing.status,
       brand: editing.brand,
+      requested_by: editing.requested_by ?? null,
       caption: editing.caption,
       platforms: editing.platforms,
       media_url: editing.media_url,
@@ -194,7 +196,7 @@ export default function ContentBoardPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div style={{ display: 'flex', background: 'rgba(13,13,26,0.6)', borderRadius: 8, padding: 3, border: '1px solid rgba(0,180,255,0.1)' }}>
-            {(['pipeline', 'calendar'] as const).map((v) => (
+            {(['pipeline', 'calendar', 'requests'] as const).map((v) => (
               <button key={v} onClick={() => setView(v)}
                 style={{
                   padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
@@ -217,8 +219,10 @@ export default function ContentBoardPage() {
         <div style={{ color: '#64748b', fontSize: 13, padding: 24 }}>Loading…</div>
       ) : view === 'pipeline' ? (
         <PipelineView byStatus={byStatus} onOpen={setEditing} onSetStatus={setStatus} />
-      ) : (
+      ) : view === 'calendar' ? (
         <CalendarView items={items} month={month} setMonth={setMonth} onOpen={setEditing} />
+      ) : (
+        <RequestsView items={items} onOpen={setEditing} />
       )}
 
       {editing && (
@@ -269,6 +273,9 @@ function Card({ item, onOpen }: { item: ContentItem; onOpen: (i: ContentItem) =>
         <TypeBadge type={item.content_type} />
       </div>
       <PlatformChips platforms={item.platforms} />
+      {item.requested_by && (
+        <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 700 }}>For {item.requested_by}</span>
+      )}
       {item.scheduled_at && (
         <span style={{ fontSize: 10, color: ACCENT, fontWeight: 700 }}>
           {phoenixDayKey(item.scheduled_at)} · {shortTime(item.scheduled_at)}
@@ -405,6 +412,46 @@ function CalendarView({
   )
 }
 
+function RequestsView({ items, onOpen }: { items: ContentItem[]; onOpen: (i: ContentItem) => void }) {
+  const requests = items.filter((i) => i.requested_by && i.requested_by.trim())
+
+  if (requests.length === 0) {
+    return (
+      <div style={{ border: '1px dashed rgba(0,180,255,0.15)', borderRadius: 10, padding: 28, textAlign: 'center', color: '#64748b', fontSize: 13, lineHeight: 1.6 }}>
+        No member requests yet.
+        <br />
+        When a member tells you what they want, add it with New and fill in Requested by, or set Requested by on any existing card. It shows up here so nothing a paying member asks for ever slips.
+      </div>
+    )
+  }
+
+  const byMember: Record<string, ContentItem[]> = {}
+  for (const r of requests) {
+    const k = (r.requested_by as string).trim()
+    ;(byMember[k] ??= []).push(r)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {Object.entries(byMember).map(([member, list]) => (
+        <div key={member}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: ACCENT, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8, fontFamily: 'var(--font-outfit)' }}>
+            {member} ({list.length})
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {list.map((it) => (
+              <div key={it.id} style={{ width: 240, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <Card item={it} onOpen={onOpen} />
+                <span style={{ fontSize: 10, color: statusMeta(it.status).color, fontWeight: 700 }}>{statusMeta(it.status).label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const navBtn: React.CSSProperties = {
   width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
   background: 'rgba(13,13,26,0.6)', border: '1px solid rgba(0,180,255,0.15)',
@@ -468,6 +515,11 @@ function EditModal({
             <label style={labelStyle}>Brand</label>
             <input value={editing.brand ?? ''} onChange={(e) => set({ brand: e.target.value })} placeholder="aether" style={inputStyle} />
           </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Requested by (member)</label>
+          <input value={editing.requested_by ?? ''} onChange={(e) => set({ requested_by: e.target.value })} placeholder="Leave blank unless a member asked for this" style={inputStyle} />
         </div>
 
         <div>

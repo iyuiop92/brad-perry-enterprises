@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       content_type,
       status,
       brand: typeof body.brand === 'string' && body.brand.trim() ? body.brand.trim() : 'aether',
+      requested_by: typeof body.requested_by === 'string' && body.requested_by.trim() ? body.requested_by.trim() : null,
       caption: typeof body.caption === 'string' ? body.caption : '',
       platforms,
       media_url: typeof body.media_url === 'string' && body.media_url.trim() ? body.media_url.trim() : null,

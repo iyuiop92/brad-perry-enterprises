@@ -9,6 +9,7 @@ create table if not exists public.bpe_content_items (
   content_type  text not null default 'social'   check (content_type in ('article','video','social')),
   status        text not null default 'idea'      check (status in ('idea','draft','ready','scheduled','posted')),
   brand         text not null default 'aether',
+  requested_by  text,                               -- member who asked for this piece (Member Requests view)
   caption       text default '',
   platforms     text[] not null default '{}',      -- instagram, tiktok, youtube, facebook, threads, linkedin
   media_url     text,

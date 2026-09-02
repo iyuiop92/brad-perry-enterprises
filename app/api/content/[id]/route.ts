@@ -30,6 +30,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (body.status === 'posted') update.posted_at = new Date().toISOString()
   }
   if (typeof body.brand === 'string' && body.brand.trim()) update.brand = body.brand.trim()
+  if ('requested_by' in body) update.requested_by = body.requested_by?.trim() || null
   if (typeof body.caption === 'string') update.caption = body.caption
   if (Array.isArray(body.platforms)) {
     update.platforms = body.platforms.filter((p: ContentPlatform) => PLATFORMS.includes(p))
