@@ -118,6 +118,7 @@ export interface ContentItem {
   content_type: ContentType
   status: ContentStatus
   brand: string
+  requested_by: string | null
   caption: string
   platforms: ContentPlatform[]
   media_url: string | null
