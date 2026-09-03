@@ -132,6 +132,23 @@ export interface ContentItem {
   updated_at: string
 }
 
+export type RedditStatus = 'idea' | 'scripted' | 'shot' | 'posted'
+
+export interface RedditEngineItem {
+  id: string
+  subreddit: string
+  post_title: string
+  post_url: string
+  signal: string
+  video_topic: string
+  script: string
+  status: RedditStatus
+  content_id: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export type VideoIdeaStatus = 'idea' | 'research' | 'planned' | 'filmed' | 'edited' | 'published'
 
 export interface VideoIdea {

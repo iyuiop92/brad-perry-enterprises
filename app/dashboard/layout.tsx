@@ -86,6 +86,18 @@ export default async function DashboardLayout({
         </a>
         <a
           className="dashboard-nav-link"
+          href="/dashboard/reddit"
+          style={{
+            height: 26, padding: '0 12px', borderRadius: 5,
+            display: 'flex', alignItems: 'center',
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+            color: '#64748b', textDecoration: 'none',
+          }}
+        >
+          Reddit
+        </a>
+        <a
+          className="dashboard-nav-link"
           href="/dashboard/aether"
           style={{
             height: 26, padding: '0 12px', borderRadius: 5,
@@ -116,6 +128,7 @@ export default async function DashboardLayout({
             <a href="/dashboard/health">Health</a>
             <a href="/dashboard/analytics">Analytics</a>
             <a href="/dashboard/content">Content</a>
+            <a href="/dashboard/reddit">Reddit</a>
             <a href="/dashboard/aether">Aether</a>
             <a href="/dashboard/vault">Vault</a>
           </div>
