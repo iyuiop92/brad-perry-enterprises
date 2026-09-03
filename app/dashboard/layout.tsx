@@ -96,6 +96,18 @@ export default async function DashboardLayout({
         >
           Aether
         </a>
+        <a
+          className="dashboard-nav-link"
+          href="/dashboard/vault"
+          style={{
+            height: 26, padding: '0 12px', borderRadius: 5,
+            display: 'flex', alignItems: 'center',
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+            color: '#64748b', textDecoration: 'none',
+          }}
+        >
+          Vault
+        </a>
         <details className="dashboard-mobile-menu">
           <summary>Menu</summary>
           <div className="dashboard-mobile-menu-panel">
@@ -105,6 +117,7 @@ export default async function DashboardLayout({
             <a href="/dashboard/analytics">Analytics</a>
             <a href="/dashboard/content">Content</a>
             <a href="/dashboard/aether">Aether</a>
+            <a href="/dashboard/vault">Vault</a>
           </div>
         </details>
       </nav>
