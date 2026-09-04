@@ -50,6 +50,7 @@ export default function DashboardVoiceDock() {
   const silenceTimerRef = useRef<number | null>(null)
   const manualSpeechStopRef = useRef(false)
   const deepPendingRef = useRef(false)
+  const turnRef = useRef(0)
   const queueRef = useRef<{ text: string; attachments: PendingImage[] }[]>([])
 
   useEffect(() => { deepPendingRef.current = deepPending }, [deepPending])
@@ -175,19 +176,26 @@ export default function DashboardVoiceDock() {
   // Run one utterance against the real bridge, then drain any messages Brad
   // queued while it was working — answered in the order he sent them.
   const runUtterance = async (raw: string, attachments: PendingImage[]) => {
+    const turn = ++turnRef.current
     const target = route(raw, activeRef.current)
     try {
       for (const agent of target.agents) {
+        if (turn !== turnRef.current) return
         activeRef.current = agent
         setActive(agent)
         const reply = await deepReply(agent, target.text, attachments)
+        if (turn !== turnRef.current) return
         push({ who: agent, text: reply })
         setPhase('speaking')
         await speak(agent, reply)
+        if (turn !== turnRef.current) return
       }
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'The real agent could not be reached.')
+      if (turn === turnRef.current) {
+        setError(cause instanceof Error ? cause.message : 'The real agent could not be reached.')
+      }
     } finally {
+      if (turn !== turnRef.current) return
       const next = queueRef.current.shift()
       setQueuedCount(queueRef.current.length)
       if (next) {
@@ -336,6 +344,10 @@ export default function DashboardVoiceDock() {
   }
 
   const interrupt = () => {
+    turnRef.current += 1
+    queueRef.current = []
+    setQueuedCount(0)
+    setDeepPending(false)
     audioRef.current?.pause()
     audioRef.current = null
     audioSourceRef.current?.stop()

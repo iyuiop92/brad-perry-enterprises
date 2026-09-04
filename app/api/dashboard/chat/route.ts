@@ -17,6 +17,16 @@ const responseText = (data: any) => typeof data?.output_text === 'string'
   ? data.output_text
   : (Array.isArray(data?.output) ? data.output : []).flatMap((item: any) => Array.isArray(item?.content) ? item.content : []).map((item: any) => item?.text ?? '').filter(Boolean).join('\n')
 
+// The Command Room is the cross-surface conversation log. Executive chat keeps
+// its scoped UI history, then mirrors completed turns here so voice, Bridge,
+// and executive surfaces share the same live context without waking the worker.
+async function mirrorToCommandRoom(supabase: any, role: 'user' | 'claude' | 'codex', content: string) {
+  const { error } = await supabase
+    .from('agent_bridge_messages')
+    .insert({ thread: 'main', role, content, status: 'done' })
+  if (error) console.error('command-room-mirror', error.message)
+}
+
 async function conversation(supabase: any, actor: string, workspaceId: string | null) {
   const key = scopeKey(workspaceId)
   const { data } = await supabase.from('bpe_chat_conversations').select('id').eq('actor_scope', actor).eq('scope_key', key).maybeSingle()
@@ -52,12 +62,13 @@ export async function POST(request: Request) {
   try {
     const item = await conversation(supabase, actor, workspaceId)
     const { data: user, error } = await supabase.from('bpe_chat_messages').insert({ conversation_id: item.id, role: 'user', content }).select('id').single(); if (error) throw error
+    await mirrorToCommandRoom(supabase, 'user', content)
     const candidate = actionCandidate(content)
     if (candidate) { const { error: proposalError } = await supabase.from('bpe_chat_action_proposals').insert({ conversation_id: item.id, message_id: user.id, agent, ...candidate, summary: content.slice(0, 500), details: { source: 'chat_request', execution: 'disabled' } }); if (proposalError) throw proposalError }
     const { messages } = await snapshot(supabase, item.id)
     const history = messages.slice(-36).map((message: any) => ({ role: message.role === 'assistant' ? 'assistant' : 'user', content: message.content }))
     const system = buildAgentSystemPrompt(agent, await getDashboardContext(supabase)) + policy
-    const save = async (text: string) => { if (!text.trim()) return; const { error: saveError } = await supabase.from('bpe_chat_messages').insert({ conversation_id: item.id, role: 'assistant', agent, content: text.trim() }); if (saveError) throw saveError; await supabase.from('bpe_chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', item.id) }
+    const save = async (text: string) => { if (!text.trim()) return; const { error: saveError } = await supabase.from('bpe_chat_messages').insert({ conversation_id: item.id, role: 'assistant', agent, content: text.trim() }); if (saveError) throw saveError; await mirrorToCommandRoom(supabase, agent === 'wendy' ? 'claude' : 'codex', text.trim()); await supabase.from('bpe_chat_conversations').update({ updated_at: new Date().toISOString() }).eq('id', item.id) }
     const headers = { 'x-bpe-conversation-id': item.id, 'x-bpe-request-id': requestId, 'Cache-Control': 'no-store' }
     if (agent === 'ellie') {
       const apiKey = process.env.OPENAI_API_KEY_BPE ?? process.env.OPENAI_API_KEY; if (!apiKey) return NextResponse.json({ error: 'Ellie is not configured.', request_id: requestId }, { status: 503 })

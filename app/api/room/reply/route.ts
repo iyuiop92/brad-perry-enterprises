@@ -22,6 +22,24 @@ const VOICE_RULES = `You are speaking OUT LOUD in a live voice meeting with Brad
 type Message = { role: 'user' | 'assistant'; content: string }
 type Attachment = { filename?: string; mediaType?: string; url?: string }
 
+async function roundtableHistory(supabase: any) {
+  const { data, error } = await supabase
+    .from('agent_bridge_messages')
+    .select('role, content')
+    .eq('thread', 'main')
+    .eq('status', 'done')
+    .order('created_at', { ascending: false })
+    .limit(24)
+  if (error || !data?.length) return ''
+  const name = (role: string) => role === 'user' ? 'Brad' : role === 'claude' ? 'Wendy' : role === 'codex' ? 'Ellie' : 'System'
+  return data.reverse().map((row: any) => `${name(row.role)}: ${String(row.content).slice(0, 1400)}`).join('\n')
+}
+
+async function recordRoomMessage(supabase: any, role: 'user' | 'claude' | 'codex', content: string) {
+  const { error } = await supabase.from('agent_bridge_messages').insert({ thread: 'main', role, content, status: 'done' })
+  if (error) throw new Error(`Could not record room message: ${error.message}`)
+}
+
 async function wendyReply(text: string, history: Message[], system: string, attachments: Attachment[]): Promise<string> {
   const { text: reply } = await generateText({
     model: anthropic('claude-haiku-4-5-20251001'),
@@ -79,19 +97,29 @@ export async function POST(req: NextRequest) {
     history?: Message[]
     attachments?: Attachment[]
   }
+  if (agent !== 'wendy' && agent !== 'ellie') return NextResponse.json({ error: 'agent must be wendy or ellie' }, { status: 400 })
   if (!text?.trim()) return NextResponse.json({ error: 'text required' }, { status: 400 })
 
   const { supabase, unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
   try {
-    const dashboardContext = await getDashboardContext(supabase)
-    const system = `${buildAgentSystemPrompt(agent, dashboardContext)}\n\n${VOICE_RULES}`
+    const [dashboardContext, sharedHistory] = await Promise.all([
+      getDashboardContext(supabase),
+      roundtableHistory(supabase),
+    ])
+    const transcript = sharedHistory
+      ? `\n\nSHARED COMMAND ROOM TRANSCRIPT:\n${sharedHistory}\n\nThis is one team conversation. Build on earlier answers when useful. Do not repeat them.`
+      : ''
+    const system = `${buildAgentSystemPrompt(agent, dashboardContext)}\n\n${VOICE_RULES}${transcript}`
+    await recordRoomMessage(supabase, 'user', text)
     const reply =
       agent === 'ellie'
         ? await ellieReply(text, history ?? [], system, attachments ?? [])
         : await wendyReply(text, history ?? [], system, attachments ?? [])
-    return NextResponse.json({ reply: reply || 'Sorry, I did not catch that.' })
+    const spokenReply = reply || 'Sorry, I did not catch that.'
+    await recordRoomMessage(supabase, agent === 'ellie' ? 'codex' : 'claude', spokenReply)
+    return NextResponse.json({ reply: spokenReply })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'AI error'
     return NextResponse.json({ error: msg }, { status: 500 })

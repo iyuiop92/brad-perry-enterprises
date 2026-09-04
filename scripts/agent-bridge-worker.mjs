@@ -112,7 +112,7 @@ const AGENTS = {
     role: 'claude',
     // In the BPE dashboard bridge this agent is Wendy (not Jack).
     persona: 'You are Wendy, Brad\'s executive partner, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Wendy. Never call yourself Jack.',
-    build: (prompt, sessionId, addDirs = []) => {
+    build: (prompt, sessionId, addDirs = [], newId = null) => {
       const args = []
       if (BYPASS_PERMISSIONS) args.push('--permission-mode', 'bypassPermissions')
       // Session resumption: first turn uses --session-id to create a named session;
@@ -121,7 +121,7 @@ const AGENTS = {
       if (sessionId) {
         args.push('-r', sessionId)
       } else {
-        args.push('--session-id', randomUUID())
+        args.push('--session-id', newId || randomUUID())
       }
       args.push('-p', prompt, '--output-format', 'text')
       for (const d of [...ADD_DIRS, ...addDirs]) args.push('--add-dir', d)
@@ -157,7 +157,7 @@ const TEAM_AND_ROUTING = `TEAM & ROUTING (single source of truth, identical acro
 - Single source of truth for work = the bpe_tasks board in this dashboard. The old AI_Team agent_tasks relay is retired.`
 
 // Pull a compact live snapshot of the dashboard board so bridge agents share the
-// same context as the dashboard chat agents. Also includes last 6 agent replies
+// same context as the dashboard chat agents. Also includes the command-room tail
 // from agent_bridge_messages for cross-session awareness. Never throws — returns '' on error.
 async function buildTeamContext() {
   try {
@@ -166,12 +166,11 @@ async function buildTeamContext() {
       supabase.from('bpe_tasks').select('title, status, priority, brand, notes').neq('status', 'done'),
       supabase.from('bpe_inbox').select('content').order('created_at', { ascending: false }).limit(6),
       supabase
-        .from('agent_bridge_messages')
-        .select('role, content, created_at')
-        .neq('role', 'user')
-        .eq('status', 'done')
-        .order('created_at', { ascending: false })
-        .limit(6),
+      .from('agent_bridge_messages')
+      .select('role, content, created_at')
+      .eq('status', 'done')
+      .order('created_at', { ascending: false })
+      .limit(12),
     ])
     const rank = { high: 0, medium: 1, low: 2 }
     const taskLines = (tasks ?? [])
@@ -181,13 +180,14 @@ async function buildTeamContext() {
       .join('\n')
     const inboxLines = (inbox ?? []).map((i) => `  - ${i.content}`).join('\n')
     const replyLines = (recentReplies ?? [])
-      .map((r) => `  - [${r.role}] ${String(r.content).slice(0, 200)}`)
+      .reverse()
+      .map((r) => `  - [${r.role === 'user' ? 'Brad' : r.role === 'claude' ? 'Wendy' : r.role === 'codex' ? 'Ellie' : r.role}] ${String(r.content).slice(0, 280)}`)
       .join('\n')
 
     return [
       `LIVE DASHBOARD BOARD for ${today} (bpe_tasks, the single source of truth):\n${taskLines || '  (no open tasks)'}`,
       `\nRECENT INBOX / NOTES:\n${inboxLines || '  (empty)'}`,
-      replyLines ? `\nRECENT BRIDGE REPLIES (last 6 agent messages, for cross-session awareness):\n${replyLines}` : '',
+      replyLines ? `\nRECENT COMMAND ROOM (cross-surface shared context):\n${replyLines}` : '',
     ].join('')
   } catch {
     return ''
@@ -225,9 +225,9 @@ function parseCodexSessionId(jsonlText) {
 }
 
 // Run one agent CLI call, return { ok, text, rawStdout }
-function runAgent(agent, prompt, sessionId, addDirs = []) {
+function runAgent(agent, prompt, sessionId, addDirs = [], newId = null) {
   return new Promise((resolve) => {
-    const spec = agent.build(prompt, sessionId, addDirs)
+    const spec = agent.build(prompt, sessionId, addDirs, newId)
     let out = ''
     let err = ''
     let done = false
@@ -395,44 +395,43 @@ async function handle(userRow) {
         prompt = `${prompt}\n\nYou are collaborating with your teammate in a shared room. ${teammate}\n\nBuild on or respectfully challenge their answer with your own distinct perspective. Do not just repeat what they said. Address them by name if you disagree.`
       }
 
-      const result = await runAgent(agent, prompt, existingSessionId, addDirs)
+      let activeSessionId = existingSessionId
+      let freshId = existingSessionId ? null : randomUUID()
+      let result = await runAgent(agent, prompt, activeSessionId, addDirs, freshId)
 
-      if (!result.ok) {
-        if (existingSessionId) {
-          // Stale session — clear it and return a friendly nudge to retry.
+      // A stale CLI session should not force Brad to resend the same thought.
+      // Clear it and retry once in a fresh session before surfacing an error.
+      if (!result.ok && activeSessionId) {
+        log(`  ${key} resume failed (${result.text.slice(0, 80)}) — retrying fresh`)
+        if (sessions[userRow.thread]) {
           delete sessions[userRow.thread][key]
           if (Object.keys(sessions[userRow.thread]).length === 0) delete sessions[userRow.thread]
           saveSessions(sessions)
-          const friendly = staleSessionError(key)
-          await insertReply(userRow.thread, agent.role, friendly, 'error')
-          anyError = true
-          lastError = friendly
-          log(`  ${key} stale session cleared`)
-        } else {
-          // No existing session — surface a proper error message.
-          const friendly = friendlyAgentError(key, result.text)
-          await insertReply(userRow.thread, agent.role, friendly, 'error')
-          anyError = true
-          lastError = friendly
-          log(`  ${key} error:`, result.text.slice(0, 160))
         }
+        activeSessionId = null
+        freshId = randomUUID()
+        result = await runAgent(agent, prompt, null, addDirs, freshId)
+      }
+
+      if (!result.ok) {
+        const friendly = friendlyAgentError(key, result.text)
+        await insertReply(userRow.thread, agent.role, friendly, 'error')
+        anyError = true
+        lastError = friendly
+        log(`  ${key} error:`, result.text.slice(0, 160))
       } else {
         // Success — store or update the session ID.
         if (!sessions[userRow.thread]) sessions[userRow.thread] = {}
         if (key === 'claude') {
           // For a new session, extract the ID we generated in build() via --session-id.
           // For a resumed session (-r), the session ID is unchanged.
-          if (!existingSessionId) {
-            const spec = agent.build(prompt, null, addDirs)
-            const newId = extractClaudeSessionId(spec.args)
-            if (newId) {
-              sessions[userRow.thread][key] = newId
-              log(`  claude new session: ${newId}`)
-            }
+          if (!activeSessionId && freshId) {
+            sessions[userRow.thread][key] = freshId
+            log(`  claude new session: ${freshId}`)
           }
         } else if (key === 'codex') {
           // For Codex, parse the session ID from the JSONL stdout if this was a fresh exec.
-          if (!existingSessionId) {
+          if (!activeSessionId) {
             const parsedId = parseCodexSessionId(result.rawStdout)
             if (parsedId) {
               sessions[userRow.thread][key] = parsedId
