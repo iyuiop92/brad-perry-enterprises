@@ -134,6 +134,22 @@ export interface ContentItem {
 
 export type RedditStatus = 'idea' | 'scripted' | 'shot' | 'posted'
 
+export type RedditOppStatus = 'spotted' | 'drafted' | 'posted'
+
+export interface RedditOpportunity {
+  id: string
+  subreddit: string
+  question: string
+  post_url: string
+  context: string
+  draft_reply: string
+  status: RedditOppStatus
+  posted_at: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export interface RedditEngineItem {
   id: string
   subreddit: string
