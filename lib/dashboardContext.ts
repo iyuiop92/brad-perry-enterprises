@@ -40,7 +40,7 @@ export async function getDashboardContext(supabase: Supabase) {
     { data: dailyState },
     { data: healthLogs },
     { data: inboxItems },
-    { data: bridgeReplies },
+    { data: bridgeMessages },
   ] = await Promise.all([
     supabase.from('bpe_workspaces').select('id, name, slug, type, color').order('sort_order'),
     supabase.from('bpe_tasks').select('id, title, status, priority, phase, brand, workspace_id, notes, updated_at').neq('status', 'done'),
@@ -50,10 +50,9 @@ export async function getDashboardContext(supabase: Supabase) {
     supabase
       .from('agent_bridge_messages')
       .select('role, content, created_at')
-      .neq('role', 'user')
       .eq('status', 'done')
       .order('created_at', { ascending: false })
-      .limit(6),
+      .limit(12),
   ])
 
   const openTasks = tasks ?? []
@@ -80,8 +79,9 @@ export async function getDashboardContext(supabase: Supabase) {
   const latestNutrition = (healthLogs ?? []).find(log => log.entry_type === 'nutrition')
   const latestWorkout = (healthLogs ?? []).find(log => log.entry_type === 'workout')
   const inboxLines = (inboxItems ?? []).map(item => `- ${item.content}`).join('\n')
-  const bridgeReplyLines = (bridgeReplies ?? [])
-    .map(r => `- [${r.role}] ${String(r.content).slice(0, 200)}`)
+  const bridgeReplyLines = (bridgeMessages ?? [])
+    .reverse()
+    .map(r => `- [${r.role === 'user' ? 'Brad' : r.role === 'claude' ? 'Wendy' : r.role === 'codex' ? 'Ellie' : r.role}] ${String(r.content).slice(0, 280)}`)
     .join('\n')
 
   const dailyLines = [

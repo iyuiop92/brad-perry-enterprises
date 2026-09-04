@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/require-auth'
 
 // TTS for the voice room, routed to each agent's own ElevenLabs voice.
 // Wendy = ELEVENLABS_VOICE_ID_WENDY, Ellie = ELEVENLABS_VOICE_ID_ELLIE.
 
 export async function POST(req: NextRequest) {
-  const { text, agent } = (await req.json()) as { text: string; agent: 'wendy' | 'ellie' }
-  if (!text?.trim()) return NextResponse.json({ error: 'text required' }, { status: 400 })
+  const { unauthorized } = await requireAuth()
+  if (unauthorized) return unauthorized
+
+  const body = await req.json().catch(() => null)
+  const text = typeof body?.text === 'string' ? body.text.trim() : ''
+  const agent = body?.agent
+  if (!text) return NextResponse.json({ error: 'text required' }, { status: 400 })
+  if (text.length > 4_000) return NextResponse.json({ error: 'text is too long for speech' }, { status: 413 })
+  if (agent !== 'wendy' && agent !== 'ellie') return NextResponse.json({ error: 'agent must be wendy or ellie' }, { status: 400 })
 
   const apiKey = process.env.ELEVENLABS_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'ELEVENLABS_API_KEY not set' }, { status: 500 })
@@ -33,5 +41,5 @@ export async function POST(req: NextRequest) {
   }
 
   const audio = await res.arrayBuffer()
-  return new NextResponse(audio, { headers: { 'Content-Type': 'audio/mpeg' } })
+  return new NextResponse(audio, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' } })
 }
