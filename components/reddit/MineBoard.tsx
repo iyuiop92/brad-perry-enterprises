@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useBoardMove } from './useBoardMove'
 import type { ContentPlatform, RedditEngineItem, RedditStatus } from '@/lib/types'
 
 const ACCENT = '#00b4ff'
@@ -54,6 +55,7 @@ export default function MineBoard() {
   const [draft, setDraft] = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
+  const board = useBoardMove('/api/reddit-engine', setItems)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/reddit-engine')
@@ -262,6 +264,7 @@ export default function MineBoard() {
         </div>
 
         {/* ── Columns ── */}
+        {board.error && <p role="alert" style={{ color: '#f87171' }}>{board.error}</p>}
         {loading ? (
           <p style={{ color: '#64748b', fontSize: 13 }}>Loading…</p>
         ) : (
@@ -274,7 +277,11 @@ export default function MineBoard() {
             }}
           >
             {STATUS_COLUMNS.map((col) => (
-              <div key={col.key}>
+              <div key={col.key}
+                style={{ minHeight: 140 }}
+                onDragOver={event => { if (board.draggedId && !board.moving) { event.preventDefault(); event.dataTransfer.dropEffect = 'move' } }}
+                onDrop={event => { event.preventDefault(); if (board.draggedId && items.some(item => item.id === board.draggedId && item.status !== col.key)) void board.move(board.draggedId, col.key); board.setDraggedId(null) }}
+              >
                 <div
                   style={{
                     display: 'flex',
@@ -306,6 +313,9 @@ export default function MineBoard() {
                     return (
                       <div
                         key={it.id}
+                        draggable={!board.moving && !isOpen}
+                        onDragStart={event => { board.setDraggedId(it.id); event.dataTransfer.setData('text/plain', it.id); event.dataTransfer.effectAllowed = 'move' }}
+                        onDragEnd={() => board.setDraggedId(null)}
                         style={{
                           background: 'rgba(255,255,255,0.02)',
                           border: '1px solid rgba(255,255,255,0.07)',
@@ -417,7 +427,8 @@ export default function MineBoard() {
                         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                           {advance && (
                             <button
-                              onClick={() => patch(it.id, { status: advance })}
+                              disabled={board.moving}
+                              onClick={() => void board.move(it.id, advance)}
                               style={{
                                 background: 'rgba(255,255,255,0.05)',
                                 border: '1px solid rgba(255,255,255,0.1)',
@@ -432,6 +443,15 @@ export default function MineBoard() {
                               → {statusMeta(advance).label}
                             </button>
                           )}
+                          <select
+                            aria-label={`Move ${it.post_title} to stage`}
+                            value={it.status}
+                            disabled={board.moving}
+                            onChange={event => void board.move(it.id, event.target.value as RedditStatus)}
+                            style={{ ...inputStyle, width: 'auto', minHeight: 44 }}
+                          >
+                            {STATUS_COLUMNS.map(stage => <option key={stage.key} value={stage.key} style={{ background: '#0f172a' }}>{stage.label}</option>)}
+                          </select>
                           {it.content_id ? (
                             <span
                               style={{
