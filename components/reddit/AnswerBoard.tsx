@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useBoardMove } from './useBoardMove'
 import type { RedditOppStatus, RedditOpportunity } from '@/lib/types'
 
 const ACCENT = '#00b4ff'
@@ -42,6 +43,7 @@ export default function AnswerBoard() {
   const [draft, setDraft] = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
+  const board = useBoardMove('/api/reddit-opportunities', setItems)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -244,12 +246,17 @@ export default function AnswerBoard() {
         </div>
 
         {/* ── Columns ── */}
+        {board.error && <p role="alert" style={{ color: '#f87171' }}>{board.error}</p>}
         {loading ? (
           <p style={{ color: '#64748b', fontSize: 13 }}>Loading…</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, alignItems: 'start' }}>
             {STATUS_COLUMNS.map((col) => (
-              <div key={col.key}>
+              <div key={col.key}
+                style={{ minHeight: 140 }}
+                onDragOver={event => { if (board.draggedId && !board.moving) { event.preventDefault(); event.dataTransfer.dropEffect = 'move' } }}
+                onDrop={event => { event.preventDefault(); if (board.draggedId && items.some(item => item.id === board.draggedId && item.status !== col.key)) void board.move(board.draggedId, col.key); board.setDraggedId(null) }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingLeft: 2 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 8, background: col.color }} />
                   <span
@@ -273,6 +280,9 @@ export default function AnswerBoard() {
                     return (
                       <div
                         key={it.id}
+                        draggable={!board.moving && !isOpen}
+                        onDragStart={event => { board.setDraggedId(it.id); event.dataTransfer.setData('text/plain', it.id); event.dataTransfer.effectAllowed = 'move' }}
+                        onDragEnd={() => board.setDraggedId(null)}
                         style={{
                           background: 'rgba(255,255,255,0.02)',
                           border: '1px solid rgba(255,255,255,0.07)',
@@ -400,7 +410,8 @@ export default function AnswerBoard() {
                           )}
                           {advance && (
                             <button
-                              onClick={() => patch(it.id, { status: advance })}
+                              disabled={board.moving}
+                              onClick={() => void board.move(it.id, advance)}
                               style={{
                                 background: 'rgba(255,255,255,0.05)',
                                 border: '1px solid rgba(255,255,255,0.1)',
@@ -415,6 +426,15 @@ export default function AnswerBoard() {
                               → {statusMeta(advance).label}
                             </button>
                           )}
+                          <select
+                            aria-label={`Move ${it.question} to stage`}
+                            value={it.status}
+                            disabled={board.moving}
+                            onChange={event => void board.move(it.id, event.target.value as RedditOppStatus)}
+                            style={{ ...inputStyle, width: 'auto', minHeight: 44 }}
+                          >
+                            {STATUS_COLUMNS.map(stage => <option key={stage.key} value={stage.key} style={{ background: '#0f172a' }}>{stage.label}</option>)}
+                          </select>
                         </div>
                       </div>
                     )
