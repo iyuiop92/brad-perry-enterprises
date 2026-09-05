@@ -12,7 +12,6 @@ import TaskDetailModal from '@/components/TaskDetailModal'
 import AddTaskPanel from '@/components/AddTaskPanel'
 import AddWorkspacePanel from '@/components/AddWorkspacePanel'
 import DashboardVoiceDock from '@/components/DashboardVoiceDock'
-import TodayBigThree from '@/components/TodayBigThree'
 
 type AssistantPanel = 'wendy' | 'ellie' | 'cleaver' | 'sam' | null
 
@@ -261,9 +260,6 @@ export default function DashboardPage() {
           </div>
         )
       })()}
-
-      {/* ── Today's Big 3 (pinned above the board) ── */}
-      {!loading && <TodayBigThree />}
 
       {/* ── Body ── */}
       <main className="dashboard-page-main" style={{ flex: 1, minHeight: 0, position: 'relative', zIndex: 10, overflow: 'hidden' }}>
