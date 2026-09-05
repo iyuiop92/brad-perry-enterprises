@@ -24,6 +24,7 @@ export default function QuickChatComposer() {
   const router = useRouter()
   const [value, setValue] = useState('')
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -69,18 +70,16 @@ export default function QuickChatComposer() {
       mime: p.mime,
     }))
     try {
-      await fetch('/api/bridge', {
+      setError('')
+      const response = await fetch('/api/bridge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, target: 'claude', attachments }),
       })
-    } catch {
-      // Non-fatal: the full Bridge view polls the thread and will surface state.
-    } finally {
-      // Land in the live thread whether or not the POST resolved cleanly —
-      // the message is queued and Bridge will show it (or the error).
+      if (!response.ok) throw new Error('Message was not accepted. Please retry.')
       router.push('/dashboard/bridge')
-    }
+    } catch { setError('Could not confirm delivery. Your message and attachments are still here.') }
+    finally { setSending(false) }
   }
 
   const empty = value.trim().length === 0 && pendingImages.length === 0
@@ -98,6 +97,7 @@ export default function QuickChatComposer() {
       }}
     >
       <div style={{ maxWidth: 560, margin: '0 auto' }}>
+        {error && <p role="alert" style={{ color: '#fca5a5' }}>{error}</p>}
         {pendingImages.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
             {pendingImages.map(p => (

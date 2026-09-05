@@ -6,8 +6,8 @@
  * pending user messages, drives the requested terminal agent (Claude/Jack or
  * Codex), and writes the reply back so the BPE dashboard can show it.
  *
- * This is standalone. It does NOT touch Hermes / the Telegram bridge, so it
- * can't break Brad's phone link.
+ * Wendy resumes the migrated conversation configured outside git. Telegram's
+ * original session remains intact for recovery.
  *
  * Run from the repo root:  node scripts/agent-bridge-worker.mjs
  *
@@ -27,6 +27,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
+import { readWendyConfig, wendyEnvironment, acquireWorkerLock } from './wendy-continuity.mjs'
 
 const BUCKET = 'bridge-uploads'
 
@@ -101,6 +102,17 @@ function saveSessions(sessions) {
 
 // Loaded once at startup, mutated in place, saved after each successful reply.
 const sessions = loadSessions()
+const wendyContinuity = readWendyConfig()
+if (wendyContinuity) acquireWorkerLock(join(homedir(), '.claude', 'bpe-wendy-worker.lock'))
+const HEARTBEAT_ID = 'c0f14d24-3326-4db5-b8c8-dc478533eab2'
+
+async function heartbeat() {
+  const { error } = await supabase.from('agent_bridge_messages').upsert({
+    id: HEARTBEAT_ID, thread: '_worker', role: 'system', status: 'done',
+    content: JSON.stringify({ wendyMemoryReady: Boolean(wendyContinuity), lastSeen: new Date().toISOString() }),
+  })
+  if (error) log('Heartbeat unavailable:', error.message)
+}
 
 // Each agent's build(prompt, sessionId, addDirs) returns { cmd, args, outFile? }.
 // Codex prints a noisy session preamble to stdout, so we use --output-last-message
@@ -114,6 +126,7 @@ const AGENTS = {
     persona: 'You are Wendy, Brad\'s executive partner, replying in the Brad Perry Enterprises dashboard bridge. Always speak and sign as Wendy. Never call yourself Jack.',
     build: (prompt, sessionId, addDirs = [], newId = null) => {
       const args = []
+      if (wendyContinuity) args.push('--model', wendyContinuity.model)
       if (BYPASS_PERMISSIONS) args.push('--permission-mode', 'bypassPermissions')
       // Session resumption: first turn uses --session-id to create a named session;
       // subsequent turns use -r to resume it so claude remembers tool outputs and
@@ -168,6 +181,7 @@ async function buildTeamContext() {
       supabase
       .from('agent_bridge_messages')
       .select('role, content, created_at')
+      .eq('thread', 'main')
       .eq('status', 'done')
       .order('created_at', { ascending: false })
       .limit(12),
@@ -249,7 +263,12 @@ function runAgent(agent, prompt, sessionId, addDirs = [], newId = null) {
     // stdin must be closed (/dev/null), not an open pipe: codex `exec` reads
     // stdin and blocks on "Reading additional input from stdin..." until it
     // gets EOF, which otherwise never comes and the agent times out.
-    const child = spawn(spec.cmd, spec.args, { cwd: CWD, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    const pinnedWendy = agent.role === 'claude' && wendyContinuity
+    const child = spawn(pinnedWendy ? wendyContinuity.command : spec.cmd, spec.args, {
+      cwd: pinnedWendy ? wendyContinuity.cwd : CWD,
+      env: pinnedWendy ? wendyEnvironment(process.env) : process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
 
     const timer = setTimeout(() => {
       if (done) return
@@ -286,7 +305,8 @@ function extractClaudeSessionId(args) {
 }
 
 async function insertReply(thread, role, content, status = 'done') {
-  await supabase.from('agent_bridge_messages').insert({ thread, role, content, status })
+  const { error } = await supabase.from('agent_bridge_messages').insert({ thread, role, content, status })
+  if (error) throw new Error(`Could not save agent reply: ${error.message}`)
 }
 
 // Turn a raw agent failure into a clear, actionable message the dashboard can
@@ -349,7 +369,10 @@ async function handle(userRow) {
   const targets = userRow.target === 'both' ? ['claude', 'codex'] : [userRow.target]
   log(`handling ${userRow.id} -> ${targets.join(', ')}`)
 
-  await supabase.from('agent_bridge_messages').update({ status: 'processing' }).eq('id', userRow.id)
+  const { data: claimed, error: claimError } = await supabase.from('agent_bridge_messages')
+    .update({ status: 'processing' }).eq('id', userRow.id).eq('status', 'pending').select('id')
+  if (claimError) throw claimError
+  if (!claimed?.length) return
 
   // Shared context so bridge Wendy/Ellie see the same team + live board as the
   // dashboard chat agents. teamContext is '' if the fetch fails — never blocks.
@@ -373,7 +396,7 @@ async function handle(userRow) {
 
       // Session continuity: look up existing session for this thread+agent.
       const threadSessions = sessions[userRow.thread] ?? {}
-      const existingSessionId = threadSessions[key] ?? null
+      const existingSessionId = key === 'claude' && wendyContinuity ? wendyContinuity.sessionId : threadSessions[key] ?? null
 
       // Build the user prompt — simple, clean. claude's session handles history natively.
       let basePrompt = buildUserPrompt(userRow, teamContext, agent.persona)
@@ -397,11 +420,13 @@ async function handle(userRow) {
 
       let activeSessionId = existingSessionId
       let freshId = existingSessionId ? null : randomUUID()
-      let result = await runAgent(agent, prompt, activeSessionId, addDirs, freshId)
+      let result = key === 'claude' && !wendyContinuity
+        ? { ok: false, text: 'Wendy continuity is not configured. Refusing to start a replacement conversation.', rawStdout: '' }
+        : await runAgent(agent, prompt, activeSessionId, addDirs, freshId)
 
       // A stale CLI session should not force Brad to resend the same thought.
       // Clear it and retry once in a fresh session before surfacing an error.
-      if (!result.ok && activeSessionId) {
+      if (!result.ok && activeSessionId && key !== 'claude') {
         log(`  ${key} resume failed (${result.text.slice(0, 80)}) — retrying fresh`)
         if (sessions[userRow.thread]) {
           delete sessions[userRow.thread][key]
@@ -422,7 +447,7 @@ async function handle(userRow) {
       } else {
         // Success — store or update the session ID.
         if (!sessions[userRow.thread]) sessions[userRow.thread] = {}
-        if (key === 'claude') {
+        if (key === 'claude' && !wendyContinuity) {
           // For a new session, extract the ID we generated in build() via --session-id.
           // For a resumed session (-r), the session ID is unchanged.
           if (!activeSessionId && freshId) {
@@ -487,7 +512,12 @@ async function tick() {
     if (error) {
       log('poll error (after retries):', error.message)
     } else if (data && data.length) {
-      await handle(data[0])
+      try { await handle(data[0]) }
+      catch (e) {
+        const { error: saveError } = await supabase.from('agent_bridge_messages').update({ status: 'error', error: 'Worker interrupted or could not save the reply. Check agent history before retrying work.' }).eq('id', data[0].id).eq('status', 'processing')
+        if (saveError) log('Could not persist interrupted status:', saveError.message)
+        throw e
+      }
     }
   } catch (e) {
     log('tick crashed:', e?.message || e)
@@ -498,6 +528,9 @@ async function tick() {
 
 log(`Agent bridge worker up. cwd=${CWD} claude="${CLAUDE_CMD}" codex="${CODEX_CMD}" poll=${POLL_MS}ms`)
 log(`Sessions file: ${SESSIONS_FILE} (${Object.keys(sessions).length} thread(s) loaded)`)
+log(`Wendy continuity: ${wendyContinuity ? `pinned migrated conversation; cwd=${wendyContinuity.cwd}; command=${wendyContinuity.command}; no automatic reset` : 'not configured'}`)
+void heartbeat().catch(e => log('Heartbeat failed:', e.message))
+setInterval(() => { void heartbeat().catch(e => log('Heartbeat failed:', e.message)) }, 15000)
 log('Waiting for dashboard messages… (Ctrl+C to stop)')
 setInterval(tick, POLL_MS)
 tick()

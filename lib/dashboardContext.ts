@@ -50,6 +50,7 @@ export async function getDashboardContext(supabase: Supabase) {
     supabase
       .from('agent_bridge_messages')
       .select('role, content, created_at')
+      .eq('thread', 'main')
       .eq('status', 'done')
       .order('created_at', { ascending: false })
       .limit(12),
