@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { streamText } from 'ai'
+import { legacyWendyResponse } from '@/lib/wendy-moved'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { requireAuth } from '@/lib/require-auth'
 import { getDashboardContext } from '@/lib/dashboardContext'
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
   const actor = await actorScope(); if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json().catch(() => null), agent = body?.agent, content = typeof body?.content === 'string' ? body.content.trim() : '', workspaceId = typeof body?.workspace_id === 'string' ? body.workspace_id : null
   if (!safe(agent) || !content || content.length > 12000) return NextResponse.json({ error: 'Invalid agent or message.' }, { status: 400 })
+  const moved = legacyWendyResponse(agent); if (moved) return moved
   const requestId = crypto.randomUUID()
   try {
     const item = await conversation(supabase, actor, workspaceId)

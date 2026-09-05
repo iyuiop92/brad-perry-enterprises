@@ -52,6 +52,7 @@ export default function BridgePage() {
   const [input, setInput] = useState('')
   const [target, setTarget] = useState<Target>('claude')
   const [sending, setSending] = useState(false)
+  const [deliveryError, setDeliveryError] = useState('')
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const [listening, setListening] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -67,14 +68,16 @@ export default function BridgePage() {
   const recognitionRef = useRef<any>(null)
 
   const poll = useCallback(async () => {
+    try {
     const res = await fetch('/api/bridge', { cache: 'no-store' })
-    if (!res.ok) return
+    if (!res.ok) throw new Error('Could not load messages. Check your connection or sign in again.')
     const rows: Message[] = await res.json()
     setMessages((prev) => {
       const byId = new Map(prev.map((m) => [m.id, m]))
       for (const r of rows) byId.set(r.id, r)
       return [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at))
     })
+    } catch { setDeliveryError('Connection interrupted. Your saved messages are retained; reconnect to refresh.') }
   }, [])
 
   useEffect(() => {
@@ -171,20 +174,25 @@ export default function BridgePage() {
     atBottomRef.current = true
     setSending(true)
     setTarget(routedTarget)
-    if (!contentOverride) setInput('')
     const attachments = pendingImages.map((p) => ({
       data_url: p.dataUrl,
       filename: p.filename,
       mime: p.mime,
     }))
-    setPendingImages([])
     try {
-      await fetch('/api/bridge', {
+      setDeliveryError('')
+      const response = await fetch('/api/bridge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, target: routedTarget, attachments }),
       })
+      if (!response.ok) throw new Error('Message was not accepted.')
+      setInput('')
+      setPendingImages([])
       await poll()
+    } catch {
+      if (contentOverride) setInput(contentOverride)
+      setDeliveryError('Could not confirm delivery. Your message is still here. Check the conversation before retrying.')
     } finally {
       setSending(false)
     }
@@ -271,6 +279,7 @@ export default function BridgePage() {
         </svg>
       </button>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-40">
+        {deliveryError && <p role="alert" className="text-sm text-red-300">{deliveryError}</p>}
         <header className="py-4 pr-14">
           <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Command Room</p>
           <h1 className="mt-1 text-2xl font-[800] text-white" style={{ fontFamily: 'var(--font-outfit)' }}>Talk to your team</h1>

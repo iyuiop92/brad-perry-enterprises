@@ -19,13 +19,21 @@ export async function GET(request: Request) {
   const { supabase, unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
-  const since = new URL(request.url).searchParams.get('since')
+  const params = new URL(request.url).searchParams
+  if (params.has('health')) {
+    const { data, error } = await supabase.from('agent_bridge_messages').select('content').eq('id', 'c0f14d24-3326-4db5-b8c8-dc478533eab2').maybeSingle()
+    if (error) return NextResponse.json({ online: false }, { status: 503 })
+    let state: { lastSeen?: string; wendyMemoryReady?: boolean } = {}
+    try { state = JSON.parse(data?.content || '{}') } catch {}
+    return NextResponse.json({ ...state, online: Boolean(state.lastSeen && Date.now() - Date.parse(state.lastSeen) < 60000) }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+  const since = params.get('since')
 
   let query = supabase
     .from('agent_bridge_messages')
     .select('id, role, target, content, status, error, attachments, created_at')
     .eq('thread', THREAD)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: Boolean(since) })
     .limit(200)
 
   if (since) query = query.gt('created_at', since)
@@ -33,7 +41,7 @@ export async function GET(request: Request) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json(data ?? [])
+  return NextResponse.json(since ? data ?? [] : (data ?? []).reverse(), { headers: { 'Cache-Control': 'no-store' } })
 }
 
 // Decode a data URL (data:image/png;base64,AAAA...) into bytes + mime.
@@ -59,6 +67,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   const content = typeof body?.content === 'string' ? body.content.trim() : ''
   const target = body?.target
+  const clientMessageId = body?.clientMessageId
+  if (clientMessageId !== undefined && (typeof clientMessageId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientMessageId))) {
+    return NextResponse.json({ error: 'Invalid message ID.' }, { status: 400 })
+  }
   const incoming: IncomingAttachment[] = Array.isArray(body?.attachments) ? body.attachments : []
 
   if (!['claude', 'codex', 'both'].includes(target)) {
@@ -106,10 +118,15 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from('agent_bridge_messages')
-    .insert({ thread: THREAD, role: 'user', target, content, attachments: stored, status: 'pending' })
+    .insert({ ...(clientMessageId ? { id: clientMessageId } : {}), thread: THREAD, role: 'user', target, content, attachments: stored, status: 'pending' })
     .select('id, role, target, content, status, error, attachments, created_at')
     .single()
 
+  if (error?.code === '23505' && clientMessageId) {
+    const { data: previous } = await supabase.from('agent_bridge_messages').select('*').eq('id', clientMessageId).eq('thread', THREAD).eq('role', 'user').single()
+    if (previous && previous.content === content && previous.target === target) return NextResponse.json(previous)
+    return NextResponse.json({ error: 'Message ID already used.' }, { status: 409 })
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json(data)

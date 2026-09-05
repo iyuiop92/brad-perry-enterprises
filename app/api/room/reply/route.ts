@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { legacyWendyResponse } from '@/lib/wendy-moved'
 import { generateText } from 'ai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { requireAuth } from '@/lib/require-auth'
@@ -102,6 +103,7 @@ export async function POST(req: NextRequest) {
 
   const { supabase, unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
+  const moved = legacyWendyResponse(agent); if (moved) return moved
 
   try {
     const [dashboardContext, sharedHistory] = await Promise.all([
