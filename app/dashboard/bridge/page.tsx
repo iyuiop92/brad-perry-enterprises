@@ -281,9 +281,9 @@ export default function BridgePage() {
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-40">
         {deliveryError && <p role="alert" className="text-sm text-red-300">{deliveryError}</p>}
         <header className="py-4 pr-14">
-          <p className="text-xs uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Command Room</p>
+          <p className="text-[13px] uppercase tracking-[0.2em]" style={{ color: '#64748b' }}>Command Room</p>
           <h1 className="mt-1 text-2xl font-[800] text-white" style={{ fontFamily: 'var(--font-outfit)' }}>Talk to your team</h1>
-          <p className="mt-1 text-xs" style={{ color: '#475569' }}>
+          <p className="mt-1 text-[14px]" style={{ color: '#475569' }}>
             Messages route to your terminal agents on this Mac. The worker must be running.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -324,7 +324,7 @@ export default function BridgePage() {
 
         <div className="flex-1 space-y-3">
           {messages.length === 0 && (
-            <p className="mt-8 text-center text-sm" style={{ color: '#475569' }}>
+            <p className="mt-8 text-center text-[16px]" style={{ color: '#475569' }}>
               No messages yet. Ask Wendy or Ellie something below.
             </p>
           )}
@@ -333,7 +333,7 @@ export default function BridgePage() {
             const mine = m.role === 'user'
             return (
               <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-                <span className="mb-1 text-[10px] font-[700] uppercase tracking-wider" style={{ color: meta.color }}>
+                <span className="mb-1 text-[13px] font-[700] uppercase tracking-wider" style={{ color: meta.color }}>
                   {meta.label}
                   {mine && m.target === 'both' ? ' → both' : mine && m.target === 'codex' ? ' → Ellie' : ''}
                 </span>
@@ -365,7 +365,7 @@ export default function BridgePage() {
                     : m.content || (m.attachments && m.attachments.length ? '' : '')}
                 </div>
                 {mine && m.status !== 'done' && m.status !== 'error' && (
-                  <span className="mt-1 text-[10px]" style={{ color: '#475569' }}>
+                  <span className="mt-1 text-[12px]" style={{ color: '#475569' }}>
                     {m.status === 'processing' ? 'working…' : 'queued'}
                   </span>
                 )}
@@ -373,7 +373,7 @@ export default function BridgePage() {
             )
           })}
           {waiting && (
-            <div className="flex items-center gap-2 text-xs" style={{ color: '#475569' }}>
+            <div className="flex items-center gap-2 text-[14px]" style={{ color: '#475569' }}>
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: '#00b4ff' }} />
               Waiting on a reply…
             </div>
@@ -388,7 +388,7 @@ export default function BridgePage() {
         style={{ background: 'rgba(4,4,10,0.98)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="mx-auto w-full max-w-2xl px-4 py-3">
-          <p className="mb-2 text-[11px]" style={{ color: '#64748b' }}>Start with “Wendy,” “Ellie,” or “Team.” Otherwise Wendy takes the lead.</p>
+          <p className="mb-2 text-[14px]" style={{ color: '#64748b' }}>{'Start with “Wendy,” “Ellie,” or “Team.” Otherwise Wendy takes the lead.'}</p>
           {pendingImages.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {pendingImages.map((p) => (

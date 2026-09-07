@@ -49,21 +49,21 @@ export default function CommandChatPanel({ agent, onAgentChange, selectedWs }: {
   }
   return <section className="flex flex-col h-full min-h-0" aria-label="Command Room">
     <header className="p-3 border-b border-white/10">
-      <div className="flex gap-2">{(['wendy', 'ellie'] as const).map(name => <button key={name} aria-pressed={agent === name} onClick={() => onAgentChange(name)} className="px-3 py-2 rounded-[10px] text-slate-200" style={{ background: agent === name ? '#164e63' : '#0f172a' }}>{name === 'wendy' ? 'Wendy' : 'Ellie'}</button>)}</div>
-      <p role="status" className="text-xs mt-2 text-slate-300">{health === null ? 'Checking connection…' : !health.online ? 'Worker offline. Saved messages wait for this Mac to reconnect.' : health.wendyMemoryReady ? 'Wendy connected · persistent business conversation' : 'Wendy memory connection needs setup.'}</p>
-      <p className="text-xs mt-1 text-slate-400">One conversation across BPE. {selectedWs ? `Current workspace: ${selectedWs.name}.` : ''}</p>
-      <Link href="/dashboard/bridge" className="text-xs text-sky-400">Full conversation and attachments</Link>
+      <div className="flex gap-2">{(['wendy', 'ellie'] as const).map(name => <button key={name} aria-pressed={agent === name} onClick={() => onAgentChange(name)} className="px-3 py-2 rounded-[10px] text-[15px] font-[700] text-slate-200" style={{ background: agent === name ? '#164e63' : '#0f172a' }}>{name === 'wendy' ? 'Wendy' : 'Ellie'}</button>)}</div>
+      <p role="status" className="text-[13px] mt-2 text-slate-300">{health === null ? 'Checking connection…' : !health.online ? 'Worker offline. Saved messages wait for this Mac to reconnect.' : health.wendyMemoryReady ? 'Wendy connected · persistent business conversation' : 'Wendy memory connection needs setup.'}</p>
+      <p className="text-[13px] mt-1 text-slate-400">One conversation across BPE. {selectedWs ? `Current workspace: ${selectedWs.name}.` : ''}</p>
+      <Link href="/dashboard/bridge" className="text-[13px] text-sky-400">Full conversation and attachments</Link>
     </header>
     <div className="flex-1 overflow-y-auto p-3 space-y-3" aria-label="Messages">{messages.map(message => <article key={message.id} className="p-3 rounded-[10px] bg-white/5">
-      <p className="text-xs text-sky-300">{names[message.role] || message.role}</p>
-      <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{message.content}</p>
-      {message.role === 'user' && <p className="text-xs mt-1 text-slate-400">{message.status === 'pending' ? 'Saved · queued' : message.status === 'processing' ? 'Working…' : message.status === 'error' ? `Needs attention: ${message.error || 'Worker could not finish.'}` : 'Answered'}</p>}
+      <p className="text-[13px] font-[700] text-sky-300 mb-1">{names[message.role] || message.role}</p>
+      <p className="text-[16px] leading-relaxed text-slate-200 whitespace-pre-wrap break-words">{message.content}</p>
+      {message.role === 'user' && <p className="text-[12px] mt-1 text-slate-400">{message.status === 'pending' ? 'Saved · queued' : message.status === 'processing' ? 'Working…' : message.status === 'error' ? `Needs attention: ${message.error || 'Worker could not finish.'}` : 'Answered'}</p>}
     </article>)}<div ref={bottom} /></div>
-    {error && <p role="alert" className="px-3 text-xs text-red-300">{error}</p>}
+    {error && <p role="alert" className="px-3 text-[13px] text-red-300">{error}</p>}
     <form className="p-3 flex gap-2" onSubmit={event => { event.preventDefault(); void send() }}>
-      <input aria-label={`Message ${agent}`} value={input} onChange={event => setInput(event.target.value)} disabled={sending} placeholder={`Message ${agent === 'wendy' ? 'Wendy' : 'Ellie'}…`} className="min-w-0 flex-1 bg-slate-900 rounded-[10px] p-3 text-sm text-white" />
-      <button disabled={sending || !input.trim()} className="px-3 text-sky-300 disabled:opacity-40">{sending ? 'Saving…' : 'Send'}</button>
+      <input aria-label={`Message ${agent}`} value={input} onChange={event => setInput(event.target.value)} disabled={sending} placeholder={`Message ${agent === 'wendy' ? 'Wendy' : 'Ellie'}…`} className="min-w-0 flex-1 bg-slate-900 rounded-[10px] p-3 text-[16px] text-white" />
+      <button disabled={sending || !input.trim()} className="px-3 text-[15px] font-[700] text-sky-300 disabled:opacity-40">{sending ? 'Saving…' : 'Send'}</button>
     </form>
-    <p className="px-3 pb-2 text-[11px] text-slate-400">Terminal agents can carry out your requests. Text chat does not generate ElevenLabs audio.</p>
+    <p className="px-3 pb-2 text-[13px] text-slate-400">Terminal agents can carry out your requests. Text chat does not generate ElevenLabs audio.</p>
   </section>
 }
