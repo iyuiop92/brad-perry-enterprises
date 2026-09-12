@@ -6,6 +6,7 @@ import {
   type SearchConsoleRow,
   type SearchConsoleTotals,
 } from '@/lib/ga'
+import { getMarketingScoreboard, type MarketingScoreboard } from '@/lib/marketing-scoreboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,56 @@ function FunnelCall({ totals }: { totals: AnalyticsTotals }) {
       <p style={{ margin: 0, color: '#38bdf8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Funnel signal</p>
       <p style={{ margin: '7px 0 4px', color: '#f8fafc', fontWeight: 850, fontSize: 16 }}>{number.format(totals.keyEvents)} key events from {number.format(totals.sessions)} sessions.</p>
       <p style={{ margin: 0, color: '#94a3b8', fontSize: 13, lineHeight: 1.45 }}>{rate}% session-to-key-event rate. This reflects the key events currently configured in GA4, not a guessed membership conversion rate.</p>
+    </section>
+  )
+}
+
+function CampaignMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 16 }}>
+      <p style={{ margin: 0, color: '#64748b', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</p>
+      <p style={{ margin: '9px 0 4px', color: '#f8fafc', fontSize: 26, fontWeight: 900 }}>{value}</p>
+      <p style={{ margin: 0, color: '#64748b', fontSize: 12 }}>{detail}</p>
+    </article>
+  )
+}
+
+function metricValue(value: number | null) {
+  return value === null ? '—' : number.format(value)
+}
+
+function PaidCampaignPanel({ scoreboard }: { scoreboard: MarketingScoreboard }) {
+  const { ga, meta } = scoreboard
+  const costPerLandingView = meta.spend !== null && meta.landingPageViews && meta.landingPageViews > 0
+    ? `$${(meta.spend / meta.landingPageViews).toFixed(2)}`
+    : '—'
+  const metaDetail = meta.status === 'ready'
+    ? 'Meta today'
+    : meta.status === 'unconfigured'
+      ? 'Add Meta environment variables'
+      : 'Meta data could not load'
+  const gaDetail = ga.status === 'ready'
+    ? 'GA4 today'
+    : ga.status === 'unconfigured'
+      ? 'Add GA4 environment variables'
+      : 'GA4 data could not load'
+
+  return (
+    <section style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 12 }}>
+        <p style={{ margin: 0, color: '#38bdf8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Paid campaign</p>
+        <h2 style={{ margin: '4px 0', color: '#f8fafc', fontSize: 18, fontWeight: 900 }}>Aether’s Eye clip review</h2>
+        <p style={{ margin: 0, color: '#64748b', fontSize: 12 }}>Today only. Meta performance is scoped to the active Aether’s Eye campaign.</p>
+      </div>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+        <CampaignMetric label="Meta spend" value={meta.spend === null ? '—' : `$${meta.spend.toFixed(2)}`} detail={metaDetail} />
+        <CampaignMetric label="Landing page views" value={metricValue(meta.landingPageViews)} detail={metaDetail} />
+        <CampaignMetric label="Cost / landing view" value={costPerLandingView} detail={metaDetail} />
+        <CampaignMetric label="Reach" value={metricValue(meta.reach)} detail={metaDetail} />
+        <CampaignMetric label="Paid sessions" value={metricValue(ga.paidSessions)} detail={gaDetail} />
+        <CampaignMetric label="Aether’s Eye views" value={metricValue(ga.landingPageViews)} detail={gaDetail} />
+        <CampaignMetric label="Aether’s Eye key events" value={metricValue(ga.keyEvents)} detail={gaDetail} />
+      </section>
     </section>
   )
 }
@@ -120,7 +171,11 @@ function SearchConsolePanel({ totals, startDate, endDate, topQueries, topPages }
 }
 
 export default async function AnalyticsPage() {
-  const [snapshot, searchConsole] = await Promise.all([getAnalyticsSnapshot(), getSearchConsoleSnapshot()])
+  const [snapshot, searchConsole, campaign] = await Promise.all([
+    getAnalyticsSnapshot(),
+    getSearchConsoleSnapshot(),
+    getMarketingScoreboard(),
+  ])
 
   return (
     <main style={{ minHeight: '100vh', background: '#04040a', color: '#e2e8f0', padding: '28px 24px', fontFamily: 'Outfit, sans-serif' }}>
@@ -134,6 +189,8 @@ export default async function AnalyticsPage() {
           Active now: {snapshot.activeNow ?? '—'}
         </div>
       </header>
+
+      <PaidCampaignPanel scoreboard={campaign} />
 
       {!snapshot.configured ? (
         <section style={{ maxWidth: 720, border: '1px solid rgba(251,191,36,0.32)', background: 'rgba(251,191,36,0.08)', borderRadius: 10, padding: 18 }}>
