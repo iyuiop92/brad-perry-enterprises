@@ -416,6 +416,10 @@ body {
     grid-template-columns: 1fr !important;
   }
 
+  .marketing-scoreboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
   .health-timeline-row {
     grid-template-columns: 1fr !important;
     gap: 5px !important;
