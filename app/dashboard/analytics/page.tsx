@@ -97,8 +97,8 @@ function PaidCampaignPanel({ scoreboard }: { scoreboard: MarketingScoreboard }) 
     <section style={{ marginBottom: 24 }}>
       <div style={{ marginBottom: 12 }}>
         <p style={{ margin: 0, color: '#38bdf8', fontSize: 10, fontWeight: 850, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Paid campaign</p>
-        <h2 style={{ margin: '4px 0', color: '#f8fafc', fontSize: 18, fontWeight: 900 }}>Aether’s Eye clip review</h2>
-        <p style={{ margin: 0, color: '#64748b', fontSize: 12 }}>Today only. Meta performance is scoped to the active Aether’s Eye campaign.</p>
+        <h2 style={{ margin: '4px 0', color: '#f8fafc', fontSize: 18, fontWeight: 900 }}>/train paid traffic</h2>
+        <p style={{ margin: 0, color: '#64748b', fontSize: 12 }}>Today only. GA4 is limited to the new Meta campaign: aether_train_sep_2026.</p>
       </div>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
         <CampaignMetric label="Meta spend" value={meta.spend === null ? '—' : `$${meta.spend.toFixed(2)}`} detail={metaDetail} />
@@ -106,8 +106,8 @@ function PaidCampaignPanel({ scoreboard }: { scoreboard: MarketingScoreboard }) 
         <CampaignMetric label="Cost / landing view" value={costPerLandingView} detail={metaDetail} />
         <CampaignMetric label="Reach" value={metricValue(meta.reach)} detail={metaDetail} />
         <CampaignMetric label="Paid sessions" value={metricValue(ga.paidSessions)} detail={gaDetail} />
-        <CampaignMetric label="Aether’s Eye views" value={metricValue(ga.landingPageViews)} detail={gaDetail} />
-        <CampaignMetric label="Aether’s Eye key events" value={metricValue(ga.keyEvents)} detail={gaDetail} />
+        <CampaignMetric label="/train views" value={metricValue(ga.landingPageViews)} detail={gaDetail} />
+        <CampaignMetric label="/train key events" value={metricValue(ga.keyEvents)} detail={gaDetail} />
       </section>
     </section>
   )
