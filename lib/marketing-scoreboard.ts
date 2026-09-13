@@ -1,5 +1,8 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data'
 
+const TRAIN_CAMPAIGN = 'aether_train_sep_2026'
+const TRAIN_PATH = '/train'
+
 export type MetricStatus = 'ready' | 'unconfigured' | 'error'
 
 export interface MarketingScoreboard {
@@ -38,6 +41,27 @@ function numberValue(value: string | null | undefined) {
   return Number(value ?? 0)
 }
 
+function paidTrainFilter() {
+  return {
+    andGroup: {
+      expressions: [
+        {
+          filter: {
+            fieldName: 'sessionSourceMedium',
+            stringFilter: { matchType: 'EXACT' as const, value: 'meta / paid_social' },
+          },
+        },
+        {
+          filter: {
+            fieldName: 'sessionManualCampaignName',
+            stringFilter: { matchType: 'EXACT' as const, value: TRAIN_CAMPAIGN },
+          },
+        },
+      ],
+    },
+  }
+}
+
 async function getGaMetrics(): Promise<MarketingScoreboard['ga']> {
   const propertyId = process.env.GA_PROPERTY_ID
   const ga = gaClient()
@@ -53,21 +77,23 @@ async function getGaMetrics(): Promise<MarketingScoreboard['ga']> {
         property,
         dateRanges,
         metrics: [{ name: 'sessions' }],
-        dimensionFilter: {
-          filter: {
-            fieldName: 'sessionSourceMedium',
-            stringFilter: { matchType: 'EXACT', value: 'meta / paid_social' },
-          },
-        },
+        dimensionFilter: paidTrainFilter(),
       }),
       ga.runReport({
         property,
         dateRanges,
         metrics: [{ name: 'screenPageViews' }, { name: 'keyEvents' }],
         dimensionFilter: {
-          filter: {
-            fieldName: 'pagePath',
-            stringFilter: { matchType: 'BEGINS_WITH', value: '/aethers-eye/submit' },
+          andGroup: {
+            expressions: [
+              ...paidTrainFilter().andGroup.expressions,
+              {
+                filter: {
+                  fieldName: 'pagePath',
+                  stringFilter: { matchType: 'EXACT', value: TRAIN_PATH },
+                },
+              },
+            ],
           },
         },
       }),
