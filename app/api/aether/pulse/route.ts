@@ -14,6 +14,49 @@ const TIER_PRICE: Record<string, number> = {
   parent: 29,
 }
 
+const KEY_EVENTS = ['sign_up', 'begin_checkout', 'train_cta_click', 'train_video_play'] as const
+type KeyEventName = typeof KEY_EVENTS[number]
+type GaEvents = Record<KeyEventName, number> | null
+
+async function fetchGaEvents(): Promise<GaEvents> {
+  const propertyId = process.env.GA_PROPERTY_ID
+  const keyFile = process.env.GA_KEY_FILE
+  const keyJson = process.env.GA_KEY_JSON
+
+  if (!propertyId || (!keyFile && !keyJson)) return null
+
+  try {
+    const { BetaAnalyticsDataClient } = await import('@google-analytics/data')
+    const authOpts = keyJson
+      ? { credentials: JSON.parse(keyJson) }
+      : { keyFilename: keyFile }
+    const ga = new BetaAnalyticsDataClient(authOpts)
+
+    const [resp] = await ga.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+      dimensions: [{ name: 'eventName' }],
+      metrics: [{ name: 'eventCount' }],
+      dimensionFilter: {
+        filter: {
+          fieldName: 'eventName',
+          inListFilter: { values: [...KEY_EVENTS] },
+        },
+      },
+    })
+
+    const result = { sign_up: 0, begin_checkout: 0, train_cta_click: 0, train_video_play: 0 } as Record<KeyEventName, number>
+    for (const row of resp?.rows ?? []) {
+      const name = row.dimensionValues?.[0]?.value as KeyEventName
+      const count = Number(row.metricValues?.[0]?.value ?? 0)
+      if (name in result) result[name] = count
+    }
+    return result
+  } catch {
+    return null
+  }
+}
+
 function sevenDaysAgoISO() {
   return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 }
@@ -57,6 +100,7 @@ export async function GET() {
       unreadMessages,
       askCoach7d,
       latest,
+      gaEvents,
     ] = await Promise.all([
       count(supabase, (q) => q.eq('suspended', false)),
       count(supabase, (q) => q.eq('suspended', false).eq('tier', 'free')),
@@ -86,6 +130,7 @@ export async function GET() {
         .order('created_at', { ascending: false })
         .limit(6)
         .then(({ data }) => data ?? []),
+      fetchGaEvents(),
     ])
 
     // Paid = actually paying (has a Stripe sub). Comped = paid tier, no sub.
@@ -104,6 +149,7 @@ export async function GET() {
       unread_member_messages: unreadMessages,
       ask_coach_7d: askCoach7d,
       latest_signups: latest,
+      ga_events_7d: gaEvents,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load Aether pulse'
