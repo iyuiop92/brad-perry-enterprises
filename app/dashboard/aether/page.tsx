@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from 'react'
 const ACCENT = '#00b4ff'
 const AETHER_ADMIN = 'https://www.aetherhockey.com'
 
+type GaEvents = { sign_up: number; begin_checkout: number; train_cta_click: number; train_video_play: number } | null
+
 type Pulse = {
   updated_at: string
   members: { total: number; free: number; paid: number; comped: number; player: number; coach: number; business: number }
@@ -13,6 +15,7 @@ type Pulse = {
   unread_member_messages: number
   ask_coach_7d: number
   latest_signups: { full_name: string | null; email: string | null; tier: string | null; created_at: string }[]
+  ga_events_7d: GaEvents
 }
 
 function fmtDate(iso: string) {
@@ -127,6 +130,19 @@ export default function AetherSpokePage() {
               )}
             </div>
           </div>
+
+          {/* Traffic signals — GA key events 7d */}
+          {pulse.ga_events_7d && (
+            <div style={{ background: 'rgba(13,13,26,0.6)', border: '1px solid rgba(0,180,255,0.1)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Traffic signals · last 7 days</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+                <Stat label="Signups" value={pulse.ga_events_7d.sign_up} accent />
+                <Stat label="Checkout starts" value={pulse.ga_events_7d.begin_checkout} accent />
+                <Stat label="/train CTA clicks" value={pulse.ga_events_7d.train_cta_click} />
+                <Stat label="Video plays" value={pulse.ga_events_7d.train_video_play} />
+              </div>
+            </div>
+          )}
 
           {/* Jump to Aether admin */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
