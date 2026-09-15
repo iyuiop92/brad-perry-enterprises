@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/require-auth'
 import type { ContentPlatform, ContentStatus, ContentType } from '@/lib/types'
 
-const TYPES: ContentType[] = ['article', 'video', 'social']
+const TYPES: ContentType[] = ['article', 'video', 'social', 'project']
 const STATUSES: ContentStatus[] = ['idea', 'draft', 'ready', 'scheduled', 'posted']
 const PLATFORMS: ContentPlatform[] = [
   'instagram',
