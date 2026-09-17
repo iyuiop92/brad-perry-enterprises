@@ -139,12 +139,6 @@ export default function Hero() {
               >
                 Work with me <span className="text-base font-[800]">+</span>
               </a>
-              <a
-                href="#network"
-                className="text-sm font-[600] text-[#334155] hover:text-white transition-colors"
-              >
-                See the network &#8594;
-              </a>
             </div>
           </div>
 
