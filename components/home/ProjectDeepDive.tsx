@@ -62,7 +62,7 @@ const projects: Project[] = [
     stack: ['WordPress', 'Affiliate Mgmt', 'CRM'],
     color: '#22c55e',
     type: 'personal',
-    image: '/s360/4.png',
+    image: '/s360/5.png',
   },
   {
     id: 'superwatches',
@@ -74,7 +74,7 @@ const projects: Project[] = [
     stack: ['Shopify Plus', 'Inventory Mgmt', 'Analytics'],
     color: '#f59e0b',
     type: 'personal',
-    image: '/s360/5.png',
+    image: '/s360/6.png',
   },
   {
     id: 'aetherhockey',
@@ -86,7 +86,7 @@ const projects: Project[] = [
     stack: ['Custom App', 'Video Platform', 'LMS'],
     color: '#00b4ff',
     type: 'personal',
-    image: '/s360/6.png',
+    image: '/s360/4.png',
   },
   {
     id: 'icehouse',
