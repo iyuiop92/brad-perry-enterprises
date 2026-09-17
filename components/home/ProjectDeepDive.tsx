@@ -185,12 +185,6 @@ function ProjectCard({
           </div>
         )}
 
-        <button
-          onClick={onToggle}
-          className="text-[#334155] text-[10px] hover:text-[#475569] mt-2 block transition-colors"
-        >
-          Click to explore case study
-        </button>
       </div>
     </div>
   )
