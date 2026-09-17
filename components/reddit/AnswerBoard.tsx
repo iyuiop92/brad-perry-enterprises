@@ -45,6 +45,16 @@ export default function AnswerBoard() {
   const [openId, setOpenId] = useState<string | null>(null)
   const board = useBoardMove('/api/reddit-opportunities', setItems)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  // Mobile: show one lane full width with a dropdown to switch, instead of
+  // cramming all three columns into a narrow phone screen.
+  const [isMobile, setIsMobile] = useState(false)
+  const [activeLane, setActiveLane] = useState<RedditOppStatus>('drafted')
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 700)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const load = useCallback(async () => {
     const res = await fetch('/api/reddit-opportunities')
@@ -250,8 +260,21 @@ export default function AnswerBoard() {
         {loading ? (
           <p style={{ color: '#64748b', fontSize: 13 }}>Loading…</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, alignItems: 'start' }}>
-            {STATUS_COLUMNS.map((col) => (
+          <>
+          {isMobile && (
+            <select
+              aria-label="Choose lane"
+              value={activeLane}
+              onChange={e => setActiveLane(e.target.value as RedditOppStatus)}
+              style={{ width: '100%', marginBottom: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: RADIUS, padding: 12, fontSize: 15, fontWeight: 700, color: '#fff', outline: 'none' }}
+            >
+              {STATUS_COLUMNS.map(c => (
+                <option key={c.key} value={c.key} style={{ background: '#0f172a' }}>{c.label} ({grouped[c.key].length})</option>
+              ))}
+            </select>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12, alignItems: 'start' }}>
+            {(isMobile ? STATUS_COLUMNS.filter(c => c.key === activeLane) : STATUS_COLUMNS).map((col) => (
               <div key={col.key}
                 style={{ minHeight: 140 }}
                 onDragOver={event => { if (board.draggedId && !board.moving) { event.preventDefault(); event.dataTransfer.dropEffect = 'move' } }}
@@ -457,6 +480,7 @@ export default function AnswerBoard() {
               </div>
             ))}
           </div>
+          </>
         )}
       </div>
     </div>

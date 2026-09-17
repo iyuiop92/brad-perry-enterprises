@@ -13,7 +13,7 @@
  *
  * Env (reads .env.local automatically):
  *   NEXT_PUBLIC_SUPABASE_URL       required
- *   SUPABASE_SERVICE_ROLE_KEY      required
+ *   SUPABASE_SECRET_KEY            required
  *   BRIDGE_CWD                     working dir agents run in (default: ~/aether-hockey)
  *   BRIDGE_CLAUDE_CMD              default: "claude"
  *   BRIDGE_CODEX_CMD               default: "codex"
@@ -52,9 +52,9 @@ function loadEnvLocal() {
 loadEnvLocal()
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const SERVICE_KEY = process.env.SUPABASE_SECRET_KEY
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Set them in .env.local.')
+  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY. Set them in .env.local.')
   process.exit(1)
 }
 
