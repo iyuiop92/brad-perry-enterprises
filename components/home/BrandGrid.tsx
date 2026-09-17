@@ -7,8 +7,6 @@ const brands = [
   { name: 'PetProsUSA', initials: 'PP', color: '#22c55e', logo: null },
   { name: 'SuperWatchesStore', initials: 'SW', color: '#f59e0b', logo: '/logos/brand-logos-4.png' },
   { name: 'AetherHockey', initials: 'AH', color: '#00b4ff', logo: '/logos/1.png' },
-  { name: 'AZ Ice', initials: 'AZ', color: '#94a3b8', logo: '/logos/azice-daysmart-logo-3.png' },
-  { name: 'DrivenBaseball', initials: 'DB', color: '#ef4444', logo: '/logos/dba-logo-dark.png' },
 ]
 
 export default function BrandGrid() {
@@ -20,7 +18,7 @@ export default function BrandGrid() {
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center font-[800] text-sm transition-transform duration-200 group-hover:scale-110 overflow-hidden"
               style={{
-                backgroundColor: brand.logo ? '#fff' : brand.color + '18',
+                backgroundColor: brand.logo ? '#0d0d1a' : brand.color + '18',
                 border: `1.5px solid ${brand.color}40`,
                 color: brand.color,
               }}
@@ -31,7 +29,7 @@ export default function BrandGrid() {
                   alt={brand.name}
                   width={64}
                   height={64}
-                  className="w-full h-full object-contain p-1"
+                  className="w-full h-full object-contain p-2"
                 />
               ) : (
                 brand.initials

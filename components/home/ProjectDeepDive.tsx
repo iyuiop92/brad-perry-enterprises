@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Image from 'next/image'
 
 interface Project {
   id: string
@@ -11,6 +12,7 @@ interface Project {
   stack: string[]
   color: string
   type: 'personal' | 'client'
+  image: string
 }
 
 const projects: Project[] = [
@@ -24,6 +26,7 @@ const projects: Project[] = [
     stack: ['WordPress', 'WooCommerce', 'Analytics'],
     color: '#c17f3c',
     type: 'personal',
+    image: '/s360/1.png',
   },
   {
     id: 'startpaddle',
@@ -35,6 +38,7 @@ const projects: Project[] = [
     stack: ['Shopify', 'Liquid', 'SEO Tools'],
     color: '#0ea5e9',
     type: 'personal',
+    image: '/s360/2.png',
   },
   {
     id: 'studiothree60',
@@ -46,6 +50,7 @@ const projects: Project[] = [
     stack: ['React', 'Stripe', 'Automation'],
     color: '#8b5cf6',
     type: 'personal',
+    image: '/s360/3.png',
   },
   {
     id: 'petprosusa',
@@ -57,6 +62,7 @@ const projects: Project[] = [
     stack: ['WordPress', 'Affiliate Mgmt', 'CRM'],
     color: '#22c55e',
     type: 'personal',
+    image: '/s360/4.png',
   },
   {
     id: 'superwatches',
@@ -68,6 +74,7 @@ const projects: Project[] = [
     stack: ['Shopify Plus', 'Inventory Mgmt', 'Analytics'],
     color: '#f59e0b',
     type: 'personal',
+    image: '/s360/5.png',
   },
   {
     id: 'aetherhockey',
@@ -79,28 +86,7 @@ const projects: Project[] = [
     stack: ['Custom App', 'Video Platform', 'LMS'],
     color: '#00b4ff',
     type: 'personal',
-  },
-  {
-    id: 'a2ice',
-    name: 'AZIce.com',
-    category: 'Facility Management',
-    description: 'Seven-site network for a $8M ice management company in Phoenix — fully custom multi-site CMS.',
-    traffic: '3.5K',
-    conversion: '5.0%',
-    stack: ['Custom CMS', 'Booking System', 'Multi-site'],
-    color: '#94a3b8',
-    type: 'client',
-  },
-  {
-    id: 'drivenbaseball',
-    name: 'DrivenBaseballAthletics.com',
-    category: 'Sports Training',
-    description: 'Baseball training academy with a dedicated player app for skill development and progress tracking.',
-    traffic: '14.1K',
-    conversion: '3.9%',
-    stack: ['React Native', 'Firebase', 'Video Analytics'],
-    color: '#ef4444',
-    type: 'client',
+    image: '/s360/6.png',
   },
   {
     id: 'icehouse',
@@ -112,6 +98,7 @@ const projects: Project[] = [
     stack: ['WordPress', 'Event Mgmt', 'Social Integration'],
     color: '#14b8a6',
     type: 'client',
+    image: '/s360/7.png',
   },
 ]
 
@@ -126,14 +113,18 @@ function ProjectCard({
 }) {
   return (
     <div className="rounded-xl border border-[rgba(0,180,255,0.1)] bg-[#0d0d1a] overflow-hidden hover:border-[rgba(0,180,255,0.25)] transition-colors duration-200">
-      <div
-        className="relative h-36 flex items-end justify-between p-3"
-        style={{ background: `linear-gradient(135deg, ${project.color}18 0%, ${project.color}06 100%)` }}
-      >
-        <span className="text-[10px] font-[700] text-white/70 bg-black/50 px-2 py-1 rounded-md backdrop-blur-sm uppercase tracking-wide">
+      <div className="relative h-36 flex items-end justify-between p-3 overflow-hidden">
+        <Image
+          src={project.image}
+          alt={project.name}
+          fill
+          className="object-cover object-top"
+        />
+        <div className="absolute inset-0" style={{ background: `linear-gradient(to top, #0d0d1a 0%, ${project.color}22 100%)` }} />
+        <span className="relative z-10 text-[10px] font-[700] text-white/70 bg-black/50 px-2 py-1 rounded-md backdrop-blur-sm uppercase tracking-wide">
           {project.category}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="relative z-10 flex items-center gap-2">
           <span className="text-[10px] font-[600] text-white/60 bg-black/50 px-2 py-1 rounded-md backdrop-blur-sm">
             High Performance
           </span>
