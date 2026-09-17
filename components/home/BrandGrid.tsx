@@ -1,12 +1,12 @@
 import Image from 'next/image'
 
 const brands = [
-  { name: 'Mipura', initials: 'M', color: '#c17f3c', logo: '/logos/2.png' },
+  { name: 'Mipura', initials: 'M', color: '#c17f3c', logo: '/logos/mipura.png' },
   { name: 'StartPaddle', initials: 'SP', color: '#0ea5e9', logo: '/logos/brand-logos.png' },
-  { name: 'StudioThree60', initials: 'S3', color: '#8b5cf6', logo: null },
-  { name: 'PetProsUSA', initials: 'PP', color: '#22c55e', logo: null },
+  { name: 'StudioThree60', initials: 'S3', color: '#8b5cf6', logo: '/logos/studiothree60.png' },
+  { name: 'PetProsUSA', initials: 'PP', color: '#22c55e', logo: '/logos/petprosusa.png' },
   { name: 'SuperWatches', initials: 'SW', color: '#f59e0b', logo: '/logos/brand-logos-4.png' },
-  { name: 'AetherHockey', initials: 'AH', color: '#00b4ff', logo: '/logos/1.png' },
+  { name: 'AetherHockey', initials: 'AH', color: '#00b4ff', logo: '/logos/aetherhockey.png' },
 ]
 
 export default function BrandGrid() {
