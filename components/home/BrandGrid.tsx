@@ -3,7 +3,7 @@ import Image from 'next/image'
 const brands = [
   { name: 'Mipura', initials: 'M', color: '#c17f3c', logo: '/logos/2.png' },
   { name: 'StartPaddle', initials: 'SP', color: '#0ea5e9', logo: '/logos/brand-logos.png' },
-  { name: 'StudioThree60', initials: 'S3', color: '#8b5cf6', logo: '/logos/4.png' },
+  { name: 'StudioThree60', initials: 'S3', color: '#8b5cf6', logo: null },
   { name: 'PetProsUSA', initials: 'PP', color: '#22c55e', logo: null },
   { name: 'SuperWatchesStore', initials: 'SW', color: '#f59e0b', logo: '/logos/brand-logos-4.png' },
   { name: 'AetherHockey', initials: 'AH', color: '#00b4ff', logo: '/logos/1.png' },
@@ -29,7 +29,7 @@ export default function BrandGrid() {
                   alt={brand.name}
                   width={64}
                   height={64}
-                  className="w-full h-full object-contain p-2"
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 brand.initials
