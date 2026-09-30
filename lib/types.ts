@@ -27,6 +27,19 @@ export interface Task {
   updated_at: string
 }
 
+export type TaskSessionMode = 'sprint' | 'deep' | 'admin' | 'closeout'
+
+export interface TaskSession {
+  id: string
+  task_id: string
+  mode: TaskSessionMode
+  planned_minutes: number
+  duration_seconds: number | null
+  started_at: string
+  ended_at: string | null
+  created_at: string
+}
+
 export interface Workspace {
   id: string
   name: string
