@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { DailyState, HealthLog, InboxItem, RecurringDailyItem, Task, Workspace } from '@/lib/types'
+import type { DailyState, HealthLog, InboxItem, RecurringDailyItem, Task, TaskSession, Workspace } from '@/lib/types'
 import VideoPipelinePanel from '@/components/VideoPipelinePanel'
 
 type TaskAction = 'idea' | 'in_progress' | 'blocked' | 'done'
@@ -303,6 +303,7 @@ export default function CommandFeed({
   const [timerMode, setTimerMode] = useState<OperatingMode | null>(null)
   const [timerRemaining, setTimerRemaining] = useState(0)
   const [timerRunning, setTimerRunning] = useState(false)
+  const [todaySessions, setTodaySessions] = useState<TaskSession[]>([])
   const [view, setView] = useState<ViewMode>('active')
   const [selectedFocusTaskId, setSelectedFocusTaskId] = useState<string | null>(null)
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([])
@@ -316,6 +317,12 @@ export default function CommandFeed({
   const [dailyStateLoaded, setDailyStateLoaded] = useState(false)
   const captureRef = useRef<HTMLInputElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
+  const activeSessionRef = useRef<{
+    taskId: string
+    mode: OperatingMode
+    plannedMinutes: number
+    startedAt: number
+  } | null>(null)
 
   useEffect(() => {
     if (!timerRunning) return
@@ -324,6 +331,7 @@ export default function CommandFeed({
       setTimerRemaining(current => {
         if (current <= 1) {
           setTimerRunning(false)
+          void finishActiveSession()
           return 0
         }
 
@@ -333,6 +341,13 @@ export default function CommandFeed({
 
     return () => window.clearInterval(interval)
   }, [timerRunning])
+
+  useEffect(() => {
+    fetch('/api/task-sessions')
+      .then(res => res.ok ? res.json() : [])
+      .then((sessions: TaskSession[]) => setTodaySessions(sessions))
+      .catch(() => setTodaySessions([]))
+  }, [])
 
   useEffect(() => {
     function handleDashboardHash() {
@@ -426,6 +441,11 @@ export default function CommandFeed({
     setStatusOverrides(prev => ({ ...prev, [task.id]: status }))
     await patchTask(task.id, { status })
     onRefresh()
+  }
+
+  function openTask(task: Task) {
+    chooseFocus(task)
+    onSelectTask(task)
   }
 
   function chooseFocus(task: Task) {
@@ -546,20 +566,66 @@ export default function CommandFeed({
     void saveDailyState({ recurring_items: next })
   }
 
+  async function refreshSessions() {
+    const res = await fetch('/api/task-sessions')
+    if (res.ok) setTodaySessions(await res.json())
+  }
+
+  function startSession(task: Task, option: typeof modeOptions[number]) {
+    activeSessionRef.current = {
+      taskId: task.id,
+      mode: option.id,
+      plannedMinutes: option.minutes,
+      startedAt: Date.now(),
+    }
+  }
+
+  async function finishActiveSession() {
+    const activeSession = activeSessionRef.current
+    if (!activeSession) return
+    activeSessionRef.current = null
+
+    const endedAt = new Date()
+    const durationSeconds = Math.max(1, Math.round((endedAt.getTime() - activeSession.startedAt) / 1000))
+    const res = await fetch('/api/task-sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_id: activeSession.taskId,
+        mode: activeSession.mode,
+        planned_minutes: activeSession.plannedMinutes,
+        started_at: new Date(activeSession.startedAt).toISOString(),
+        ended_at: endedAt.toISOString(),
+        duration_seconds: durationSeconds,
+      }),
+    })
+    if (res.ok) await refreshSessions()
+  }
+
   function toggleTimer(option: typeof modeOptions[number]) {
     setMode(option.id)
 
     if (timerMode !== option.id || timerRemaining === 0) {
+      void finishActiveSession()
       setTimerMode(option.id)
       setTimerRemaining(option.minutes * 60)
       setTimerRunning(true)
+      if (commandTask) startSession(commandTask, option)
       return
     }
 
-    setTimerRunning(running => !running)
+    if (timerRunning) {
+      setTimerRunning(false)
+      void finishActiveSession()
+      return
+    }
+
+    setTimerRunning(true)
+    if (commandTask) startSession(commandTask, option)
   }
 
   function resetTimer() {
+    void finishActiveSession()
     setTimerMode(null)
     setTimerRemaining(0)
     setTimerRunning(false)
@@ -568,6 +634,12 @@ export default function CommandFeed({
   function workspaceFor(task: Task) {
     return task.workspace_id ? workspaceById[task.workspace_id] : undefined
   }
+
+  const loggedMinutesToday = Math.round(
+    todaySessions
+      .filter(session => isSameDay(session.started_at, new Date()))
+      .reduce((total, session) => total + (session.duration_seconds ?? 0), 0) / 60
+  )
 
   return (
     <div
@@ -601,6 +673,11 @@ export default function CommandFeed({
               <span style={{ color: '#7f8da3', fontSize: 13 }}>
                 {selectedMode.label} {selectedMode.time}: {selectedMode.intent}
               </span>
+              {commandTask && (
+                <span style={{ color: 'rgba(226,232,240,0.72)', fontSize: 12 }}>
+                  Tracking: {commandTask.title} · {loggedMinutesToday}m logged today
+                </span>
+              )}
             </div>
             <div className="dashboard-mode-bar" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
               {modeOptions.map(option => {
@@ -670,7 +747,7 @@ export default function CommandFeed({
                 {commandTask ? (
                   <>
                     <button
-                      onClick={() => onSelectTask(commandTask)}
+                      onClick={() => openTask(commandTask)}
                       style={{
                         width: '100%',
                         marginTop: 9,
@@ -704,7 +781,7 @@ export default function CommandFeed({
                   {nextThree.length ? nextThree.map(task => (
                     <button
                       key={task.id}
-                      onClick={() => { chooseFocus(task); onSelectTask(task) }}
+                      onClick={() => openTask(task)}
                       style={{
                         display: 'grid',
                         gridTemplateColumns: 'minmax(0, 1fr) auto',
@@ -1180,7 +1257,7 @@ export default function CommandFeed({
                 key={task.id}
                 task={task}
                 workspace={workspaceFor(task)}
-                onOpen={() => { chooseFocus(task); onSelectTask(task) }}
+                onOpen={() => openTask(task)}
                 onStatus={status => setTaskStatus(task, status)}
               />
             )) : (
