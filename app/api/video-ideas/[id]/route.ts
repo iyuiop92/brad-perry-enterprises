@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/require-auth'
+import { callAetherContent } from '@/lib/aether-content'
 
 const allowedFields = [
   'title',
@@ -16,7 +17,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, unauthorized } = await requireAuth()
+  const { unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
   const { id } = await params
@@ -31,39 +32,24 @@ export async function PATCH(
     return NextResponse.json({ error: 'Title is required' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('bpe_video_ideas')
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: 'No editable fields supplied' }, { status: 400 })
   }
 
-  if (!data?.[0]) {
-    return NextResponse.json({ error: 'Video idea not found' }, { status: 404 })
+  try {
+    return NextResponse.json(await callAetherContent(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }))
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to update Aether content' }, { status: 502 })
   }
-
-  return NextResponse.json(data[0])
 }
 
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { supabase, unauthorized } = await requireAuth()
+  const { unauthorized } = await requireAuth()
   if (unauthorized) return unauthorized
 
   const { id } = await params
-  const { error } = await supabase
-    .from('bpe_video_ideas')
-    .delete()
-    .eq('id', id)
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ error: 'Deletion is not available through the Aether integration' }, { status: 405 })
 }
