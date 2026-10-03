@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
+  ContentAttachment,
   ContentItem,
   ContentPlatform,
   ContentStatus,
   ContentType,
 } from '@/lib/types'
+import { createClient } from '@/lib/supabase'
 
 const ACCENT = '#00b4ff'
 
@@ -22,6 +24,7 @@ const TYPES: { key: ContentType; label: string; color: string }[] = [
   { key: 'social', label: 'Social', color: ACCENT },
   { key: 'video', label: 'Video', color: '#a855f7' },
   { key: 'article', label: 'Article', color: '#22c55e' },
+  { key: 'project', label: 'Project', color: '#f97316' },
 ]
 
 const PLATFORMS: { key: ContentPlatform; label: string }[] = [
@@ -44,6 +47,7 @@ const EMPTY: Partial<ContentItem> = {
   media_url: '',
   scheduled_at: null,
   notes: '',
+  attachments: [],
 }
 
 function typeMeta(t: ContentType) {
@@ -475,10 +479,51 @@ function EditModal({
   remove: () => void
   saving: boolean
 }) {
+  const [uploading, setUploading] = useState(false)
   const set = (patch: Partial<ContentItem>) => setEditing({ ...editing, ...patch })
   const platforms = editing.platforms ?? []
   const togglePlatform = (p: ContentPlatform) =>
     set({ platforms: platforms.includes(p) ? platforms.filter((x) => x !== p) : [...platforms, p] })
+  const attachments = editing.attachments ?? []
+
+  const uploadAttachment = async (file: File) => {
+    if (!editing.id) return
+    if (file.size > 50 * 1024 * 1024) return alert('Files must be 50 MB or smaller.')
+    setUploading(true)
+    let attachment: ContentAttachment | null = null
+    try {
+      const sign = await fetch(`/api/content/${editing.id}/attachments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sign', filename: file.name, mime: file.type, size: file.size }),
+      })
+      const signed = await sign.json()
+      if (!sign.ok) throw new Error(signed.error || 'Could not prepare upload.')
+      attachment = signed.attachment
+      const { error: uploadError } = await createClient().storage.from('content-attachments')
+        .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type || 'application/octet-stream' })
+      if (uploadError) throw uploadError
+      const complete = await fetch(`/api/content/${editing.id}/attachments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'complete', attachment }),
+      })
+      const completed = await complete.json()
+      if (!complete.ok) throw new Error(completed.error || 'Could not save attachment.')
+      set({ attachments: completed.attachments })
+    } catch (error) {
+      if (attachment) await fetch(`/api/content/${editing.id}/attachments/${attachment.id}`, { method: 'DELETE' })
+      alert(error instanceof Error ? error.message : 'Upload failed.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removeAttachment = async (attachment: ContentAttachment) => {
+    if (!editing.id || !confirm(`Remove ${attachment.filename}?`)) return
+    const response = await fetch(`/api/content/${editing.id}/attachments/${attachment.id}`, { method: 'DELETE' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return alert(data.error || 'Could not remove attachment.')
+    set({ attachments: data.attachments })
+  }
 
   return (
     <div
@@ -556,6 +601,31 @@ function EditModal({
         <div>
           <label style={labelStyle}>Notes</label>
           <input value={editing.notes ?? ''} onChange={(e) => set({ notes: e.target.value })} placeholder="Anything to remember" style={inputStyle} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Files</label>
+          {!editing.id ? (
+            <div style={{ color: '#64748b', fontSize: 12 }}>Save this card first, then attach PDFs, images, videos, or any file up to 50 MB.</div>
+          ) : (
+            <>
+              <label style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 12px', borderRadius: 8, cursor: uploading ? 'default' : 'pointer', fontSize: 12, fontWeight: 700, border: '1px solid rgba(0,180,255,0.35)', color: ACCENT, opacity: uploading ? 0.5 : 1 }}>
+                {uploading ? 'Uploading…' : '+ Attach file'}
+                <input type="file" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void uploadAttachment(file) }} style={{ display: 'none' }} />
+              </label>
+              {attachments.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                  {attachments.map((attachment) => (
+                    <div key={attachment.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', borderRadius: 8, background: 'rgba(255,255,255,0.04)' }}>
+                      <a href={`/api/content/${editing.id}/attachments/${attachment.id}`} style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{attachment.filename}</a>
+                      <span style={{ color: '#64748b', fontSize: 10, flexShrink: 0 }}>{Math.ceil(attachment.size / 1024)} KB</span>
+                      <button onClick={() => void removeAttachment(attachment)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12 }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>

@@ -115,7 +115,7 @@ export interface DailyState {
   updated_at: string
 }
 
-export type ContentType = 'article' | 'video' | 'social'
+export type ContentType = 'article' | 'video' | 'social' | 'project'
 export type ContentStatus = 'idea' | 'draft' | 'ready' | 'scheduled' | 'posted'
 export type ContentPlatform =
   | 'instagram'
@@ -125,6 +125,14 @@ export type ContentPlatform =
   | 'threads'
   | 'linkedin'
 
+export interface ContentAttachment {
+  id: string
+  filename: string
+  mime: string
+  size: number
+  storage_path: string
+}
+
 export interface ContentItem {
   id: string
   title: string
@@ -132,6 +140,7 @@ export interface ContentItem {
   status: ContentStatus
   brand: string
   requested_by: string | null
+  attachments: ContentAttachment[]
   caption: string
   platforms: ContentPlatform[]
   media_url: string | null
