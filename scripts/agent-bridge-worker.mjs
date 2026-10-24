@@ -27,7 +27,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
-import { readWendyConfig, wendyEnvironment, acquireWorkerLock } from './wendy-continuity.mjs'
+import { readWendyConfig, wendyEnvironment, acquireWorkerLock, isMissingSessionError, writeWendyConfig } from './wendy-continuity.mjs'
 
 const BUCKET = 'bridge-uploads'
 
@@ -102,7 +102,10 @@ function saveSessions(sessions) {
 
 // Loaded once at startup, mutated in place, saved after each successful reply.
 const sessions = loadSessions()
-const wendyContinuity = readWendyConfig()
+// `let`, not `const`: the worker re-pins this in place when the pinned session
+// ages out, so the replacement id is used for the rest of the process lifetime
+// and not just written to disk.
+let wendyContinuity = readWendyConfig()
 if (wendyContinuity) acquireWorkerLock(join(homedir(), '.claude', 'bpe-wendy-worker.lock'))
 const HEARTBEAT_ID = 'c0f14d24-3326-4db5-b8c8-dc478533eab2'
 
@@ -423,6 +426,37 @@ async function handle(userRow) {
       let result = key === 'claude' && !wendyContinuity
         ? { ok: false, text: 'Wendy continuity is not configured. Refusing to start a replacement conversation.', rawStdout: '' }
         : await runAgent(agent, prompt, activeSessionId, addDirs, freshId)
+
+      // Wendy's pinned session can stop existing on its own: claude transcripts
+      // age out of ~/.claude/projects after cleanupPeriodDays (30 by default),
+      // so a month of not opening the dashboard silently kills it and every
+      // message after that fails with "No conversation found with session ID".
+      // That is not a reason to make Brad resend, and it is not a reason to
+      // stay broken until someone reads the logs (it cost most of 2026-10-24).
+      //
+      // Re-pin to a fresh session and retry once. Gated on that ONE error on
+      // purpose: the "refusing to start a replacement conversation" rule above
+      // still holds for every other failure, so a transient blip can never
+      // quietly throw away Brad's long-running conversation.
+      if (!result.ok && key === 'claude' && wendyContinuity && isMissingSessionError(result.text)) {
+        const replacementId = randomUUID()
+        log(`  wendy session ${activeSessionId} no longer exists — re-pinning to ${replacementId}`)
+        result = await runAgent(agent, prompt, null, addDirs, replacementId)
+        if (result.ok) {
+          wendyContinuity = {
+            ...wendyContinuity,
+            sessionId: replacementId,
+            migrationNote: `Auto re-pinned to ${replacementId} because the previous session (${activeSessionId}) aged out of ~/.claude/projects. History is unaffected; it lives in agent_bridge_messages.`,
+          }
+          try {
+            writeWendyConfig(wendyContinuity)
+            log(`  wendy re-pinned to ${replacementId}`)
+          } catch (error) {
+            log(`  WARNING: wendy answered but the new session id could not be saved: ${error.message}`)
+          }
+          activeSessionId = replacementId
+        }
+      }
 
       // A stale CLI session should not force Brad to resend the same thought.
       // Clear it and retry once in a fresh session before surfacing an error.
