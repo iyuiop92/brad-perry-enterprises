@@ -5,7 +5,6 @@ import Link from 'next/link'
 import type { Task, Workspace } from '@/lib/types'
 import ParticleField from '@/components/ParticleField'
 import CommandFeed from '@/components/CommandFeed'
-import ExecutiveChatPanel from '@/components/CommandChatPanel'
 import CleaverPanel from '@/components/CleaverPanel'
 import SamPanel from '@/components/SamPanel'
 import TaskDetailModal from '@/components/TaskDetailModal'
@@ -13,7 +12,10 @@ import AddTaskPanel from '@/components/AddTaskPanel'
 import AddWorkspacePanel from '@/components/AddWorkspacePanel'
 import DashboardVoiceDock from '@/components/DashboardVoiceDock'
 
-type AssistantPanel = 'wendy' | 'ellie' | 'cleaver' | 'sam' | null
+// Wendy and Ellie moved out of this drawer on 2026-10-24 and into the
+// persistent layout rail (components/WendyRail.tsx). Cleaver and Sam are
+// parked workers and stay here, where an on-demand drawer is the right shape.
+type AssistantPanel = 'cleaver' | 'sam' | null
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -47,6 +49,29 @@ export default function DashboardPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [assistantPanel])
+
+  // The conversation rail lives in the layout and cannot see this page's state,
+  // so the selected workspace is mirrored to localStorage. The rail uses it to
+  // tag outgoing messages and to file new cards against the right workspace.
+  useEffect(() => {
+    if (selectedWs) window.localStorage.setItem('bpe.selectedWorkspace', JSON.stringify({ id: selectedWs.id, name: selectedWs.name }))
+    else window.localStorage.removeItem('bpe.selectedWorkspace')
+    window.dispatchEvent(new Event('bpe:workspace'))
+  }, [selectedWs])
+
+  // Cards created from the conversation rail land in Supabase, not in this
+  // page's state. Refetch so a new card appears on the board immediately.
+  useEffect(() => {
+    const onTasks = () => { void fetchAll() }
+    window.addEventListener('bpe:tasks', onTasks)
+    return () => window.removeEventListener('bpe:tasks', onTasks)
+  }, [fetchAll])
+
+  // The Assistants menu still opens Wendy and Ellie, but they now live in the
+  // layout rail rather than this page's drawer, so the menu asks the rail to
+  // open rather than setting local state.
+  const openRail = (agent: 'wendy' | 'ellie') =>
+    window.dispatchEvent(new CustomEvent('bpe:rail', { detail: { agent } }))
 
   return (
     <div className="dashboard-page-shell" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
@@ -82,7 +107,7 @@ export default function DashboardPage() {
             <summary style={{ listStyle: 'none', height: 28, padding: '0 4px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em' }}>Assistants ▾</summary>
             <div style={{ position: 'absolute', right: 0, top: 34, width: 150, padding: 6, background: '#080b13', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 9, boxShadow: '0 16px 40px rgba(0,0,0,0.4)', display: 'grid', gap: 2 }}>
           <button
-            onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
+            onClick={() => openRail('wendy')}
             style={{
               display: 'flex', alignItems: 'center',
               height: 28, padding: '0 4px', cursor: 'pointer',
@@ -92,13 +117,13 @@ export default function DashboardPage() {
               transition: 'all 0.2s',
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'wendy' ? '#00b4ff' : '#64748b', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#00b4ff', letterSpacing: '0.05em' }}>
               Wendy
             </span>
           </button>
 
           <button
-            onClick={() => setAssistantPanel(panel => panel === 'ellie' ? null : 'ellie')}
+            onClick={() => openRail('ellie')}
             style={{
               display: 'flex', alignItems: 'center',
               height: 28, padding: '0 4px', cursor: 'pointer',
@@ -108,7 +133,7 @@ export default function DashboardPage() {
               transition: 'all 0.2s',
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 700, color: assistantPanel === 'ellie' ? '#a78bfa' : '#64748b', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', letterSpacing: '0.05em' }}>
               Ellie
             </span>
           </button>
@@ -176,15 +201,15 @@ export default function DashboardPage() {
             </Link>
             <button
               type="button"
-              onClick={() => setAssistantPanel(panel => panel === 'wendy' ? null : 'wendy')}
-              style={{ color: assistantPanel === 'wendy' ? '#00b4ff' : '#94a3b8' }}
+              onClick={() => openRail('wendy')}
+              style={{ color: '#00b4ff' }}
             >
               Wendy
             </button>
             <button
               type="button"
-              onClick={() => setAssistantPanel(panel => panel === 'ellie' ? null : 'ellie')}
-              style={{ color: assistantPanel === 'ellie' ? '#a78bfa' : '#94a3b8' }}
+              onClick={() => openRail('ellie')}
+              style={{ color: '#a78bfa' }}
             >
               Ellie
             </button>
@@ -306,9 +331,9 @@ export default function DashboardPage() {
           transform: assistantPanel ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           background: 'rgba(4,4,10,0.98)',
-          borderLeft: `1px solid ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.16)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.16)' : assistantPanel === 'sam' ? 'rgba(45,212,191,0.16)' : 'rgba(0,180,255,0.12)'}`,
+          borderLeft: `1px solid ${assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.16)' : assistantPanel === 'sam' ? 'rgba(45,212,191,0.16)' : 'rgba(0,180,255,0.12)'}`,
           boxShadow: assistantPanel
-            ? `-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px ${assistantPanel === 'ellie' ? 'rgba(167,139,250,0.06)' : assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.06)' : assistantPanel === 'sam' ? 'rgba(45,212,191,0.06)' : 'rgba(0,180,255,0.05)'}`
+            ? `-30px 0 80px rgba(0,0,0,0.7), -8px 0 20px ${assistantPanel === 'cleaver' ? 'rgba(34,197,94,0.06)' : 'rgba(45,212,191,0.06)'}`
             : 'none',
         }}
       >
@@ -331,9 +356,6 @@ export default function DashboardPage() {
               <path d="M18 6 6 18" /><path d="m6 6 12 12" />
             </svg>
           </button>
-        )}
-        {(assistantPanel === 'wendy' || assistantPanel === 'ellie') && (
-          <ExecutiveChatPanel agent={assistantPanel} onAgentChange={setAssistantPanel} workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
         )}
         {assistantPanel === 'cleaver' && (
           <CleaverPanel workspaces={workspaces} tasks={tasks} selectedWs={selectedWs} />
