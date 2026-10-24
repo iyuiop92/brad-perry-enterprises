@@ -1,5 +1,36 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { hasDashboardSession } from '@/lib/password-auth'
+import WendyRail from '@/components/WendyRail'
+
+// Every one of these was a plain <a> until 2026-10-24, which meant each nav
+// click was a full page reload. That tore the whole React tree down, layout
+// included, so a conversation mounted in the layout would have been rebuilt on
+// every click and the persistence this file is built around would not have
+// existed. next/link keeps navigation client-side and the layout mounted.
+const NAV = [
+  { label: 'Board', href: '/dashboard#board' },
+  { label: 'Idea', href: '/dashboard#idea-capture' },
+  { label: 'Health', href: '/dashboard/health' },
+  { label: 'Analytics', href: '/dashboard/analytics' },
+  { label: 'Content', href: '/dashboard/content' },
+  { label: 'Reddit', href: '/dashboard/reddit' },
+  { label: 'Aether', href: '/dashboard/aether' },
+  { label: 'Vault', href: '/dashboard/vault' },
+]
+
+const navLinkStyle = {
+  height: 26,
+  padding: '0 12px',
+  borderRadius: 5,
+  display: 'flex',
+  alignItems: 'center',
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.05em',
+  color: '#64748b',
+  textDecoration: 'none',
+} as const
 
 export default async function DashboardLayout({
   children,
@@ -24,117 +55,27 @@ export default async function DashboardLayout({
         borderBottom: '1px solid rgba(255,255,255,0.05)',
         zIndex: 100,
       }}>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard#board"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Board
-        </a>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard#idea-capture"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Idea
-        </a>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard/health"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Health
-        </a>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard/analytics"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Analytics
-        </a>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard/content"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Content
-        </a>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard/reddit"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Reddit
-        </a>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard/aether"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Aether
-        </a>
-        <a
-          className="dashboard-nav-link"
-          href="/dashboard/vault"
-          style={{
-            height: 26, padding: '0 12px', borderRadius: 5,
-            display: 'flex', alignItems: 'center',
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
-            color: '#64748b', textDecoration: 'none',
-          }}
-        >
-          Vault
-        </a>
+        {NAV.map(item => (
+          <Link key={item.href} className="dashboard-nav-link" href={item.href} style={navLinkStyle}>
+            {item.label}
+          </Link>
+        ))}
         <details className="dashboard-mobile-menu">
           <summary>Menu</summary>
           <div className="dashboard-mobile-menu-panel">
-            <a href="/dashboard#board">Board</a>
-            <a href="/dashboard#idea-capture">Idea</a>
-            <a href="/dashboard/health">Health</a>
-            <a href="/dashboard/analytics">Analytics</a>
-            <a href="/dashboard/content">Content</a>
-            <a href="/dashboard/reddit">Reddit</a>
-            <a href="/dashboard/aether">Aether</a>
-            <a href="/dashboard/vault">Vault</a>
+            {NAV.map(item => (
+              <Link key={item.href} href={item.href}>{item.label}</Link>
+            ))}
           </div>
         </details>
       </nav>
       {children}
+      {/* Mounted in the layout, deliberately. A layout does not remount on
+          client-side navigation, so the conversation, its scroll position and
+          any half-typed message survive moving between Board, Content,
+          Analytics and the rest. Mounted inside a page it unmounted on every
+          click, which is why this dashboard lost to Telegram for daily use. */}
+      <WendyRail />
     </div>
   )
 }
