@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 
-const WENDY_SECRET = process.env.WENDY_SECRET
+const WENDY_SECRET = process.env.WENDY_TASKS_SECRET
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get('x-wendy-secret')
